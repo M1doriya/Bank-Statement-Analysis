@@ -1,0 +1,258 @@
+import re
+from datetime import datetime
+
+
+# =========================================================
+# MAIN ENTRY (USED BY app.py)
+# =========================================================
+
+def parse_hong_leong(pdf, filename):
+    transactions = []
+
+    opening_balance = extract_opening_balance(pdf)
+    running_balance = opening_balance
+
+    for page_num, page in enumerate(pdf.pages, start=1):
+        words = page.extract_words(use_text_flow=True, keep_blank_chars=False)
+        if not words:
+            continue
+
+        rows = group_words_by_row(words, tolerance=3)
+
+        # Detect Deposit/Withdrawal/Balance column x positions (per page)
+        col_x = detect_amount_columns(rows)
+
+        i = 0
+        while i < len(rows):
+            row = rows[i]
+
+            date = extract_date(row)
+            if not date:
+                i += 1
+                continue
+
+            if is_total_row(row):
+                i += 1
+                continue
+
+            desc_tokens = []
+            amount_tokens = []
+
+            # Current row
+            desc_tokens.extend(extract_desc_tokens(row))
+            amount_tokens.extend(extract_amount_tokens(row, col_x))
+
+            # Continuation rows until next date
+            j = i + 1
+            while j < len(rows) and extract_date(rows[j]) is None:
+                if is_total_row(rows[j]):
+                    break
+                desc_tokens.extend(extract_desc_tokens(rows[j]))
+                amount_tokens.extend(extract_amount_tokens(rows[j], col_x))
+                j += 1
+
+            credit, debit = classify_amounts_by_columns(amount_tokens, col_x)
+
+            if credit == 0.0 and debit == 0.0:
+                i = j
+                continue
+
+            running_balance = round(running_balance + credit - debit, 2)
+
+            transactions.append({
+                "date": date,
+                "description": clean_description(desc_tokens),
+                "debit": debit,
+                "credit": credit,
+                "balance": running_balance,  # calculated, not extracted
+                "page": page_num,
+                "bank": "Hong Leong Islamic Bank",
+                "source_file": filename
+            })
+
+            i = j
+
+    return transactions
+
+
+# =========================================================
+# OPENING BALANCE
+# =========================================================
+
+def extract_opening_balance(pdf):
+    text = pdf.pages[0].extract_text() or ""
+    m = re.search(
+        r"Balance from previous statement\s+([\d,]+\.\d{2})",
+        text,
+        re.IGNORECASE
+    )
+    if not m:
+        raise ValueError("Opening balance not found")
+    return float(m.group(1).replace(",", ""))
+
+
+# =========================================================
+# ROW GROUPING (Y AXIS)
+# =========================================================
+
+def group_words_by_row(words, tolerance=3):
+    rows = []
+    for w in words:
+        placed = False
+        for row in rows:
+            if abs(row[0]["top"] - w["top"]) <= tolerance:
+                row.append(w)
+                placed = True
+                break
+        if not placed:
+            rows.append([w])
+
+    for row in rows:
+        row.sort(key=lambda x: x["x0"])
+    return rows
+
+
+# =========================================================
+# COLUMN DETECTION (Deposit / Withdrawal / Balance)
+# =========================================================
+
+def detect_amount_columns(rows):
+    deposit_x = withdrawal_x = balance_x = None
+
+    for row in rows:
+        joined = " ".join(w["text"].strip().lower() for w in row)
+
+        # header typically contains all three labels
+        if "deposit" in joined and "withdrawal" in joined and "balance" in joined:
+            for w in row:
+                t = w["text"].strip().lower()
+                if t == "deposit":
+                    deposit_x = w["x0"]
+                elif t == "withdrawal":
+                    withdrawal_x = w["x0"]
+                elif t == "balance":
+                    balance_x = w["x0"]
+            break
+
+    # sensible fallbacks if header text isn't captured on some pages
+    if deposit_x is None:
+        deposit_x = 320.0
+    if withdrawal_x is None:
+        withdrawal_x = 410.0
+    if balance_x is None:
+        balance_x = 520.0
+
+    return {
+        "deposit_x": float(deposit_x),
+        "withdrawal_x": float(withdrawal_x),
+        "balance_x": float(balance_x),
+    }
+
+
+# =========================================================
+# DATE DETECTION
+# =========================================================
+
+def extract_date(row):
+    for w in row:
+        if re.fullmatch(r"\d{2}-\d{2}-\d{4}", w["text"]):
+            return datetime.strptime(w["text"], "%d-%m-%Y").strftime("%Y-%m-%d")
+    return None
+
+
+# =========================================================
+# TOKEN EXTRACTION
+# =========================================================
+
+def extract_amount_tokens(row, col_x):
+    """
+    IMPORTANT FIX:
+    Only treat money-looking tokens as amounts if they are positioned
+    in the right-side amount columns area (near Deposit/Withdrawal/Balance).
+    This prevents things like '382.99 PLUS 1500' in description from becoming credit.
+    """
+    out = []
+    # allow small drift to the left of Deposit column
+    min_amount_x = col_x["deposit_x"] - 25
+
+    for w in row:
+        t = w["text"].strip()
+        if re.fullmatch(r"[\d,]+\.\d{2}", t):
+            # FILTER BY X: ignore numeric tokens inside description area
+            if w["x0"] >= min_amount_x:
+                out.append({"x": w["x0"], "value": float(t.replace(",", ""))})
+
+    return out
+
+
+def extract_desc_tokens(row):
+    out = []
+    for w in row:
+        t = w["text"].strip()
+        if not t:
+            continue
+        if re.fullmatch(r"\d{2}-\d{2}-\d{4}", t):
+            continue
+        # keep numeric tokens in description if you want, but they won't be treated as amounts now
+        if is_noise(t):
+            continue
+        out.append(t)
+    return out
+
+
+# =========================================================
+# AMOUNT CLASSIFICATION USING COLUMN X (ignore balance column)
+# =========================================================
+
+def classify_amounts_by_columns(amount_words, col_x):
+    credit = 0.0
+    debit = 0.0
+
+    dep = col_x["deposit_x"]
+    wdr = col_x["withdrawal_x"]
+    bal = col_x["balance_x"]
+
+    for a in amount_words:
+        x = a["x"]
+        val = a["value"]
+
+        dist_dep = abs(x - dep)
+        dist_wdr = abs(x - wdr)
+        dist_bal = abs(x - bal)
+
+        if dist_dep <= dist_wdr and dist_dep <= dist_bal:
+            credit += val
+        elif dist_wdr <= dist_dep and dist_wdr <= dist_bal:
+            debit += val
+        else:
+            # balance column -> ignore
+            pass
+
+    return round(credit, 2), round(debit, 2)
+
+
+# =========================================================
+# FILTERS / CLEANUP
+# =========================================================
+
+def is_total_row(row):
+    text = " ".join(w["text"] for w in row)
+    return bool(re.search(
+        r"Total Withdrawals|Total Deposits|Closing Balance|Important Notices",
+        text,
+        re.IGNORECASE
+    ))
+
+
+def is_noise(text):
+    return bool(re.search(
+        r"Protected by PIDM|Dilindungi oleh PIDM|Hong Leong Islamic Bank|hlisb\.com\.my|Menara Hong Leong|CURRENT ACCOUNT",
+        text,
+        re.IGNORECASE
+    ))
+
+
+def clean_description(parts):
+    s = " ".join(parts)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
