@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Bank Statement Analysis</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #111a33;
+      --text: #e8eefc;
+      --muted: #a9b7e6;
+      --line: #22305b;
+      --good: #19c37d;
+      --warn: #f5c542;
+      --bad: #ff5a5f;
+      --chip: #1a2750;
+    }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: Inter, Arial, sans-serif; }
+    .container { max-width: 1180px; margin: 22px auto; padding: 0 16px; }
+    .header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    .title { font-size: 22px; font-weight: 700; }
+    .sub { color: var(--muted); margin-top: 6px; font-size: 13px; }
+    .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: var(--chip); color: var(--text); font-size: 12px; border: 1px solid var(--line); }
+    .badge.good { border-color: rgba(25,195,125,.35); }
+    .badge.warn { border-color: rgba(245,197,66,.35); }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .card h3 { margin: 0 0 10px 0; font-size: 14px; color: var(--muted); font-weight: 600; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; font-size: 13px; }
+    th { color: var(--muted); font-weight: 600; }
+    .num { text-align:right; font-variant-numeric: tabular-nums; }
+    .section { margin-top: 14px; }
+    .kpi { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+    .kpi .card { padding: 12px; }
+    .kpi .v { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .muted { color: var(--muted); }
+    ul { margin: 0; padding-left: 18px; }
+    .qa { border-left: 4px solid var(--warn); }
+    .na { color: var(--muted); font-style: italic; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="title">{{ header_title }}</div>
+        <div class="sub">Generated at: {{ generated_at }} | Bank: {{ bank_name }}</div>
+      </div>
+      <div class="badge {{ coverage_badge_class }}">Coverage: {{ months_count }}/6 months</div>
+    </div>
+
+    <div class="kpi">
+      <div class="card">
+        <h3>Total Inflow</h3>
+        <div class="v">{{ total_inflow }}</div>
+      </div>
+      <div class="card">
+        <h3>Total Debit</h3>
+        <div class="v">{{ total_debit }}</div>
+      </div>
+      <div class="card">
+        <h3>Net Cash Flow</h3>
+        <div class="v">{{ net_cash_flow }}</div>
+      </div>
+      <div class="card">
+        <h3>Average Swing</h3>
+        <div class="v">{{ average_swing }}</div>
+      </div>
+    </div>
+
+    <div class="grid section">
+      <div class="card">
+        <h3>Executive Summary</h3>
+        <ul>
+          {% for bullet in exec_summary %}
+            <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>OD Pattern</h3>
+        <ul>
+          {% for bullet in od_summary %}
+            <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card section">
+      <h3>Monthly / Statement Summary (Grouped by source_file)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Statement (source_file)</th>
+            <th>Period</th>
+            <th class="num">Opening</th>
+            <th class="num">Debit</th>
+            <th class="num">Credit</th>
+            <th class="num">Ending</th>
+            <th class="num">High</th>
+            <th class="num">Low</th>
+            <th class="num">Swing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in statement_rows %}
+          <tr>
+            <td>{{ row.source_file }}</td>
+            <td class="muted">{{ row.period }}</td>
+            <td class="num">{{ row.opening }}</td>
+            <td class="num">{{ row.total_debit }}</td>
+            <td class="num">{{ row.total_credit }}</td>
+            <td class="num">{{ row.ending }}</td>
+            <td class="num">{{ row.high }}</td>
+            <td class="num">{{ row.low }}</td>
+            <td class="num">{{ row.swing }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid section">
+      <div class="card">
+        <h3>Financial Ratios</h3>
+        <table>
+          <tr><th>Metric</th><th class="num">Value</th></tr>
+          {% for r in ratios %}
+          <tr>
+            <td>{{ r.metric }}</td>
+            <td class="num">{{ r.value }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Key Observations</h3>
+        <ul>
+          {% for bullet in observations %}
+            <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card section qa">
+      <h3>Data QA</h3>
+      {% if warnings %}
+        <ul>
+          {% for w in warnings %}
+            <li>{{ w }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="muted">No QA warnings.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</body>
+</html>
