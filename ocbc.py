@@ -1,18 +1,10 @@
 # ocbc.py
 # OCBC Bank (Malaysia) - Current Account statement parser
 #
-# Supports statements where transactions appear as text lines like:
-#   Balance B/F 2.00
-#   02 MAY 2023 DUITNOW(INST TRF) CR /IB 500.00 502.00
-#   LF SERVICES SDN. BH
-#   DESC:
-#   REF: PV42/2023/LFS
-#
-# Also supports debit lines like:
-#   08 MAY 2023 DUITNOW(INST TRF) DR /IB 17,371.00 202,582.00
-#
-# Output schema aligns with app.py/core_utils normalization:
-#   date, description, debit, credit, balance, page, bank, source_file
+# FIX:
+#   Some statements have NO transaction lines (only Balance B/F + Transaction Summary = 0/0).
+#   In that case, emit a single balance-only row dated to the statement end date so the month
+#   appears in Streamlit monthly summary.
 
 from __future__ import annotations
 
@@ -35,6 +27,15 @@ TX_START_RE = re.compile(
 )
 
 BAL_BF_RE = re.compile(r"\bBalance\s+B/F\b\s+(?P<bal>-?[\d,]+\.\d{2})", re.IGNORECASE)
+
+# Statement period line example (from your PDF):
+# "Statement Date / Tarikh Penyata : 01 APR 2023 TO 30 APR 2023"
+STATEMENT_PERIOD_RE = re.compile(
+    r"Statement\s+Date\s*/\s*Tarikh\s+Penyata\s*:\s*"
+    r"(?P<d1>\d{2})\s+(?P<m1>JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(?P<y1>\d{4})\s+TO\s+"
+    r"(?P<d2>\d{2})\s+(?P<m2>JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(?P<y2>\d{4})",
+    re.IGNORECASE,
+)
 
 MONEY_RE = re.compile(r"^-?(\d{1,3}(?:,\d{3})*|\d+)\.\d{2}$")
 
@@ -72,11 +73,20 @@ def _to_iso_date(day: str, mon: str, year: str) -> str:
     return f"{year}-{mm}-{day}"
 
 
+def _extract_statement_end_date_iso(text: str) -> Optional[str]:
+    """Extract the statement end date ISO from the statement period header."""
+    if not text:
+        return None
+    m = STATEMENT_PERIOD_RE.search(text)
+    if not m:
+        return None
+    return _to_iso_date(m.group("d2"), m.group("m2"), m.group("y2"))
+
+
 def _extract_amount_and_balance_from_line(rest: str) -> Tuple[Optional[float], Optional[float], str]:
     """
-    From the 'rest' part of the first transaction line (after date),
-    extract:
-      - tx_amount (usually the first money token from the right that isn't the balance)
+    From 'rest' (after date), extract:
+      - tx_amount (usually the penultimate money token)
       - balance (last money token)
       - desc_text (rest with trailing numeric columns removed)
     """
@@ -85,19 +95,11 @@ def _extract_amount_and_balance_from_line(rest: str) -> Tuple[Optional[float], O
     if len(money_idx) < 2:
         return None, None, rest
 
-    # Last money token is balance
-    bal_token = tokens[money_idx[-1]]
-    balance = safe_float(bal_token)
+    balance = safe_float(tokens[money_idx[-1]])
+    tx_amount = safe_float(tokens[money_idx[-2]])
 
-    # The preceding money token is usually transaction amount
-    amt_token = tokens[money_idx[-2]]
-    tx_amount = safe_float(amt_token)
-
-    # Remove trailing money tokens and anything after first trailing money block
-    cut = money_idx[-2]  # keep description up to before amount
-    desc_tokens = tokens[:cut]
-    desc_text = " ".join(desc_tokens).strip()
-
+    cut = money_idx[-2]
+    desc_text = " ".join(tokens[:cut]).strip()
     return tx_amount, balance, desc_text
 
 
@@ -114,18 +116,16 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
       input: pdf bytes (preferred) OR file-like
       output: list of tx dicts with canonical keys
     """
-    # open pdfplumber from bytes or file-like
     if isinstance(pdf_input, (bytes, bytearray)):
         pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
     else:
         pdf = pdfplumber.open(pdf_input)
 
     bank_name = "OCBC Bank"
-
     transactions: List[Dict] = []
-    prev_balance: Optional[float] = None
-    latest_date_iso: Optional[str] = None
 
+    prev_balance: Optional[float] = None
+    statement_end_iso: Optional[str] = None
     current_tx: Optional[Dict] = None
 
     try:
@@ -134,7 +134,11 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
             if not text:
                 continue
 
-            # find opening balance once
+            # capture statement end date once (needed for "no transactions" months)
+            if statement_end_iso is None:
+                statement_end_iso = _extract_statement_end_date_iso(text)
+
+            # find Balance B/F once
             if prev_balance is None:
                 bf = BAL_BF_RE.search(text)
                 if bf:
@@ -145,31 +149,28 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
                 if not line:
                     continue
 
-                # stop when summary starts
+                # Stop processing transaction area when summary starts
                 if "TRANSACTION" in line.upper() and "SUMMARY" in line.upper():
                     current_tx = None
                     break
 
                 m = TX_START_RE.match(line)
                 if m:
-                    # finalize previous tx (already appended when started)
                     day, mon, year = m.group("day"), m.group("mon"), m.group("year")
                     rest = m.group("rest")
 
                     date_iso = _to_iso_date(day, mon, year)
                     tx_amount, balance, desc_head = _extract_amount_and_balance_from_line(rest)
 
-                    # If we can't find amount/balance, skip (rare)
                     if tx_amount is None or balance is None:
                         current_tx = None
                         continue
 
                     desc_upper = desc_head.upper()
-
                     debit = 0.0
                     credit = 0.0
 
-                    # 1) keyword-driven classification
+                    # 1) keyword classification
                     if any(h in f" {desc_upper} " for h in CREDIT_HINTS) and not any(h in f" {desc_upper} " for h in (" DR ", "DR /IB")):
                         credit = abs(tx_amount)
                     elif any(h in f" {desc_upper} " for h in DEBIT_HINTS):
@@ -177,13 +178,11 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
                     # 2) balance-delta fallback
                     elif prev_balance is not None:
                         delta = round(balance - prev_balance, 2)
-                        # if the delta matches amount, classify
                         if abs(delta - tx_amount) <= 0.05:
                             credit = abs(tx_amount)
                         elif abs(delta + tx_amount) <= 0.05:
                             debit = abs(tx_amount)
                         else:
-                            # if unclear, infer from sign of delta
                             if delta > 0:
                                 credit = abs(delta)
                             elif delta < 0:
@@ -199,18 +198,34 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
                         "bank": bank_name,
                         "source_file": source_file,
                     }
-
                     transactions.append(tx)
                     current_tx = tx
                     prev_balance = balance
-                    latest_date_iso = max(latest_date_iso, date_iso) if latest_date_iso else date_iso
                     continue
 
-                # continuation lines
+                # Continuation lines (multi-line description)
                 if current_tx is not None and not _is_noise_line(line):
-                    # Avoid accidentally appending numeric-only lines
+                    # avoid numeric-only lines
                     if not MONEY_RE.match(line.replace(",", "")):
                         current_tx["description"] = normalize_text(current_tx["description"] + " " + line)
+
+        # ---- FIX: no transactions case (like your April PDF) ----
+        if not transactions and prev_balance is not None:
+            # Use statement end date so monthly summary buckets correctly
+            date_for_row = statement_end_iso or "2000-01-01"
+            transactions.append(
+                {
+                    "date": date_for_row,
+                    "description": "NO TRANSACTIONS (BALANCE B/F)",
+                    "debit": 0.0,
+                    "credit": 0.0,
+                    "balance": round(float(prev_balance), 2),
+                    "page": None,
+                    "bank": bank_name,
+                    "source_file": source_file,
+                    "is_statement_balance": True,
+                }
+            )
 
         return transactions
 
