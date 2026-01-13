@@ -1,4 +1,3 @@
-```python
 # app.py
 # Streamlit Multi-Bank Statement Parser (Multi-File Support)
 # - Standardizes input as PDF bytes
