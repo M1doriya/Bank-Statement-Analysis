@@ -4,7 +4,6 @@ import json
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
-
 import streamlit.components.v1 as components
 
 # ---------------------------------------------------
@@ -24,9 +23,15 @@ from agro_bank import parse_agro_bank
 
 # ---------------------------------------------------
 # NEW: Deterministic analysis + HTML report
+# (Make sure these files exist in your repo)
 # ---------------------------------------------------
-from analysis_engine import build_analysis, AnalysisInputs
-from report_renderer import render_report_html
+try:
+    from analysis_engine import build_analysis, AnalysisInputs
+    from report_renderer import render_report_html
+    ANALYSIS_ENABLED = True
+except Exception:
+    ANALYSIS_ENABLED = False
+
 
 # ---------------------------------------------------
 # Streamlit Setup
@@ -40,19 +45,20 @@ st.write("Upload one or more bank statement PDFs to extract transactions.")
 # Session State
 # ---------------------------------------------------
 if "status" not in st.session_state:
-    st.session_state.status = "idle"    # idle, running, stopped
+    st.session_state.status = "idle"  # idle, running, stopped
 
 if "results" not in st.session_state:
     st.session_state.results = []
 
 
 # ---------------------------------------------------
-# Inputs (OD limit + Declared Sales)
+# Sidebar: Optional Analysis Inputs
 # ---------------------------------------------------
 with st.sidebar:
     st.header("Analysis Inputs (Optional)")
-    od_limit_raw = st.text_input("Approved OD Limit (RM) - optional", value="")
-    declared_sales_raw = st.text_input("Declared Sales (RM) - optional", value="")
+
+    od_limit_raw = st.text_input("Approved OD Limit (RM)", value="")
+    declared_sales_raw = st.text_input("Declared Sales (RM)", value="")
 
     def _parse_optional_float(s: str):
         s = (s or "").strip()
@@ -71,6 +77,9 @@ with st.sidebar:
     if declared_sales_raw.strip() and declared_sales is None:
         st.warning("Declared Sales is not a valid number. Leave empty if not applicable.")
 
+    if not ANALYSIS_ENABLED:
+        st.info("Credit Analysis Report is disabled. Add analysis_engine.py, report_renderer.py, and templates/BankAnalysis_template.html.")
+
 
 # ---------------------------------------------------
 # Bank Selection
@@ -88,10 +97,9 @@ bank_choice = st.selectbox(
         "Hong Leong",
         "Maybank",
         "Public Bank (PBB)",
-        "RHB Bank"
+        "RHB Bank",
     ]
 )
-
 
 # ---------------------------------------------------
 # File Upload
@@ -130,6 +138,56 @@ st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 # ---------------------------------------------------
+# Helper: parse one PDF by bank (FIXES YOUR ERROR)
+# ---------------------------------------------------
+def parse_by_bank(bank: str, uploaded_file, pdf_bytes: bytes, filename: str):
+    """
+    Routes PDF inputs correctly:
+      - Maybank: pass bytes to fitz-based parser
+      - RHB: pass bytes (rhb.py reads bytes safely)
+      - Others: open pdfplumber with BytesIO and pass pdfplumber.PDF
+    """
+    if bank == "Maybank":
+        # ✅ maybank.py uses fitz.open(stream=..., filetype="pdf")
+        return parse_transactions_maybank(pdf_bytes, filename)
+
+    if bank == "RHB Bank":
+        # ✅ rhb.py reads bytes internally and uses pdfplumber on BytesIO
+        return parse_transactions_rhb(pdf_bytes, filename)
+
+    # ✅ all other banks remain pdfplumber-based
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        if bank == "Public Bank (PBB)":
+            return parse_transactions_pbb(pdf, filename)
+
+        if bank == "CIMB Bank":
+            return parse_transactions_cimb(pdf, filename)
+
+        if bank == "Ambank":
+            return parse_ambank(pdf, filename)
+
+        if bank == "Bank Islam":
+            return parse_bank_islam(pdf, filename)
+
+        if bank == "Bank Rakyat":
+            return parse_bank_rakyat(pdf, filename)
+
+        if bank == "Bank Muamalat":
+            return parse_transactions_bank_muamalat(pdf, filename)
+
+        if bank == "Agro Bank":
+            return parse_agro_bank(pdf, filename)
+
+        if bank == "Hong Leong":
+            return parse_hong_leong(pdf, filename)
+
+        if bank == "Affin Bank":
+            return parse_affin_bank(pdf, filename)
+
+    return []
+
+
+# ---------------------------------------------------
 # MAIN PROCESSING
 # ---------------------------------------------------
 all_tx = []
@@ -151,50 +209,14 @@ if uploaded_files and st.session_state.status == "running":
         bank_display_box.info(f"📄 Processing {bank_choice}: {uploaded_file.name}...")
 
         try:
-            with pdfplumber.open(uploaded_file) as pdf:
+            pdf_bytes = uploaded_file.getvalue()
+            tx = parse_by_bank(bank_choice, uploaded_file, pdf_bytes, uploaded_file.name)
 
-                tx = []
-
-                if bank_choice == "Maybank":
-                    # keep your existing logic
-                    tx = parse_transactions_maybank(pdf, uploaded_file.name)
-
-                elif bank_choice == "Public Bank (PBB)":
-                    tx = parse_transactions_pbb(pdf, uploaded_file.name)
-
-                elif bank_choice == "RHB Bank":
-                    # keep your existing logic (RHB parser uses uploaded_file)
-                    tx = parse_transactions_rhb(uploaded_file, uploaded_file.name)
-
-                elif bank_choice == "CIMB Bank":
-                    tx = parse_transactions_cimb(pdf, uploaded_file.name)
-
-                elif bank_choice == "Ambank":
-                    tx = parse_ambank(pdf, uploaded_file.name)
-
-                elif bank_choice == "Bank Islam":
-                    tx = parse_bank_islam(pdf, uploaded_file.name)
-
-                elif bank_choice == "Bank Rakyat":
-                    tx = parse_bank_rakyat(pdf, uploaded_file.name)
-
-                elif bank_choice == "Bank Muamalat":
-                    tx = parse_transactions_bank_muamalat(pdf, uploaded_file.name)
-
-                elif bank_choice == "Agro Bank":
-                    tx = parse_agro_bank(pdf, uploaded_file.name)
-
-                elif bank_choice == "Hong Leong":
-                    tx = parse_hong_leong(pdf, uploaded_file.name)
-
-                elif bank_choice == "Affin Bank":
-                    tx = parse_affin_bank(pdf, uploaded_file.name)
-
-                if tx:
-                    st.success(f"✅ Extracted {len(tx)} transactions from {uploaded_file.name}")
-                    all_tx.extend(tx)
-                else:
-                    st.warning(f"⚠️ No transactions found in {uploaded_file.name}")
+            if tx:
+                st.success(f"✅ Extracted {len(tx)} transactions from {uploaded_file.name}")
+                all_tx.extend(tx)
+            else:
+                st.warning(f"⚠️ No transactions found in {uploaded_file.name}")
 
         except Exception as e:
             st.error(f"❌ Error processing {uploaded_file.name}: {e}")
@@ -207,7 +229,7 @@ if uploaded_files and st.session_state.status == "running":
 
 
 # ---------------------------------------------------
-# CALCULATE MONTHLY SUMMARY (your existing calendar-month summary)
+# CALCULATE MONTHLY SUMMARY (Calendar months - your existing logic)
 # ---------------------------------------------------
 def calculate_monthly_summary(transactions):
     if not transactions:
@@ -237,17 +259,17 @@ def calculate_monthly_summary(transactions):
             group_sorted = group.sort_values("date_parsed")
             balances = group_sorted["balance"].dropna()
             if not balances.empty:
-                ending_balance = round(balances.iloc[-1], 2)
+                ending_balance = round(float(balances.iloc[-1]), 2)
 
         monthly_summary.append({
             "month": period,
-            "transaction_count": len(group),
-            "total_debit": round(group["debit"].sum(), 2),
-            "total_credit": round(group["credit"].sum(), 2),
-            "net_change": round(group["credit"].sum() - group["debit"].sum(), 2),
+            "transaction_count": int(len(group)),
+            "total_debit": round(float(group["debit"].sum()), 2),
+            "total_credit": round(float(group["credit"].sum()), 2),
+            "net_change": round(float(group["credit"].sum() - group["debit"].sum()), 2),
             "ending_balance": ending_balance,
-            "lowest_balance": round(group["balance"].min(), 2) if not group["balance"].isna().all() else None,
-            "highest_balance": round(group["balance"].max(), 2) if not group["balance"].isna().all() else None,
+            "lowest_balance": round(float(group["balance"].min()), 2) if not group["balance"].isna().all() else None,
+            "highest_balance": round(float(group["balance"].max()), 2) if not group["balance"].isna().all() else None,
             "source_files": ", ".join(sorted(group["source_file"].unique())) if "source_file" in group.columns else ""
         })
 
@@ -255,7 +277,7 @@ def calculate_monthly_summary(transactions):
 
 
 # ---------------------------------------------------
-# DISPLAY RESULTS + NEW REPORT OUTPUTS
+# DISPLAY RESULTS + TABS
 # ---------------------------------------------------
 if st.session_state.results:
 
@@ -266,9 +288,8 @@ if st.session_state.results:
         "balance", "page", "bank", "source_file"
     ]
     display_cols = [c for c in display_cols if c in df.columns]
-    df_display = df[display_cols]
+    df_display = df[display_cols].copy()
 
-    # Tabs so the app feels like one platform
     tab1, tab2, tab3, tab4 = st.tabs([
         "Transactions",
         "Calendar Monthly Summary",
@@ -281,7 +302,7 @@ if st.session_state.results:
         st.subheader("📊 Extracted Transactions")
         st.dataframe(df_display, use_container_width=True)
 
-    # ------------------- TAB 2: CALENDAR MONTH SUMMARY -------------------
+    # ------------------- TAB 2: CALENDAR MONTHLY SUMMARY -------------------
     with tab2:
         monthly_summary = calculate_monthly_summary(st.session_state.results)
         if monthly_summary:
@@ -306,58 +327,57 @@ if st.session_state.results:
     with tab3:
         st.subheader("🧾 Credit Analysis Outputs (Deterministic)")
 
-        inputs = AnalysisInputs(od_limit=od_limit, declared_sales=declared_sales)
+        if not ANALYSIS_ENABLED:
+            st.error("analysis_engine.py / report_renderer.py / templates/BankAnalysis_template.html not found. Add them to enable this tab.")
+        else:
+            inputs = AnalysisInputs(od_limit=od_limit, declared_sales=declared_sales)
 
-        try:
-            analysis = build_analysis(st.session_state.results, inputs)
+            try:
+                analysis = build_analysis(st.session_state.results, inputs)
 
-            st.write("### OUTPUT 1: GEM_5_BANK_DATA (JSON)")
-            gem_json_str = json.dumps(analysis.gem_5_bank_data, indent=2)
-            st.code(gem_json_str, language="json")
+                st.write("### OUTPUT 1: GEM_5_BANK_DATA (JSON)")
+                gem_json_str = json.dumps(analysis.gem_5_bank_data, indent=2)
+                st.code(gem_json_str, language="json")
 
-            st.write("### OUTPUT 2: HTML Report")
-            html = render_report_html(
-                analysis=analysis,
-                bank_name=bank_choice,
-                inputs=inputs,
-                template_path="templates/BankAnalysis_template.html",
-            )
-
-            # Preview (scrollable)
-            components.html(html, height=800, scrolling=True)
-
-            st.markdown("---")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.download_button(
-                    "⬇️ Download GEM_5_BANK_DATA.json",
-                    gem_json_str,
-                    "GEM_5_BANK_DATA.json",
-                    "application/json",
-                )
-            with c2:
-                st.download_button(
-                    "⬇️ Download BankAnalysis_Report.html",
-                    html,
-                    "BankAnalysis_Report.html",
-                    "text/html",
+                st.write("### OUTPUT 2: HTML Report")
+                html = render_report_html(
+                    analysis=analysis,
+                    bank_name=bank_choice,
+                    inputs=inputs,
+                    template_path="templates/BankAnalysis_template.html",
                 )
 
-            # QA warnings in UI
-            if analysis.warnings:
-                st.warning("Data QA Warnings:")
-                for w in analysis.warnings:
-                    st.write(f"- {w}")
+                components.html(html, height=800, scrolling=True)
 
-        except Exception as e:
-            st.error(f"Analysis/Report generation failed: {e}")
-            st.info("Check that analysis_engine.py, report_renderer.py, and templates/BankAnalysis_template.html exist in your repo.")
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.download_button(
+                        "⬇️ Download GEM_5_BANK_DATA.json",
+                        gem_json_str,
+                        "GEM_5_BANK_DATA.json",
+                        "application/json",
+                    )
+                with c2:
+                    st.download_button(
+                        "⬇️ Download BankAnalysis_Report.html",
+                        html,
+                        "BankAnalysis_Report.html",
+                        "text/html",
+                    )
 
-    # ------------------- TAB 4: DOWNLOADS (your original exports) -------------------
+                if analysis.warnings:
+                    st.warning("Data QA Warnings:")
+                    for w in analysis.warnings:
+                        st.write(f"- {w}")
+
+            except Exception as e:
+                st.error(f"Analysis/Report generation failed: {e}")
+
+    # ------------------- TAB 4: DOWNLOADS (Your original exports) -------------------
     with tab4:
-        st.subheader("⬇️ Download Options (Original)")
+        st.subheader("⬇️ Download Options")
 
-        # reuse monthly summary output for full report
         monthly_summary = calculate_monthly_summary(st.session_state.results)
 
         col1, col2, col3 = st.columns(3)
@@ -373,14 +393,20 @@ if st.session_state.results:
         with col2:
             full_report = {
                 "summary": {
-                    "total_transactions": len(df),
-                    "date_range": f"{df['date'].min()} to {df['date'].max()}",
-                    "total_files_processed": df["source_file"].nunique() if "source_file" in df.columns else None,
+                    "total_transactions": int(len(df_display)),
+                    "date_range": f"{df_display['date'].min()} to {df_display['date'].max()}" if "date" in df_display.columns else None,
+                    "total_files_processed": int(df_display["source_file"].nunique()) if "source_file" in df_display.columns else None,
                     "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "bank_selected": bank_choice,
+                    "inputs": {
+                        "od_limit": od_limit,
+                        "declared_sales": declared_sales
+                    }
                 },
                 "monthly_summary": monthly_summary,
                 "transactions": df_display.to_dict(orient="records")
             }
+
             st.download_button(
                 "📊 Download Full Report (JSON)",
                 json.dumps(full_report, indent=4),
@@ -393,9 +419,7 @@ if st.session_state.results:
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 df_display.to_excel(writer, sheet_name="Transactions", index=False)
                 if monthly_summary:
-                    pd.DataFrame(monthly_summary).to_excel(
-                        writer, sheet_name="Monthly Summary", index=False
-                    )
+                    pd.DataFrame(monthly_summary).to_excel(writer, sheet_name="Monthly Summary", index=False)
 
             st.download_button(
                 "📊 Download Full Report (XLSX)",
