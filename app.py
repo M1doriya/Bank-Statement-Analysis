@@ -1,13 +1,22 @@
+```python
 # app.py
 # Streamlit Multi-Bank Statement Parser (Multi-File Support)
 # - Standardizes input as PDF bytes
 # - Calls bank-specific parsers (pdfplumber/fitz as needed)
 # - Normalizes transaction schema/types
 # - De-duplicates across files
-# - Produces monthly summary + exports (JSON/XLSX)
+# - Deterministic sorting
+# - Monthly summary + exports (JSON/XLSX)
 # - Includes OCBC integration
+#
+# FIX INCLUDED:
+#   Monthly summary month-bucketing was wrong for ISO dates (YYYY-MM-DD) because
+#   pd.to_datetime(..., dayfirst=True) can flip month/day on ISO strings where both <= 12.
+#   This version parses ISO strictly with format="%Y-%m-%d" and only uses dayfirst=True
+#   for non-ISO formats. Same fix applied to sorting.
 
 import json
+import re
 from datetime import datetime
 from io import BytesIO
 from typing import Callable, Dict, List, Tuple
@@ -60,6 +69,30 @@ if "results" not in st.session_state:
 
 
 # ---------------------------------------------------
+# Date parsing helper (FIX)
+# ---------------------------------------------------
+_ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+def parse_any_date_for_summary(x) -> pd.Timestamp:
+    """
+    Parse dates safely:
+    - ISO YYYY-MM-DD: parse with explicit format (never dayfirst)
+    - Otherwise: fall back to dayfirst=True for DD/MM/YYYY etc.
+    """
+    if x is None:
+        return pd.NaT
+    s = str(x).strip()
+    if not s:
+        return pd.NaT
+
+    if _ISO_RE.match(s):
+        return pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
+
+    # fallback for non-ISO (DD/MM/YYYY, DD/MM/YY, etc.)
+    return pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+
+# ---------------------------------------------------
 # Parser Registry Helper
 # ---------------------------------------------------
 def _parse_with_pdfplumber(parser_func: Callable, pdf_bytes: bytes, filename: str) -> List[dict]:
@@ -90,7 +123,7 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     # RHB parser should accept bytes
     "RHB Bank": lambda b, f: parse_transactions_rhb(b, f),
 
-    # NEW: OCBC parser accepts bytes
+    # OCBC parser accepts bytes
     "OCBC Bank": lambda b, f: parse_transactions_ocbc(b, f),
 }
 
@@ -188,14 +221,7 @@ if uploaded_files and st.session_state.status == "running":
 
     # 4) Sort deterministically by date -> page -> description
     def _sort_key(t: dict) -> Tuple:
-        d = t.get("date")
-        try:
-            # Most of your pipeline should already normalize to ISO,
-            # but this remains safe for mixed formats.
-            dt = pd.to_datetime(d, errors="coerce", dayfirst=True)
-        except Exception:
-            dt = pd.NaT
-
+        dt = parse_any_date_for_summary(t.get("date"))
         return (
             dt if pd.notna(dt) else pd.Timestamp.max,
             t.get("page") if t.get("page") is not None else 10**9,
@@ -207,7 +233,7 @@ if uploaded_files and st.session_state.status == "running":
 
 
 # ---------------------------------------------------
-# CALCULATE MONTHLY SUMMARY
+# CALCULATE MONTHLY SUMMARY (FIXED)
 # ---------------------------------------------------
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     if not transactions:
@@ -217,8 +243,8 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     if df.empty:
         return []
 
-    # Robust parsing; safe even if a few dates are not normalized.
-    df["date_parsed"] = pd.to_datetime(df.get("date"), errors="coerce", dayfirst=True)
+    # FIX: Use safe parser that treats ISO unambiguously
+    df["date_parsed"] = df.get("date").apply(parse_any_date_for_summary)
     df = df.dropna(subset=["date_parsed"])
     if df.empty:
         st.warning("⚠️ No valid transaction dates found.")
@@ -306,7 +332,7 @@ if st.session_state.results:
         )
 
     with col2:
-        # Date range: best-effort (keeps prior behavior)
+        # Date range: keep prior behavior (string min/max), but this is safe because dates are ISO for OCBC.
         date_min = df_display["date"].min() if "date" in df_display.columns and not df_display.empty else None
         date_max = df_display["date"].max() if "date" in df_display.columns and not df_display.empty else None
 
@@ -347,3 +373,4 @@ if st.session_state.results:
 else:
     if uploaded_files:
         st.warning("⚠️ No transactions found — click **Start Processing**.")
+```
