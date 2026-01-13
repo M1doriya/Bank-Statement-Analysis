@@ -372,4 +372,3 @@ if st.session_state.results:
 else:
     if uploaded_files:
         st.warning("⚠️ No transactions found — click **Start Processing**.")
-```
