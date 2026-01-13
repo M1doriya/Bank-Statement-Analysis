@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bank Statement Analysis v4.0 - {{ ctx.company_name }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0a0e17; --bg-alt: #0f1520; --card-bg: #141b2b; --card-hover: #1a2235;
+      --border-subtle: #1e2a42; --border-accent: #2d3f5f;
+      --accent: #22c55e; --accent-dim: rgba(34, 197, 94, 0.15);
+      --danger: #ef4444; --danger-dim: rgba(239, 68, 68, 0.15);
+      --warn: #f59e0b; --warn-dim: rgba(245, 158, 11, 0.15);
+      --info: #3b82f6; --info-dim: rgba(59, 130, 246, 0.15);
+      --purple: #8b5cf6; --purple-dim: rgba(139, 92, 246, 0.15);
+      --text-main: #e8eaed; --text-soft: #9ca3af; --text-muted: #6b7280;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter', -apple-system, sans-serif; background:var(--bg); color:var(--text-main); line-height:1.6; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .header { background: linear-gradient(135deg, var(--card-bg) 0%, var(--bg-alt) 100%); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 2rem; margin-bottom: 2rem; position: relative; overflow: hidden; }
+    .header::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background: linear-gradient(90deg, var(--accent), var(--info), var(--purple)); }
+    .header-content { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1.5rem; }
+    .company-info h1 { font-size:1.75rem; font-weight:700; margin-bottom:0.5rem; }
+    .company-info .period { color: var(--text-soft); font-size: 0.95rem; }
+    .header-stats { display:flex; gap:2rem; }
+    .header-stat { text-align:right; }
+    .header-stat .value { font-family:'JetBrains Mono', monospace; font-size:1.5rem; font-weight:600; color:var(--accent); }
+    .header-stat .label { font-size:0.75rem; color: var(--text-muted); text-transform:uppercase; }
+
+    .nav-tabs { display:flex; gap:0.5rem; margin-bottom:2rem; flex-wrap:wrap; background:var(--card-bg); padding:0.5rem; border-radius:12px; border:1px solid var(--border-subtle); }
+    .nav-tab { padding:0.75rem 1.25rem; background:transparent; border:none; color:var(--text-soft); font-size:0.85rem; font-weight:500; cursor:pointer; border-radius:8px; transition:all .2s ease; }
+    .nav-tab:hover { background:var(--bg-alt); color:var(--text-main); }
+    .nav-tab.active { background:var(--accent); color:#000; font-weight:600; }
+
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    .section { background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden; }
+    .section-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+    .section-header:hover { background: var(--card-hover); }
+    .section-title { font-size: 1rem; font-weight:600; }
+    .section-toggle { background: var(--bg-alt); border:1px solid var(--border-subtle); color:var(--text-soft); padding: .4rem .75rem; border-radius:6px; font-size:.75rem; cursor:pointer; }
+    .section-content { padding: 1.5rem; }
+    .section-content.collapsed { display:none; }
+
+    .scores-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .score-card { background: var(--card-bg); border:1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; text-align:center; cursor:pointer; transition: all .2s ease; }
+    .score-card:hover { transform: translateY(-2px); border-color: var(--border-accent); }
+    .score-card .score-value { font-family:'JetBrains Mono', monospace; font-size:2.5rem; font-weight:700; margin-bottom:.25rem; }
+    .score-card .score-label { font-size:.85rem; color:var(--text-muted); margin-bottom:.5rem; }
+    .score-card .score-rating { font-size:.75rem; font-weight:600; padding:.25rem .75rem; border-radius:20px; display:inline-block; }
+    .score-card.excellent .score-value { color: var(--accent); }
+    .score-card.excellent .score-rating { background: var(--accent-dim); color: var(--accent); }
+    .score-card.good .score-value { color: var(--info); }
+    .score-card.good .score-rating { background: var(--info-dim); color: var(--info); }
+    .score-card.warning .score-value { color: var(--warn); }
+    .score-card.warning .score-rating { background: var(--warn-dim); color: var(--warn); }
+    .score-card.danger .score-value { color: var(--danger); }
+    .score-card.danger .score-rating { background: var(--danger-dim); color: var(--danger); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.75rem; border-bottom: 1px solid var(--border-subtle); text-align: left; font-size: 0.85rem; }
+    th { color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; }
+    .mono { font-family:'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    .right { text-align:right; }
+
+    .observations-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .observation-list { list-style:none; }
+    .observation-item { display:flex; gap:.75rem; padding:.5rem 0; font-size:.9rem; color:var(--text-soft); }
+    .observation-item::before { content:'•'; font-weight:bold; }
+    .positive .observation-item::before { color: var(--accent); }
+    .concerns .observation-item::before { color: var(--danger); }
+
+    .recommendation-item { display:flex; gap: 1rem; padding: 1rem; background: var(--bg-alt); border-radius: 8px; margin-bottom: .75rem; }
+    .recommendation-priority { font-size:.7rem; font-weight:600; padding:.25rem .5rem; border-radius: 4px; text-transform:uppercase; height:fit-content; }
+    .recommendation-priority.high { background: var(--danger-dim); color: var(--danger); }
+    .recommendation-priority.medium { background: var(--warn-dim); color: var(--warn); }
+    .recommendation-priority.low { background: var(--info-dim); color: var(--info); }
+    .recommendation-category { font-size:.75rem; color: var(--text-muted); margin-bottom:.25rem; }
+    .recommendation-text { font-size:.9rem; color: var(--text-soft); }
+
+    pre { background: var(--bg-alt); padding: 1rem; border-radius: 10px; border: 1px solid var(--border-subtle); overflow:auto; }
+    .footer { text-align:center; padding: 2rem; color: var(--text-muted); font-size: .8rem; border-top: 1px solid var(--border-subtle); margin-top: 2rem; }
+
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      .observations-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-content">
+      <div class="company-info">
+        <h1>{{ ctx.company_name }}</h1>
+        <p class="period">Bank Statement Analysis v4.0 | {{ ctx.period_start }} - {{ ctx.period_end }} | {{ ctx.months_count }} Months</p>
+        <p class="period">Generated at: {{ generated_at }}</p>
+      </div>
+      <div class="header-stats">
+        <div class="header-stat"><div class="value">{{ ctx.accounts_count }}</div><div class="label">Accounts</div></div>
+        <div class="header-stat"><div class="value">{{ "{:,}".format(ctx.transactions_count) }}</div><div class="label">Transactions</div></div>
+        <div class="header-stat"><div class="value">RM {{ "{:,.2f}".format(ctx.total_credits) }}</div><div class="label">Total Credits</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('overview')">📊 Overview</button>
+    <button class="nav-tab" onclick="showTab('monthly')">📅 Monthly</button>
+    <button class="nav-tab" onclick="showTab('categories')">📁 Categories</button>
+    <button class="nav-tab" onclick="showTab('flags')">🚩 Flags</button>
+    <button class="nav-tab" onclick="showTab('integrity')">✓ Integrity</button>
+    <button class="nav-tab" onclick="showTab('related')">👥 Related Party</button>
+    <button class="nav-tab" onclick="showTab('engine')">🧠 Engine JSON</button>
+    <button class="nav-tab" onclick="showTab('recommendations')">✅ Recommendations</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview" class="tab-content active">
+    <div class="scores-grid">
+      <div class="score-card {{ ctx.integrity_css }}">
+        <div class="score-value">
+          {% if ctx.integrity_pct is none %}N/A{% else %}{{ "%.1f%%"|format(ctx.integrity_pct) }}{% endif %}
+        </div>
+        <div class="score-label">Integrity Score</div>
+        <div class="score-rating">{{ ctx.integrity_label }}</div>
+      </div>
+
+      <div class="score-card good">
+        <div class="score-value">{{ ctx.kite_pairs }}</div>
+        <div class="score-label">Kite Flying Matches</div>
+        <div class="score-rating">{{ ctx.kite_risk }}</div>
+      </div>
+
+      <div class="score-card {% if ctx.volatility_label in ['HIGH','EXTREME'] %}warning{% else %}good{% endif %}">
+        <div class="score-value">
+          {% if ctx.volatility_pct is none %}N/A{% else %}{{ "%.0f%%"|format(ctx.volatility_pct) }}{% endif %}
+        </div>
+        <div class="score-label">Volatility Index</div>
+        <div class="score-rating">{{ ctx.volatility_label }}</div>
+      </div>
+
+      <div class="score-card warning">
+        <div class="score-value">{{ ctx.round_flags }}</div>
+        <div class="score-label">Round Figure Flags</div>
+        <div class="score-rating">REVIEW</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('observationsContent')">
+        <h2 class="section-title">📊 Key Observations</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="observationsContent" class="section-content">
+        <div class="observations-grid">
+          <div class="positive">
+            <h4 style="color: var(--accent); font-size: 0.85rem; margin-bottom: 1rem;">✓ POSITIVE INDICATORS</h4>
+            <ul class="observation-list">
+              {% for b in ctx.positives %}
+                <li class="observation-item">{{ b }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="concerns">
+            <h4 style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem;">⚠ AREAS OF CONCERN</h4>
+            <ul class="observation-list">
+              {% if ctx.concerns|length == 0 %}
+                <li class="observation-item">No critical concerns detected by deterministic rules.</li>
+              {% endif %}
+              {% for b in ctx.concerns %}
+                <li class="observation-item">{{ b }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MONTHLY -->
+  <div id="tab-monthly" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('monthlyContent')">
+        <h2 class="section-title">📅 Statement / Monthly Summary (Grouped by source_file)</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="monthlyContent" class="section-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Source File</th>
+              <th>Period</th>
+              <th class="right">Opening</th>
+              <th class="right">Credits</th>
+              <th class="right">Debits</th>
+              <th class="right">Closing</th>
+              <th class="right">High</th>
+              <th class="right">Low</th>
+              <th class="right">Swing</th>
+              <th class="right">Tx</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in ctx.rows %}
+            <tr>
+              <td>{{ r.source_file }}</td>
+              <td class="mono">{{ r.period }}</td>
+              <td class="right mono">{% if r.opening is none %}N/A{% else %}{{ "{:,.2f}".format(r.opening) }}{% endif %}</td>
+              <td class="right mono">{{ "{:,.2f}".format(r.credit) }}</td>
+              <td class="right mono">{{ "{:,.2f}".format(r.debit) }}</td>
+              <td class="right mono">{% if r.closing is none %}N/A{% else %}{{ "{:,.2f}".format(r.closing) }}{% endif %}</td>
+              <td class="right mono">{% if r.high is none %}N/A{% else %}{{ "{:,.2f}".format(r.high) }}{% endif %}</td>
+              <td class="right mono">{% if r.low is none %}N/A{% else %}{{ "{:,.2f}".format(r.low) }}{% endif %}</td>
+              <td class="right mono">{% if r.swing is none %}N/A{% else %}{{ "{:,.2f}".format(r.swing) }}{% endif %}</td>
+              <td class="right mono">{{ r.tx }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 1.25rem;">
+          <div id="monthlyChart" style="height: 360px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div id="tab-categories" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('catContent')">
+        <h2 class="section-title">📁 Category Breakdown</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="catContent" class="section-content">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div>
+            <h3 style="font-size:0.9rem; color: var(--text-muted); margin-bottom:.5rem;">Credits</h3>
+            <div id="creditPie" style="height: 360px;"></div>
+          </div>
+          <div>
+            <h3 style="font-size:0.9rem; color: var(--text-muted); margin-bottom:.5rem;">Debits</h3>
+            <div id="debitPie" style="height: 360px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLAGS -->
+  <div id="tab-flags" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('flagsContent')">
+        <h2 class="section-title">🚩 Flags</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="flagsContent" class="section-content">
+        <h3 style="font-size:0.9rem; color: var(--text-muted); margin-bottom:.5rem;">Round Figure Examples (max 30)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Description</th><th>Type</th><th class="right">Amount</th><th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if ctx.round_examples|length == 0 %}
+              <tr><td colspan="5" style="color: var(--text-muted);">No round-figure examples captured.</td></tr>
+            {% endif %}
+            {% for x in ctx.round_examples %}
+              <tr>
+                <td class="mono">{{ x.date }}</td>
+                <td>{{ x.description }}</td>
+                <td class="mono">{{ x.type }}</td>
+                <td class="right mono">{{ "{:,.2f}".format(x.amount) }}</td>
+                <td class="mono">{{ x.source_file }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTEGRITY -->
+  <div id="tab-integrity" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('integrityContent')">
+        <h2 class="section-title">✓ Integrity</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="integrityContent" class="section-content">
+        <p style="color: var(--text-soft);">
+          Integrity score is computed from balance continuity checks:
+          current_balance ≈ previous_balance + credit - debit (tolerance 0.05).
+          If balances are missing, integrity becomes N/A.
+        </p>
+        <ul style="margin-top: .75rem; padding-left: 1.25rem; color: var(--text-soft);">
+          <li>Kite-flying heuristic matches: <span class="mono">{{ ctx.kite_pairs }}</span></li>
+          <li>Volatility index: <span class="mono">{% if ctx.volatility_pct is none %}N/A{% else %}{{ "%.0f%%"|format(ctx.volatility_pct) }}{% endif %}</span> ({{ ctx.volatility_label }})</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- RELATED PARTY -->
+  <div id="tab-related" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('relatedContent')">
+        <h2 class="section-title">👥 Related Party</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="relatedContent" class="section-content">
+        <p style="color: var(--text-soft);">
+          Keywords: <span class="mono">{{ ctx.related_party_keywords|join(", ") if ctx.related_party_keywords else "N/A" }}</span>
+        </p>
+        <p style="color: var(--text-soft); margin-top:.5rem;">
+          Total In: <span class="mono">RM {{ "{:,.2f}".format(ctx.related_party_total_in) }}</span> |
+          Total Out: <span class="mono">RM {{ "{:,.2f}".format(ctx.related_party_total_out) }}</span>
+        </p>
+
+        <div style="margin-top: 1rem;">
+          <h3 style="font-size:0.9rem; color: var(--text-muted); margin-bottom:.5rem;">Matched Transactions (max 200)</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Description</th><th class="right">Debit</th><th class="right">Credit</th><th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if ctx.related_party_hits|length == 0 %}
+                <tr><td colspan="5" style="color: var(--text-muted);">No related-party matches.</td></tr>
+              {% endif %}
+              {% for x in ctx.related_party_hits %}
+              <tr>
+                <td class="mono">{{ x.date }}</td>
+                <td>{{ x.description }}</td>
+                <td class="right mono">{{ "{:,.2f}".format(x.debit) }}</td>
+                <td class="right mono">{{ "{:,.2f}".format(x.credit) }}</td>
+                <td class="mono">{{ x.source_file }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ENGINE JSON -->
+  <div id="tab-engine" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('engineContent')">
+        <h2 class="section-title">🧠 Engine Output (GEM_5_BANK_DATA)</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="engineContent" class="section-content">
+        <pre>{{ gem_json }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECOMMENDATIONS -->
+  <div id="tab-recommendations" class="tab-content">
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('recContent')">
+        <h2 class="section-title">✅ Recommendations</h2>
+        <button class="section-toggle">Toggle</button>
+      </div>
+      <div id="recContent" class="section-content">
+        {% if ctx.recommendations|length == 0 %}
+          <p style="color: var(--text-soft);">No recommendations generated by deterministic rules.</p>
+        {% endif %}
+        {% for r in ctx.recommendations %}
+          <div class="recommendation-item">
+            <div class="recommendation-priority {{ r.priority }}">{{ r.priority }}</div>
+            <div>
+              <div class="recommendation-category">{{ r.category }}</div>
+              <div class="recommendation-text">{{ r.text }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Bank Statement Analysis v4.0 | Deterministic Engine + HTML Renderer
+  </div>
+
+</div>
+
+<script>
+  const chartData = {{ chart_json | safe }};
+
+  function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'" + name + "'")) btn.classList.add('active');
+    });
+    // render charts lazily
+    if (name === 'categories') renderCategoryCharts();
+    if (name === 'monthly') renderMonthlyChart();
+  }
+
+  function toggleSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+  }
+
+  let catRendered = false;
+  function renderCategoryCharts() {
+    if (catRendered) return;
+    catRendered = true;
+
+    const cr = chartData.credit_categories || [];
+    const dr = chartData.debit_categories || [];
+
+    Plotly.newPlot('creditPie', [{
+      type: 'pie',
+      labels: cr.map(x => x.category),
+      values: cr.map(x => x.amount),
+      hole: 0.4
+    }], {
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#e8eaed' },
+      margin: { t: 20, l: 10, r: 10, b: 10 }
+    }, {displayModeBar: false});
+
+    Plotly.newPlot('debitPie', [{
+      type: 'pie',
+      labels: dr.map(x => x.category),
+      values: dr.map(x => x.amount),
+      hole: 0.4
+    }], {
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#e8eaed' },
+      margin: { t: 20, l: 10, r: 10, b: 10 }
+    }, {displayModeBar: false});
+  }
+
+  let monthlyRendered = false;
+  function renderMonthlyChart() {
+    if (monthlyRendered) return;
+    monthlyRendered = true;
+
+    const rows = chartData.monthly_rows || [];
+    const x = rows.map(r => r.source_file);
+    const credits = rows.map(r => r.credit || 0);
+    const debits = rows.map(r => r.debit || 0);
+
+    Plotly.newPlot('monthlyChart', [
+      {type:'bar', name:'Credits', x:x, y:credits},
+      {type:'bar', name:'Debits', x:x, y:debits},
+    ], {
+      barmode:'group',
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e8eaed'},
+      margin:{t: 20, l: 50, r: 10, b: 120},
+      xaxis:{tickangle: -30}
+    }, {displayModeBar: false});
+  }
+</script>
+
+</body>
+</html>
