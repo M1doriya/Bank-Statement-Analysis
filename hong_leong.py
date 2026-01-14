@@ -1,233 +1,227 @@
 import re
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+# -----------------------------
+# Patterns
+# -----------------------------
+DATE_RE = re.compile(r"^(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})$")
+MONEY_TOKEN_RE = re.compile(r"^\d{1,3}(?:,\d{3})*\.\d{2}$")
+
+OPENING_RE = re.compile(r"Balance\s+from\s+previous\s+statement", re.I)
+OPENING_AMT_RE = re.compile(r"Balance\s+from\s+previous\s+statement\s+([\d,]+\.\d{2})", re.I)
+TOTAL_ROW_RE = re.compile(
+    r"(Total\s+Deposits|Total\s+Withdrawals|Closing\s+Balance|Important\s+Notices|"
+    r"Jumlah\s+Simpanan|Jumlah\s+Pengeluaran|Baki\s+Akhir|Notis\s+Penting)",
+    re.I,
+)
+
+NOISE_RE = re.compile(
+    r"(Protected by PIDM|Dilindungi oleh PIDM|Hong Leong Islamic Bank|hlisb\.com\.my|Menara Hong Leong|"
+    r"CURRENT ACCOUNT|AKAUN SEMASA|Page\s+No\.?)",
+    re.I,
+)
 
 
 # =========================================================
-# MAIN ENTRY (USED BY app.py)
+# Public entrypoint used by your app.py
 # =========================================================
 
-def parse_hong_leong(pdf, filename):
+def parse_hong_leong(pdf, filename: str) -> List[Dict]:
     """
-    Robust parser for Hong Leong Islamic Bank CURRENT ACCOUNT-i statements.
+    Production-safe Hong Leong Islamic statement parser.
 
-    Key improvements vs old version:
-    - Uses per-page money-x clustering to locate Deposit/Withdrawal/Balance columns.
-    - Extracts statement balance from Balance column when present (trusted).
-    - Uses balance delta as sanity check to avoid impossible debit=credit cases.
-    - No OCR / no pytesseract dependency.
+    Key principle:
+      - Balance column (balance_pdf) is authoritative when present.
+      - Waterfall reconstruction is only a fallback.
+      - balance_pdf anchors the running balance to prevent drift -> prevents false OD.
     """
-    transactions = []
-
     opening_balance = extract_opening_balance(pdf)
     running_balance = opening_balance
 
+    tx_rows: List[Dict[str, Any]] = []
+
     for page_num, page in enumerate(pdf.pages, start=1):
-        words = page.extract_words(use_text_flow=True, keep_blank_chars=False)
+        words = page.extract_words(x_tolerance=3, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
         if not words:
             continue
 
-        rows = group_words_by_row(words, tolerance=2.5)
+        # group into visual lines by y
+        lines = _cluster_words_by_y(words, bucket=3)
 
-        # Detect Deposit/Withdrawal/Balance column x positions (per page)
-        col_x = detect_amount_columns(rows)
+        # detect columns dynamically per page (more robust than fixed X ranges)
+        col = _detect_columns_from_money(lines)
 
-        i = 0
-        while i < len(rows):
-            row = rows[i]
-
-            date = extract_date(row)
-            if not date:
-                i += 1
+        for line_words in lines:
+            full_text = " ".join(w["text"] for w in line_words).strip()
+            if not full_text:
                 continue
 
-            if is_total_row(row):
-                i += 1
+            if TOTAL_ROW_RE.search(full_text):
                 continue
 
-            desc_tokens: List[str] = []
-            amount_tokens: List[Dict[str, float]] = []
+            # Identify opening row even if no date is present on that exact line
+            is_opening_row = bool(OPENING_RE.search(full_text))
 
-            # Current row
-            desc_tokens.extend(extract_desc_tokens(row))
-            amount_tokens.extend(extract_amount_tokens(row, col_x))
-
-            # Continuation rows until next date
-            j = i + 1
-            while j < len(rows) and extract_date(rows[j]) is None:
-                if is_total_row(rows[j]):
-                    break
-                desc_tokens.extend(extract_desc_tokens(rows[j]))
-                amount_tokens.extend(extract_amount_tokens(rows[j], col_x))
-                j += 1
-
-            credit, debit, extracted_balance = classify_amounts_and_balance(amount_tokens, col_x)
-
-            # If we have an extracted statement balance, use it to infer amounts when needed
-            if extracted_balance is not None:
-                delta = round(extracted_balance - running_balance, 2)
-
-                # Case A: No usable deposit/withdrawal detected -> infer from delta
-                if credit == 0.0 and debit == 0.0:
-                    if delta > 0:
-                        credit = delta
-                    elif delta < 0:
-                        debit = -delta
-
-                # Case B: Conflicting / suspicious classification -> trust delta if it explains the movement
-                # (This avoids "debit==credit" and "balance used as debit" artifacts.)
-                else:
-                    # Expected delta from classified amounts
-                    implied_delta = round(credit - debit, 2)
-
-                    # If mismatch is large, rebuild using delta (single-sided)
-                    if abs(implied_delta - delta) > 0.01:
-                        if delta > 0:
-                            credit = delta
-                            debit = 0.0
-                        elif delta < 0:
-                            debit = -delta
-                            credit = 0.0
-                        else:
-                            credit = 0.0
-                            debit = 0.0
-
-            # If still no movement, skip
-            if credit == 0.0 and debit == 0.0:
-                i = j
+            date_str = _extract_date_from_line(line_words)
+            if not date_str and not is_opening_row:
                 continue
 
-            # Update running balance:
-            # - If statement balance present, trust it
-            # - Else compute from amounts
-            if extracted_balance is not None:
-                running_balance = round(extracted_balance, 2)
+            # Parse the line into (desc, credit, debit, balance_pdf)
+            desc, credit, debit, balance_pdf = _parse_line_by_columns(
+                line_words=line_words,
+                date_str=date_str,
+                col=col,
+            )
+
+            # Clean description
+            desc = OPENING_RE.sub("", desc).strip()
+            desc = NOISE_RE.sub("", desc).strip()
+            desc = re.sub(r"\s+", " ", desc).strip()
+
+            # If this is opening row: we primarily want its balance_pdf as an anchor
+            meta = "OPENING_FLAG" if is_opening_row else ""
+
+            tx_rows.append(
+                {
+                    "date": date_str or "",
+                    "description": desc,
+                    "credit": float(credit),
+                    "debit": float(debit),
+                    "balance_pdf": balance_pdf,  # Optional[float]
+                    "page": int(page_num),
+                    "meta": meta,
+                }
+            )
+
+    # Build final transactions with anchored waterfall logic
+    out: List[Dict] = []
+    running_balance = float(opening_balance)
+
+    for r in tx_rows:
+        # Skip empty junk lines
+        if not r["date"] and not r["description"] and r.get("meta") != "OPENING_FLAG":
+            continue
+
+        # Apply movement
+        credit = float(r["credit"])
+        debit = float(r["debit"])
+
+        # If this row has a statement balance, anchor to it (most important fix)
+        if r["balance_pdf"] is not None:
+            # If it's the opening row, anchor without applying movements twice
+            if r.get("meta") == "OPENING_FLAG":
+                running_balance = float(r["balance_pdf"])
             else:
-                running_balance = round(running_balance + credit - debit, 2)
+                # Normal transaction: apply movement, then reconcile/anchor to printed balance
+                computed = round(running_balance + credit - debit, 2)
+                printed = float(r["balance_pdf"])
 
-            transactions.append({
-                "date": date,
-                "description": clean_description(desc_tokens),
+                # If mismatch, trust printed balance and reset running balance
+                # (Prevents drift that causes negative lowest balance)
+                if abs(computed - printed) > 0.01:
+                    running_balance = printed
+                else:
+                    running_balance = computed
+        else:
+            # No printed balance available: fallback to computed
+            running_balance = round(running_balance + credit - debit, 2)
+
+        # Do not emit the opening row as a “transaction” unless it has actual movement
+        if r.get("meta") == "OPENING_FLAG" and credit == 0.0 and debit == 0.0:
+            continue
+
+        # Normalize date
+        date_iso = ""
+        if r["date"]:
+            date_iso = datetime.strptime(r["date"], "%d-%m-%Y").date().isoformat()
+
+        out.append(
+            {
+                "date": date_iso,
+                "description": r["description"],
                 "debit": round(debit, 2),
                 "credit": round(credit, 2),
                 "balance": round(running_balance, 2),
-                "page": page_num,
+                "page": r["page"],
                 "bank": "Hong Leong Islamic Bank",
-                "source_file": filename
-            })
+                "source_file": filename,
+            }
+        )
 
-            i = j
-
-    return transactions
+    return out
 
 
 # =========================================================
-# OPENING BALANCE
+# Opening balance extraction
 # =========================================================
 
 def extract_opening_balance(pdf) -> float:
     text = pdf.pages[0].extract_text() or ""
-    m = re.search(
-        r"Balance from previous statement\s+([\d,]+\.\d{2})",
-        text,
-        re.IGNORECASE
-    )
+    m = OPENING_AMT_RE.search(text)
     if not m:
-        raise ValueError("Opening balance not found")
+        raise ValueError("Opening balance not found (Balance from previous statement).")
     return float(m.group(1).replace(",", ""))
 
 
 # =========================================================
-# ROW GROUPING (Y AXIS)
+# Line clustering and parsing helpers
 # =========================================================
 
-def group_words_by_row(words, tolerance=2.5):
-    rows = []
+def _cluster_words_by_y(words: List[Dict[str, Any]], bucket: int = 3) -> List[List[Dict[str, Any]]]:
+    """
+    Group pdfplumber words into lines using bucketed top coordinate.
+    """
+    lines: Dict[float, List[Dict[str, Any]]] = {}
     for w in words:
-        placed = False
-        for row in rows:
-            if abs(row[0]["top"] - w["top"]) <= tolerance:
-                row.append(w)
-                placed = True
-                break
-        if not placed:
-            rows.append([w])
+        y_key = round(float(w["top"]) / bucket) * bucket
+        lines.setdefault(y_key, []).append(w)
 
-    for row in rows:
-        row.sort(key=lambda x: x["x0"])
-    return rows
+    out: List[List[Dict[str, Any]]] = []
+    for y in sorted(lines.keys()):
+        line = sorted(lines[y], key=lambda x: float(x["x0"]))
+        out.append(line)
+
+    return out
 
 
-# =========================================================
-# COLUMN DETECTION (Deposit / Withdrawal / Balance)
-# =========================================================
+def _extract_date_from_line(line_words: List[Dict[str, Any]]) -> Optional[str]:
+    for w in line_words:
+        t = w["text"].strip()
+        if DATE_RE.match(t):
+            return t
+    return None
 
-_MONEY_RE = re.compile(r"^[\d,]+\.\d{2}$")
 
-def detect_amount_columns(rows) -> Dict[str, float]:
+def _detect_columns_from_money(lines: List[List[Dict[str, Any]]]) -> Dict[str, float]:
     """
-    Robustly detect deposit / withdrawal / balance columns.
-
-    First attempt: use header labels if present.
-    Fallback: cluster money token x-positions and take the 3 rightmost clusters:
-      left -> deposit, mid -> withdrawal, right -> balance
+    Detect deposit/withdrawal/balance columns using 1D clustering of money token x positions.
+    This avoids fixed X ranges that break when statement scale/layout shifts.
     """
-    deposit_x = withdrawal_x = balance_x = None
-
-    # 1) Try header-based detection
-    for row in rows:
-        joined = " ".join(w["text"].strip().lower() for w in row)
-        if "deposit" in joined and "withdrawal" in joined and "balance" in joined:
-            for w in row:
-                t = w["text"].strip().lower()
-                if t == "deposit":
-                    deposit_x = w["x0"]
-                elif t == "withdrawal":
-                    withdrawal_x = w["x0"]
-                elif t == "balance":
-                    balance_x = w["x0"]
-            break
-
-    if deposit_x is not None and withdrawal_x is not None and balance_x is not None:
-        return {
-            "deposit_x": float(deposit_x),
-            "withdrawal_x": float(withdrawal_x),
-            "balance_x": float(balance_x),
-        }
-
-    # 2) Fallback: x-cluster money tokens (page layout can shift!)
-    x_positions: List[float] = []
-    for row in rows:
-        if is_total_row(row):
+    xs: List[float] = []
+    for line in lines:
+        full = " ".join(w["text"] for w in line)
+        if TOTAL_ROW_RE.search(full):
             continue
-        for w in row:
+        for w in line:
             t = w["text"].strip()
-            if _MONEY_RE.fullmatch(t) and w["x0"] >= 250:  # ignore description area
-                x_positions.append(float(w["x0"]))
+            if MONEY_TOKEN_RE.match(t):
+                # ignore far-left numeric occurrences inside descriptions
+                if float(w["x0"]) >= 250:
+                    xs.append((float(w["x0"]) + float(w["x1"])) / 2.0)
 
-    # If not enough data, last resort to sensible defaults (but wider)
-    if len(x_positions) < 10:
-        return {
-            "deposit_x": 320.0,
-            "withdrawal_x": 410.0,
-            "balance_x": 520.0,
-        }
+    # If insufficient evidence, fall back to your colleague's approximate zones
+    if len(xs) < 15:
+        return {"credit_mid": 385.0, "debit_mid": 485.0, "bal_mid": 560.0}
 
-    # Simple 1D k-means (k=3) on x positions to find three columns
-    centroids = _kmeans_1d(x_positions, k=3, iters=12)
+    centroids = _kmeans_1d(xs, k=3, iters=12)
     centroids.sort()
-
-    # The statement columns are the 3 rightmost money columns.
-    # Sometimes there can be extra numeric columns; to be safe, take the 3 largest centroids.
-    # (If centroids already 3, this is a no-op.)
-    dep, wdr, bal = centroids[-3], centroids[-2], centroids[-1]
-
-    return {"deposit_x": dep, "withdrawal_x": wdr, "balance_x": bal}
+    return {"credit_mid": centroids[0], "debit_mid": centroids[1], "bal_mid": centroids[2]}
 
 
 def _kmeans_1d(values: List[float], k: int = 3, iters: int = 10) -> List[float]:
     v = sorted(values)
-    # init centroids from quantiles
+
     def q(p: float) -> float:
         idx = int(p * (len(v) - 1))
         return float(v[idx])
@@ -242,120 +236,58 @@ def _kmeans_1d(values: List[float], k: int = 3, iters: int = 10) -> List[float]:
         for i in range(k):
             if buckets[i]:
                 centroids[i] = float(sum(buckets[i]) / len(buckets[i]))
+
     return centroids
 
 
-# =========================================================
-# DATE DETECTION
-# =========================================================
-
-def extract_date(row) -> Optional[str]:
-    for w in row:
-        if re.fullmatch(r"\d{2}-\d{2}-\d{4}", w["text"]):
-            return datetime.strptime(w["text"], "%d-%m-%Y").strftime("%Y-%m-%d")
-    return None
-
-
-# =========================================================
-# TOKEN EXTRACTION
-# =========================================================
-
-def extract_amount_tokens(row, col_x: Dict[str, float]) -> List[Dict[str, float]]:
+def _parse_line_by_columns(
+    line_words: List[Dict[str, Any]],
+    date_str: Optional[str],
+    col: Dict[str, float],
+) -> Tuple[str, float, float, Optional[float]]:
     """
-    Only take money tokens that appear in the amount columns region.
+    Parse one visual line:
+      - description: everything non-money and not the date token
+      - credit: money nearest to credit column centroid
+      - debit:  money nearest to debit column centroid
+      - balance_pdf: money nearest to balance column centroid (authoritative if present)
     """
-    out: List[Dict[str, float]] = []
-    min_x = min(col_x["deposit_x"], col_x["withdrawal_x"], col_x["balance_x"]) - 35.0
+    desc_parts: List[str] = []
+    money_candidates: List[Tuple[float, float]] = []  # (mid_x, value)
 
-    for w in row:
-        t = w["text"].strip()
-        if _MONEY_RE.fullmatch(t) and w["x0"] >= min_x:
-            out.append({"x": float(w["x0"]), "value": float(t.replace(",", ""))})
-
-    return out
-
-
-def extract_desc_tokens(row) -> List[str]:
-    out: List[str] = []
-    for w in row:
-        t = w["text"].strip()
-        if not t:
+    for w in line_words:
+        txt = w["text"].strip()
+        if not txt:
             continue
-        if re.fullmatch(r"\d{2}-\d{2}-\d{4}", t):
+
+        if date_str and txt == date_str:
             continue
-        if is_noise(t):
-            continue
-        out.append(t)
-    return out
 
+        if MONEY_TOKEN_RE.match(txt):
+            val = float(txt.replace(",", ""))
+            mid_x = (float(w["x0"]) + float(w["x1"])) / 2.0
+            money_candidates.append((mid_x, val))
+        else:
+            desc_parts.append(txt)
 
-# =========================================================
-# AMOUNT CLASSIFICATION + BALANCE EXTRACTION
-# =========================================================
+    desc = " ".join(desc_parts).strip()
 
-def classify_amounts_and_balance(
-    amount_words: List[Dict[str, float]],
-    col_x: Dict[str, float]
-) -> Tuple[float, float, Optional[float]]:
-    """
-    Uses column boundaries (midpoints) rather than nearest-distance.
-    This is much less sensitive to small layout shifts.
-
-    Returns: (credit, debit, extracted_balance)
-    """
-    dep = col_x["deposit_x"]
-    wdr = col_x["withdrawal_x"]
-    bal = col_x["balance_x"]
-
-    # boundaries between columns
-    b1 = (dep + wdr) / 2.0
-    b2 = (wdr + bal) / 2.0
-
+    # Assign money tokens to nearest centroid
     credit = 0.0
     debit = 0.0
-    balance_candidates: List[Tuple[float, float]] = []  # (x, value)
+    balance_pdf: Optional[float] = None
 
-    for a in amount_words:
-        x = a["x"]
-        val = a["value"]
-        if x < b1:
-            credit += val
-        elif x < b2:
-            debit += val
+    for mid_x, val in money_candidates:
+        dc = abs(mid_x - col["credit_mid"])
+        dd = abs(mid_x - col["debit_mid"])
+        db = abs(mid_x - col["bal_mid"])
+
+        # choose closest
+        if dc <= dd and dc <= db:
+            credit = val
+        elif dd <= dc and dd <= db:
+            debit = val
         else:
-            balance_candidates.append((x, val))
+            balance_pdf = val
 
-    extracted_balance = None
-    if balance_candidates:
-        # pick the rightmost balance token (most likely actual balance)
-        balance_candidates.sort(key=lambda t: t[0])
-        extracted_balance = balance_candidates[-1][1]
-
-    return round(credit, 2), round(debit, 2), extracted_balance
-
-
-# =========================================================
-# FILTERS / CLEANUP
-# =========================================================
-
-def is_total_row(row) -> bool:
-    text = " ".join(w["text"] for w in row)
-    return bool(re.search(
-        r"Total Withdrawals|Total Deposits|Closing Balance|Important Notices",
-        text,
-        re.IGNORECASE
-    ))
-
-
-def is_noise(text: str) -> bool:
-    return bool(re.search(
-        r"Protected by PIDM|Dilindungi oleh PIDM|Hong Leong Islamic Bank|hlisb\.com\.my|Menara Hong Leong|CURRENT ACCOUNT",
-        text,
-        re.IGNORECASE
-    ))
-
-
-def clean_description(parts: List[str]) -> str:
-    s = " ".join(parts)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return desc, credit, debit, balance_pdf
