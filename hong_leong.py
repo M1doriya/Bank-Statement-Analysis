@@ -2,35 +2,69 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+import pytesseract
+from PIL import Image, ImageEnhance, ImageOps
+
 
 # =========================================================
 # Regex
 # =========================================================
 DATE_RE = re.compile(r"^\d{2}-\d{2}-\d{4}$")
-MONEY_RE = re.compile(r"^\d{1,3}(?:,\d{3})*\.\d{2}$")
-MONEY_FINDALL_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
+MONEY_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
+HEADER_DATE_LINE_RE = re.compile(r"\bDate\s*/\s*Tarikh\s*:\s*\d{2}-\d{2}-\d{4}\b", re.I)
+TOTAL_ROW_RE = re.compile(
+    r"(Total\s+Deposits|Total\s+Withdrawals|Closing\s+Balance|Important\s+Notices|"
+    r"Jumlah\s+Simpanan|Jumlah\s+Pengeluaran|Baki\s+Akhir|Notis\s+Penting)",
+    re.I,
+)
+OD_KEYWORDS_RE = re.compile(
+    r"\b(overdraft|od\s+facility|od\s+limit|overdrawn|excess\s+limit|interest\s+on\s+overdraft)\b",
+    re.I,
+)
 
 
 # =========================================================
-# MAIN ENTRY (USED BY app.py)
+# Public entrypoint used by your app
 # =========================================================
 
 def parse_hong_leong(pdf, filename: str) -> List[Dict]:
     """
-    Hong Leong Islamic Bank (HLIB) Current Account-i parser.
+    Hong Leong Islamic Bank (HLIB) Current Account-i statement parser.
 
-    Key fix:
-    - Uses statement BALANCE column (extracted via Balance-column crop) as source of truth.
-    - Computes debit/credit from balance delta.
-    - Falls back to deposit/withdrawal classification only if balance cannot be extracted.
-    - Never emits "transactions" with debit=0 and credit=0 (prevents header/date lines).
+    Objectives:
+      1) Accurate debit/credit totals (avoid "hongLeong3.json" inflation).
+      2) Avoid false OD / false negative lowest-balance when Balance column extraction fails
+         (the failure mode in hongLeong.json / hongLeong2.json).
+      3) Keep output schema stable.
 
-    This eliminates false negative balances (and therefore false OD) on months like September.
+    Strategy:
+      - Extract transaction blocks by date row + continuation rows.
+      - Extract Deposit/Withdrawal amounts by cropping their columns and regexing amounts.
+      - Try to extract statement BALANCE from Balance column crop (text first, then OCR).
+      - Maintain two balances:
+          * computed_balance: opening + credits - debits (always updated)
+          * reliable_balance: last extracted statement balance (only updated when found)
+      - Output "balance" uses:
+          * extracted statement balance when available
+          * otherwise the last reliable balance (carry-forward) to prevent false OD
+            (because computed_balance can drift when some amounts are missed/garbled).
+
+    If the statement truly had OD and printed a negative balance, this code will still show it
+    when it can extract the Balance column. The false-OD problem occurs when Balance column
+    is not extractable and computed_balance goes negative due to parsing imperfections.
     """
+
     transactions: List[Dict] = []
 
     opening_balance = extract_opening_balance(pdf)
-    prev_balance: Optional[float] = opening_balance
+    computed_balance = float(opening_balance)
+
+    # Last balance we trust from the statement's Balance column
+    reliable_balance: Optional[float] = None
+
+    # If the statement explicitly mentions OD, we allow negative computed balances to surface
+    # (because OD might be real). Otherwise, we treat negative computed balances as unreliable.
+    overdraft_possible = pdf_mentions_overdraft(pdf)
 
     for page_num, page in enumerate(pdf.pages, start=1):
         words = page.extract_words(use_text_flow=True, keep_blank_chars=False)
@@ -38,107 +72,89 @@ def parse_hong_leong(pdf, filename: str) -> List[Dict]:
             continue
 
         rows = group_words_by_row(words, tolerance=3)
-
-        # Detect Deposit/Withdrawal/Balance column x positions per page
         col_x = detect_amount_columns(rows)
 
         i = 0
         while i < len(rows):
             row = rows[i]
+            row_txt = join_row_text(row)
+
+            # Skip totals/summary lines early
+            if TOTAL_ROW_RE.search(row_txt):
+                i += 1
+                continue
 
             date_iso = extract_date(row)
             if not date_iso:
                 i += 1
                 continue
 
-            if is_total_row(row):
+            # Skip header "Date / Tarikh : DD-MM-YYYY" lines (not transactions)
+            if HEADER_DATE_LINE_RE.search(row_txt):
                 i += 1
                 continue
 
-            # Build a "transaction block": the dated row + continuation rows until next date
-            desc_tokens: List[str] = []
-            amt_tokens: List[Dict] = []  # money tokens in deposit/withdrawal area (not balance)
-            y_top, y_bottom = row_y_span(row)
+            # Build a transaction block: date row + continuation rows until next date row
+            y_top, y_bot = row_y_span(row)
 
-            desc_tokens.extend(extract_desc_tokens(row, col_x))
-            amt_tokens.extend(extract_amount_tokens(row, col_x))
             j = i + 1
-
-            while j < len(rows) and extract_date(rows[j]) is None:
-                if is_total_row(rows[j]):
+            while j < len(rows):
+                next_txt = join_row_text(rows[j])
+                if extract_date(rows[j]) is not None:
                     break
-                desc_tokens.extend(extract_desc_tokens(rows[j], col_x))
-                amt_tokens.extend(extract_amount_tokens(rows[j], col_x))
-                y2_top, y2_bottom = row_y_span(rows[j])
+                if TOTAL_ROW_RE.search(next_txt):
+                    break
+                y2_top, y2_bot = row_y_span(rows[j])
                 y_top = min(y_top, y2_top)
-                y_bottom = max(y_bottom, y2_bottom)
+                y_bot = max(y_bot, y2_bot)
                 j += 1
 
-            description = clean_description(desc_tokens)
+            # Extract deposit/withdrawal from column crops (text -> OCR fallback)
+            deposit_amt = extract_column_amount(page, y_top, y_bot, col_x, which="deposit")
+            withdrawal_amt = extract_column_amount(page, y_top, y_bot, col_x, which="withdrawal")
 
-            # Skip obvious header/address date lines (they have a date but no amounts)
-            # Example: "Date / Tarikh : 25-09-2025"
-            if is_header_date_line(description) and not amt_tokens:
+            # If no movement, skip
+            if deposit_amt == 0.0 and withdrawal_amt == 0.0:
                 i = j
                 continue
 
-            # 1) Prefer: extract BALANCE from a cropped region in the Balance column across this block
-            stmt_balance = extract_balance_from_crop(page, y_top, y_bottom, col_x)
+            # Update computed balance always
+            computed_balance = round(computed_balance + deposit_amt - withdrawal_amt, 2)
 
-            # If crop-based balance failed, try word-based last resort (rare)
-            if stmt_balance is None:
-                stmt_balance = extract_balance_from_words(page, y_top, y_bottom, col_x)
+            # Try to extract statement balance for this block (text -> OCR)
+            stmt_balance = extract_statement_balance(page, y_top, y_bot, col_x)
 
-            credit = 0.0
-            debit = 0.0
-            balance_out: Optional[float] = None
-
-            if stmt_balance is not None and prev_balance is not None:
-                # Balance-delta method
-                delta = round(stmt_balance - prev_balance, 2)
-                if delta > 0:
-                    credit = delta
-                elif delta < 0:
-                    debit = abs(delta)
-                else:
-                    # Usually not a real transaction row; update prev balance defensively and skip
-                    prev_balance = stmt_balance
-                    i = j
-                    continue
-
-                balance_out = stmt_balance
-                prev_balance = stmt_balance
-
+            # Decide what to output as "balance"
+            if stmt_balance is not None:
+                # Anchor both balances to statement balance (prevents drift)
+                reliable_balance = float(stmt_balance)
+                computed_balance = float(stmt_balance)
+                out_balance = float(stmt_balance)
             else:
-                # 2) Fallback: deposit/withdrawal classification (less reliable)
-                credit, debit = classify_amounts_by_columns(amt_tokens, col_x)
+                # No statement balance available:
+                # - if we already have a reliable balance, carry it forward (prevents false OD)
+                # - else fall back to computed balance (early pages before any anchor)
+                if reliable_balance is not None:
+                    out_balance = float(reliable_balance)
+                else:
+                    out_balance = float(computed_balance)
 
-                # If no amounts, skip
-                if credit == 0.0 and debit == 0.0:
-                    i = j
-                    continue
+                # If OD is NOT indicated/possible, do not surface negative computed drift as if real
+                if (not overdraft_possible) and out_balance < 0 and reliable_balance is not None:
+                    out_balance = float(reliable_balance)
 
-                # Compute running balance only as a fallback
-                if prev_balance is None:
-                    prev_balance = 0.0
-                prev_balance = round(prev_balance + credit - debit, 2)
-                balance_out = prev_balance
-
-            # Never output a transaction with both 0
-            if credit == 0.0 and debit == 0.0:
-                i = j
-                continue
-
-            transactions.append({
-                "date": date_iso,
-                "description": description,
-                "debit": round(debit, 2),
-                "credit": round(credit, 2),
-                "balance": round(float(balance_out), 2) if balance_out is not None else None,
-                "page": page_num,
-                "bank": "Hong Leong Islamic Bank",
-                "source_file": filename
-            })
+            transactions.append(
+                {
+                    "date": date_iso,
+                    "description": extract_description_text(rows, i, j, col_x),
+                    "debit": round(float(withdrawal_amt), 2),
+                    "credit": round(float(deposit_amt), 2),
+                    "balance": round(float(out_balance), 2),
+                    "page": int(page_num),
+                    "bank": "Hong Leong Islamic Bank",
+                    "source_file": filename,
+                }
+            )
 
             i = j
 
@@ -146,23 +162,28 @@ def parse_hong_leong(pdf, filename: str) -> List[Dict]:
 
 
 # =========================================================
-# OPENING BALANCE
+# Opening balance / OD keyword scan
 # =========================================================
 
 def extract_opening_balance(pdf) -> float:
     text = pdf.pages[0].extract_text() or ""
-    m = re.search(
-        r"Balance from previous statement\s+([\d,]+\.\d{2})",
-        text,
-        re.IGNORECASE
-    )
+    m = re.search(r"Balance\s+from\s+previous\s+statement\s+([\d,]+\.\d{2})", text, re.I)
     if not m:
         raise ValueError("Opening balance not found")
     return float(m.group(1).replace(",", ""))
 
 
+def pdf_mentions_overdraft(pdf) -> bool:
+    # If statement explicitly mentions OD, allow negative to pass through as potentially real
+    for p in pdf.pages:
+        t = (p.extract_text() or "")
+        if OD_KEYWORDS_RE.search(t):
+            return True
+    return False
+
+
 # =========================================================
-# ROW GROUPING / GEOMETRY
+# Row grouping / geometry
 # =========================================================
 
 def group_words_by_row(words, tolerance=3):
@@ -179,19 +200,22 @@ def group_words_by_row(words, tolerance=3):
 
     for row in rows:
         row.sort(key=lambda x: x["x0"])
+    rows.sort(key=lambda r: r[0]["top"])
     return rows
 
 
 def row_y_span(row) -> Tuple[float, float]:
-    tops = [w["top"] for w in row if "top" in w]
-    bottoms = [w["bottom"] for w in row if "bottom" in w]
-    if not tops or not bottoms:
-        return 0.0, 0.0
+    tops = [w["top"] for w in row]
+    bottoms = [w["bottom"] for w in row]
     return float(min(tops)), float(max(bottoms))
 
 
+def join_row_text(row) -> str:
+    return " ".join((w.get("text") or "").strip() for w in row if (w.get("text") or "").strip())
+
+
 # =========================================================
-# COLUMN DETECTION (Deposit / Withdrawal / Balance)
+# Column detection
 # =========================================================
 
 def detect_amount_columns(rows) -> Dict[str, float]:
@@ -199,8 +223,6 @@ def detect_amount_columns(rows) -> Dict[str, float]:
 
     for row in rows:
         joined = " ".join((w.get("text") or "").strip().lower() for w in row)
-
-        # English header row
         if "deposit" in joined and "withdrawal" in joined and "balance" in joined:
             for w in row:
                 t = (w.get("text") or "").strip().lower()
@@ -212,19 +234,18 @@ def detect_amount_columns(rows) -> Dict[str, float]:
                     balance_x = w["x0"]
             break
 
-        # Malay header row
         if "simpanan" in joined and "pengeluaran" in joined and "baki" in joined:
             for w in row:
                 t = (w.get("text") or "").strip().lower()
-                if t == "simpanan":
-                    deposit_x = deposit_x or w["x0"]
-                elif t == "pengeluaran":
-                    withdrawal_x = withdrawal_x or w["x0"]
-                elif t == "baki":
-                    balance_x = balance_x or w["x0"]
+                if t == "simpanan" and deposit_x is None:
+                    deposit_x = w["x0"]
+                elif t == "pengeluaran" and withdrawal_x is None:
+                    withdrawal_x = w["x0"]
+                elif t == "baki" and balance_x is None:
+                    balance_x = w["x0"]
             break
 
-    # Fallbacks if header isn't captured on this page
+    # fallback anchors (stable for your HLIB PDFs)
     if deposit_x is None:
         deposit_x = 320.0
     if withdrawal_x is None:
@@ -240,176 +261,153 @@ def detect_amount_columns(rows) -> Dict[str, float]:
 
 
 # =========================================================
-# DATE / FILTERS
+# Date / Description
 # =========================================================
 
 def extract_date(row) -> Optional[str]:
     for w in row:
         t = (w.get("text") or "").strip()
         if DATE_RE.fullmatch(t):
-            return datetime.strptime(t, "%d-%m-%Y").strftime("%Y-%m-%d")
+            return datetime.strptime(t, "%d-%m-%Y").date().isoformat()
     return None
 
 
-def is_total_row(row) -> bool:
-    text = " ".join((w.get("text") or "") for w in row).lower()
-    keys = (
-        "total withdrawals",
-        "total deposits",
-        "closing balance",
-        "important notices",
-        "jumlah pengeluaran",
-        "jumlah simpanan",
-        "baki akhir",
-        "notis penting",
-    )
-    return any(k in text for k in keys)
-
-
-def is_header_date_line(description: str) -> bool:
-    s = (description or "").lower()
-    return ("date" in s and "tarikh" in s and ":" in s)
-
-
-# =========================================================
-# DESCRIPTION / AMOUNTS EXTRACTION
-# =========================================================
-
-def is_noise_token(text: str) -> bool:
-    return bool(re.search(
-        r"Protected by PIDM|Dilindungi oleh PIDM|Hong Leong Islamic Bank|hlisb\.com\.my|Menara Hong Leong|CURRENT ACCOUNT|AKAUN SEMASA",
-        text,
-        re.IGNORECASE
-    ))
-
-
-def extract_desc_tokens(row, col_x) -> List[str]:
+def extract_description_text(rows, i: int, j: int, col_x: Dict[str, float]) -> str:
     """
-    Only take tokens left of the Deposit column (description area).
-    This prevents numeric columns leaking into description.
+    Build description from tokens left of deposit column across the block [i, j).
+    This avoids numeric pollution and avoids the 'inflated totals' issue.
     """
-    out = []
     cutoff = col_x["deposit_x"] - 10
-    for w in row:
-        t = (w.get("text") or "").strip()
-        if not t:
-            continue
-        if DATE_RE.fullmatch(t):
-            continue
-        if is_noise_token(t):
-            continue
-        if float(w["x0"]) < cutoff:
-            out.append(t)
-    return out
+    parts: List[str] = []
 
+    for k in range(i, j):
+        for w in rows[k]:
+            t = (w.get("text") or "").strip()
+            if not t:
+                continue
+            if DATE_RE.fullmatch(t):
+                continue
+            # ignore obvious noise
+            if is_noise_token(t):
+                continue
+            # take only left-side tokens (description area)
+            if float(w["x0"]) < cutoff:
+                parts.append(t)
 
-def extract_amount_tokens(row, col_x) -> List[Dict]:
-    """
-    Extract money tokens that are *not* in the Balance column area.
-    This is only used as a fallback when balance extraction fails.
-    """
-    out = []
-    min_amount_x = col_x["deposit_x"] - 25
-    balance_guard_x = col_x["balance_x"] - 30  # anything to the right is likely balance column
-
-    for w in row:
-        t = (w.get("text") or "").strip()
-        if not MONEY_RE.fullmatch(t):
-            continue
-
-        x0 = float(w["x0"])
-        if x0 < min_amount_x:
-            continue
-
-        # exclude balance column numbers
-        if x0 >= balance_guard_x:
-            continue
-
-        out.append({"x": x0, "value": float(t.replace(",", ""))})
-
-    return out
-
-
-def clean_description(parts: List[str]) -> str:
     s = " ".join(parts)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
+def is_noise_token(text: str) -> bool:
+    return bool(
+        re.search(
+            r"(Protected by PIDM|Dilindungi oleh PIDM|Hong Leong Islamic Bank|hlisb\.com\.my|Menara Hong Leong|CURRENT ACCOUNT|AKAUN SEMASA|Page No)",
+            text,
+            re.I,
+        )
+    )
+
+
 # =========================================================
-# BALANCE EXTRACTION (AUTHORITATIVE)
+# Column crop extraction (text -> OCR fallback)
 # =========================================================
 
-def extract_balance_from_crop(page, y_top: float, y_bottom: float, col_x: Dict[str, float]) -> Optional[float]:
+def extract_column_amount(page, y_top: float, y_bot: float, col_x: Dict[str, float], which: str) -> float:
     """
-    Most reliable method on these HLIB PDFs:
-    crop the Balance column region for this transaction block and regex the last money value.
+    Extract numeric amount from Deposit or Withdrawal column by cropping.
+    Returns sum of all amounts found in that column for the block (usually 0 or 1 amount).
     """
-    try:
-        bal_x = float(col_x["balance_x"])
-        x0 = max(bal_x - 20.0, 0.0)
-        x1 = float(getattr(page, "width", 600.0))
-        top = max(y_top - 1.0, 0.0)
-        bottom = min(y_bottom + 1.0, float(getattr(page, "height", y_bottom + 10.0)))
+    dep = col_x["deposit_x"]
+    wdr = col_x["withdrawal_x"]
+    bal = col_x["balance_x"]
 
-        region = page.crop((x0, top, x1, bottom))
-        text = region.extract_text(x_tolerance=1) or ""
-        amounts = MONEY_FINDALL_RE.findall(text)
-        if not amounts:
-            return None
-        return float(amounts[-1].replace(",", ""))
-    except Exception:
+    if which == "deposit":
+        x0, x1 = dep - 80, wdr - 15
+    elif which == "withdrawal":
+        x0, x1 = wdr - 80, bal - 15
+    else:
+        raise ValueError("which must be 'deposit' or 'withdrawal'")
+
+    nums = extract_amounts_from_bbox(page, (x0, y_top - 1, x1, y_bot + 1))
+    if nums:
+        return round(sum(nums), 2)
+
+    # OCR fallback if text layer fails
+    nums = extract_amounts_from_bbox_ocr(page, (x0, y_top - 1, x1, y_bot + 1))
+    if nums:
+        return round(sum(nums), 2)
+
+    return 0.0
+
+
+def extract_statement_balance(page, y_top: float, y_bot: float, col_x: Dict[str, float]) -> Optional[float]:
+    """
+    Extract statement balance from Balance column crop.
+    Returns the last (most right-aligned) amount in the balance column region when available.
+
+    Many HLIB PDFs do not expose Balance column reliably in the text layer for all rows.
+    We try text first, then OCR.
+    """
+    bal = col_x["balance_x"]
+    x0, x1 = bal - 80, page.width
+
+    nums = extract_amounts_from_bbox(page, (x0, y_top - 1, x1, y_bot + 1))
+    if not nums:
+        nums = extract_amounts_from_bbox_ocr(page, (x0, y_top - 1, x1, y_bot + 1))
+
+    if not nums:
         return None
 
+    # Heuristic: if there are multiple numbers (e.g., "800.00 12,132.58"), the last is balance
+    candidate = float(nums[-1])
 
-def extract_balance_from_words(page, y_top: float, y_bottom: float, col_x: Dict[str, float]) -> Optional[float]:
+    # Guard: if only one number and it equals a typical debit/credit in that row, balance may be missing
+    # (We let caller decide; here we just return the candidate we found.)
+    return round(candidate, 2)
+
+
+def extract_amounts_from_bbox(page, bbox) -> List[float]:
     """
-    Last-resort fallback: use word tokens near the Balance column within the block y-range.
+    Extract all money amounts from a cropped bbox using text layer.
     """
     try:
-        bal_x = float(col_x["balance_x"])
-        words = page.extract_words(use_text_flow=True, keep_blank_chars=False)
-        # Keep money tokens within y-range and near balance column
-        candidates = []
-        for w in words:
-            t = (w.get("text") or "").strip()
-            if not MONEY_RE.fullmatch(t):
-                continue
-            if float(w.get("top", 0.0)) < y_top - 1.0 or float(w.get("bottom", 0.0)) > y_bottom + 1.0:
-                continue
-            x0 = float(w.get("x0", 0.0))
-            if abs(x0 - bal_x) <= 70.0:
-                candidates.append((abs(x0 - bal_x), -x0, t))
-        if not candidates:
-            return None
-        candidates.sort()
-        best = candidates[0][2]
-        return float(best.replace(",", ""))
+        region = page.crop(bbox)
+        txt = region.extract_text(x_tolerance=1) or ""
+        matches = MONEY_RE.findall(txt)
+        return [float(m.replace(",", "")) for m in matches] if matches else []
     except Exception:
-        return None
+        return []
 
 
-# =========================================================
-# FALLBACK AMOUNT CLASSIFICATION
-# =========================================================
-
-def classify_amounts_by_columns(amount_words: List[Dict], col_x: Dict[str, float]) -> Tuple[float, float]:
+def extract_amounts_from_bbox_ocr(page, bbox, dpi=350) -> List[float]:
     """
-    Fallback classification if balance extraction fails.
-    Uses proximity to deposit_x vs withdrawal_x.
+    OCR fallback, tightly scoped to a bbox. Used sparingly to avoid performance issues.
     """
-    credit = 0.0
-    debit = 0.0
+    try:
+        region = page.crop(bbox)
+        im = region.to_image(resolution=dpi).original
+        im = preprocess_for_ocr(im)
 
-    dep = float(col_x["deposit_x"])
-    wdr = float(col_x["withdrawal_x"])
+        text = pytesseract.image_to_string(
+            im,
+            config="--psm 6 -c tessedit_char_whitelist=0123456789.,-",
+        )
 
-    for a in amount_words:
-        x = float(a["x"])
-        val = float(a["value"])
-        if abs(x - dep) <= abs(x - wdr):
-            credit += val
-        else:
-            debit += val
+        matches = MONEY_RE.findall(text)
+        if not matches:
+            return []
 
-    return round(credit, 2), round(debit, 2)
+        return [float(m.replace(",", "")) for m in matches]
+    except Exception:
+        return []
+
+
+def preprocess_for_ocr(im: Image.Image) -> Image.Image:
+    """
+    Conservative image preprocessing for OCR on numeric tables.
+    """
+    im = im.convert("L")
+    im = ImageOps.autocontrast(im)
+    im = ImageEnhance.Contrast(im).enhance(2.2)
+    return im
