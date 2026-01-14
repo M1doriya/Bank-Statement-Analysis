@@ -7,6 +7,14 @@ from datetime import datetime
 # =========================================================
 
 def parse_hong_leong(pdf, filename):
+    """
+    Robust HLIB parser.
+
+    Key change vs old version:
+    - Prefer the statement's Balance column value (if found) instead of purely calculating
+      running balance from credit/debit.
+    - This prevents false "overdraft" detection when a credit/debit is misclassified.
+    """
     transactions = []
 
     opening_balance = extract_opening_balance(pdf)
@@ -51,20 +59,31 @@ def parse_hong_leong(pdf, filename):
                 amount_tokens.extend(extract_amount_tokens(rows[j], col_x))
                 j += 1
 
+            # Classify amounts into credit/debit based on nearest column x
             credit, debit = classify_amounts_by_columns(amount_tokens, col_x)
 
-            if credit == 0.0 and debit == 0.0:
+            # Extract statement balance from Balance column (preferred)
+            stmt_balance = extract_statement_balance(amount_tokens, col_x)
+
+            if credit == 0.0 and debit == 0.0 and stmt_balance is None:
                 i = j
                 continue
 
-            running_balance = round(running_balance + credit - debit, 2)
+            # If statement balance exists, trust it and sync running_balance to it.
+            if stmt_balance is not None:
+                running_balance = stmt_balance
+                balance_out = stmt_balance
+            else:
+                # Fallback: compute (less reliable)
+                running_balance = round(running_balance + credit - debit, 2)
+                balance_out = running_balance
 
             transactions.append({
                 "date": date,
                 "description": clean_description(desc_tokens),
                 "debit": debit,
                 "credit": credit,
-                "balance": running_balance,  # calculated, not extracted
+                "balance": balance_out,  # ✅ now matches statement when available
                 "page": page_num,
                 "bank": "Hong Leong Islamic Bank",
                 "source_file": filename
@@ -81,10 +100,11 @@ def parse_hong_leong(pdf, filename):
 
 def extract_opening_balance(pdf):
     text = pdf.pages[0].extract_text() or ""
+    # Allow flexible whitespace/newlines
     m = re.search(
-        r"Balance from previous statement\s+([\d,]+\.\d{2})",
+        r"Balance\s+from\s+previous\s+statement\s*([\d,]+\.\d{2})",
         text,
-        re.IGNORECASE
+        re.IGNORECASE | re.DOTALL
     )
     if not m:
         raise ValueError("Opening balance not found")
@@ -117,24 +137,47 @@ def group_words_by_row(words, tolerance=3):
 # =========================================================
 
 def detect_amount_columns(rows):
+    """
+    Detect column anchors from the header row.
+
+    Supports both English and Malay headers:
+    - Deposit / Withdrawal / Balance
+    - Simpanan / Pengeluaran / Baki
+    """
     deposit_x = withdrawal_x = balance_x = None
 
     for row in rows:
         joined = " ".join(w["text"].strip().lower() for w in row)
 
-        # header typically contains all three labels
-        if "deposit" in joined and "withdrawal" in joined and "balance" in joined:
+        english_hit = ("deposit" in joined and "withdrawal" in joined and "balance" in joined)
+        malay_hit = ("simpanan" in joined and "pengeluaran" in joined and "baki" in joined)
+
+        if english_hit or malay_hit:
             for w in row:
                 t = w["text"].strip().lower()
+
+                # English labels
                 if t == "deposit":
                     deposit_x = w["x0"]
                 elif t == "withdrawal":
                     withdrawal_x = w["x0"]
                 elif t == "balance":
                     balance_x = w["x0"]
-            break
 
-    # sensible fallbacks if header text isn't captured on some pages
+                # Malay labels
+                elif t == "simpanan" and deposit_x is None:
+                    deposit_x = w["x0"]
+                elif t == "pengeluaran" and withdrawal_x is None:
+                    withdrawal_x = w["x0"]
+                elif t == "baki" and balance_x is None:
+                    balance_x = w["x0"]
+
+            # If we got at least balance_x and one of deposit/withdrawal, good enough
+            if balance_x is not None and (deposit_x is not None or withdrawal_x is not None):
+                break
+
+    # Sensible fallbacks if header text isn't captured on some pages
+    # (These are approximate and will still work because we use "nearest column" logic.)
     if deposit_x is None:
         deposit_x = 320.0
     if withdrawal_x is None:
@@ -166,10 +209,10 @@ def extract_date(row):
 
 def extract_amount_tokens(row, col_x):
     """
-    IMPORTANT FIX:
     Only treat money-looking tokens as amounts if they are positioned
     in the right-side amount columns area (near Deposit/Withdrawal/Balance).
-    This prevents things like '382.99 PLUS 1500' in description from becoming credit.
+
+    This prevents description numerics like '382.99 PLUS 1500' from being treated as amounts.
     """
     out = []
     # allow small drift to the left of Deposit column
@@ -193,7 +236,6 @@ def extract_desc_tokens(row):
             continue
         if re.fullmatch(r"\d{2}-\d{2}-\d{4}", t):
             continue
-        # keep numeric tokens in description if you want, but they won't be treated as amounts now
         if is_noise(t):
             continue
         out.append(t)
@@ -225,10 +267,31 @@ def classify_amounts_by_columns(amount_words, col_x):
         elif dist_wdr <= dist_dep and dist_wdr <= dist_bal:
             debit += val
         else:
-            # balance column -> ignore
+            # balance column -> ignore here
             pass
 
     return round(credit, 2), round(debit, 2)
+
+
+# =========================================================
+# STATEMENT BALANCE EXTRACTION (NEW)
+# =========================================================
+
+def extract_statement_balance(amount_words, col_x, tol=45):
+    """
+    Try to extract the balance shown on the statement for this transaction block.
+
+    Strategy:
+    - Choose numeric token closest to the Balance column x (within tolerance).
+    - If multiple, pick the closest; tie-break by rightmost.
+    """
+    bal_x = col_x["balance_x"]
+    candidates = [a for a in amount_words if abs(a["x"] - bal_x) <= tol]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda a: (abs(a["x"] - bal_x), -a["x"]))
+    return round(candidates[0]["value"], 2)
 
 
 # =========================================================
