@@ -18,3 +18,7 @@ openpyxl>=3.0.0
 pdfminer.six>=20221105
 cryptography>=41.0.0
 pymupdf
+
+pytesseract
+Pillow
+
