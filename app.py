@@ -13,6 +13,10 @@
 #   pd.to_datetime(..., dayfirst=True) can flip month/day on ISO strings where both <= 12.
 #   This version parses ISO strictly with format="%Y-%m-%d" and only uses dayfirst=True
 #   for non-ISO formats. Same fix applied to sorting.
+#
+# IMPROVEMENTS INCLUDED:
+#   - row_type-aware monthly summary (exclude statement/closing rows from totals)
+#   - best-effort reconciliation / QA signals displayed in the UI
 
 import json
 import re
@@ -27,6 +31,7 @@ from core_utils import (
     bytes_to_pdfplumber,
     dedupe_transactions,
     normalize_transactions,
+    reconcile_statement,
     safe_float,
 )
 
@@ -45,7 +50,7 @@ from bank_muamalat import parse_transactions_bank_muamalat
 from affin_bank import parse_affin_bank
 from agro_bank import parse_agro_bank
 
-# NEW: OCBC
+# OCBC
 from ocbc import parse_transactions_ocbc
 
 
@@ -71,6 +76,7 @@ if "results" not in st.session_state:
 # Date parsing helper (FIX)
 # ---------------------------------------------------
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 
 def parse_any_date_for_summary(x) -> pd.Timestamp:
     """
@@ -232,7 +238,7 @@ if uploaded_files and st.session_state.status == "running":
 
 
 # ---------------------------------------------------
-# CALCULATE MONTHLY SUMMARY (FIXED)
+# CALCULATE MONTHLY SUMMARY (row_type-aware)
 # ---------------------------------------------------
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     if not transactions:
@@ -251,6 +257,12 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
     df["month_period"] = df["date_parsed"].dt.strftime("%Y-%m")
 
+    # Row typing (backwards-compatible): treat missing as "transaction"
+    if "row_type" not in df.columns:
+        df["row_type"] = "transaction"
+    else:
+        df["row_type"] = df["row_type"].fillna("transaction").astype(str).str.lower()
+
     # Defensive numeric normalization
     df["debit"] = df.get("debit", 0).apply(safe_float)
     df["credit"] = df.get("credit", 0).apply(safe_float)
@@ -260,18 +272,37 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     for period, group in df.groupby("month_period", sort=True):
         group_sorted = group.sort_values(["date_parsed", "page"], na_position="last")
 
-        balances = group_sorted["balance"].dropna()
-        ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
-        lowest_balance = round(float(balances.min()), 2) if not balances.empty else None
-        highest_balance = round(float(balances.max()), 2) if not balances.empty else None
+        # Use only real transactions for counts/totals; exclude statement balance rows
+        txn_only = group_sorted[group_sorted["row_type"].isin(["transaction"])]
+
+        balances_all = group_sorted["balance"].dropna()
+        balances_txn = txn_only["balance"].dropna()
+
+        # Ending balance preference:
+        # 1) closing/statement balance row (if present in this month)
+        # 2) last transaction balance in the month
+        # 3) last available balance in the month
+        closing_rows = group_sorted[group_sorted["row_type"].isin(["closing_balance", "statement_balance"])].copy()
+        closing_rows = closing_rows.dropna(subset=["balance"])
+        if not closing_rows.empty:
+            ending_balance = round(float(closing_rows.iloc[-1]["balance"]), 2)
+        elif not balances_txn.empty:
+            ending_balance = round(float(balances_txn.iloc[-1]), 2)
+        elif not balances_all.empty:
+            ending_balance = round(float(balances_all.iloc[-1]), 2)
+        else:
+            ending_balance = None
+
+        lowest_balance = round(float(balances_all.min()), 2) if not balances_all.empty else None
+        highest_balance = round(float(balances_all.max()), 2) if not balances_all.empty else None
 
         monthly_summary.append(
             {
                 "month": period,
-                "transaction_count": int(len(group_sorted)),
-                "total_debit": round(float(group_sorted["debit"].sum()), 2),
-                "total_credit": round(float(group_sorted["credit"].sum()), 2),
-                "net_change": round(float(group_sorted["credit"].sum() - group_sorted["debit"].sum()), 2),
+                "transaction_count": int(len(txn_only)),
+                "total_debit": round(float(txn_only["debit"].sum()), 2),
+                "total_credit": round(float(txn_only["credit"].sum()), 2),
+                "net_change": round(float(txn_only["credit"].sum() - txn_only["debit"].sum()), 2),
                 "ending_balance": ending_balance,
                 "lowest_balance": lowest_balance,
                 "highest_balance": highest_balance,
@@ -292,11 +323,40 @@ if st.session_state.results:
 
     df = pd.DataFrame(st.session_state.results)
 
-    display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
+    display_cols = [
+        "date",
+        "description",
+        "debit",
+        "credit",
+        "balance",
+        "row_type",
+        "inference_method",
+        "confidence",
+        "page",
+        "bank",
+        "source_file",
+    ]
     display_cols = [c for c in display_cols if c in df.columns]
     df_display = df[display_cols] if display_cols else df
 
     st.dataframe(df_display, use_container_width=True)
+
+    # ---------------------------------------------------
+    # QUALITY CHECKS / RECONCILIATION (BEST EFFORT)
+    # ---------------------------------------------------
+    qa = reconcile_statement(st.session_state.results)
+    with st.expander("✅ Data quality checks (best effort)", expanded=False):
+        st.write(
+            {
+                "ok": qa.get("ok"),
+                "opening_balance": qa.get("opening_balance"),
+                "closing_balance": qa.get("closing_balance"),
+                "expected_closing": qa.get("expected_closing"),
+                "difference": qa.get("difference"),
+                "total_debit": qa.get("total_debit"),
+                "total_credit": qa.get("total_credit"),
+            }
+        )
 
     monthly_summary = calculate_monthly_summary(st.session_state.results)
     if monthly_summary:
@@ -331,7 +391,6 @@ if st.session_state.results:
         )
 
     with col2:
-        # Date range: keep prior behavior (string min/max), but this is safe because dates are ISO for OCBC.
         date_min = df_display["date"].min() if "date" in df_display.columns and not df_display.empty else None
         date_max = df_display["date"].max() if "date" in df_display.columns and not df_display.empty else None
 
