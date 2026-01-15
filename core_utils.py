@@ -6,6 +6,7 @@ Goals:
 1) Standardize input handling (PDF bytes)
 2) Standardize transaction schema and types
 3) Make date/amount parsing resilient across banks
+4) Provide best-effort reconciliation/QA signals
 """
 
 from __future__ import annotations
@@ -226,6 +227,33 @@ def ensure_transaction_schema(
     bank = normalize_text(tx.get("bank")) or default_bank
     source_file = normalize_text(tx.get("source_file")) or default_source_file
 
+    # Optional semantic fields (backwards-compatible)
+    # - row_type: "transaction" | "opening_balance" | "closing_balance" | "statement_balance" | "summary" | "unknown"
+    # - inference_method: "explicit" | "delta" | "unknown"
+    # - confidence: "high" | "medium" | "low"
+    #
+    # Backwards-compatible support: some parsers used boolean markers.
+    if tx.get("is_statement_balance") is True and not tx.get("row_type"):
+        tx = dict(tx)
+        tx["row_type"] = "statement_balance"
+
+    row_type = normalize_text(tx.get("row_type") or tx.get("type") or "transaction").lower()
+    if row_type in {"txn", "tx", "trans", "transactions"}:
+        row_type = "transaction"
+    if row_type in {"opening", "opening bal", "opening_balance"}:
+        row_type = "opening_balance"
+    if row_type in {"closing", "closing bal", "closing_balance", "ending_balance"}:
+        row_type = "closing_balance"
+    if row_type in {"statement", "statement_balance", "balance_row"}:
+        row_type = "statement_balance"
+
+    inference_method = normalize_text(tx.get("inference_method") or "").lower() or None
+    if inference_method in {"", "none"}:
+        inference_method = None
+    confidence = normalize_text(tx.get("confidence") or "").lower() or None
+    if confidence in {"", "none"}:
+        confidence = None
+
     out: Dict[str, Any] = {
         "date": date_iso or normalize_text(raw_date),
         "description": description,
@@ -235,13 +263,94 @@ def ensure_transaction_schema(
         "page": page,
         "bank": bank,
         "source_file": source_file,
+        "row_type": row_type,
     }
+
+    if inference_method:
+        out["inference_method"] = inference_method
+    if confidence:
+        out["confidence"] = confidence
 
     # retain raw date if normalization changed it
     if date_iso and normalize_text(raw_date) and normalize_text(raw_date) != date_iso:
         out["_raw_date"] = normalize_text(raw_date)
 
     return out
+
+
+def split_transactions_by_type(transactions: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Convenience: group transactions by row_type."""
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for tx in transactions:
+        rt = normalize_text(tx.get("row_type") or "transaction").lower() or "transaction"
+        groups.setdefault(rt, []).append(tx)
+    return groups
+
+
+def reconcile_statement(transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Lightweight reconciliation/QA signals.
+
+    This does NOT assume every statement has opening/closing lines.
+    It provides best-effort checks to help you identify parsing drift.
+    """
+    if not transactions:
+        return {"ok": True, "reason": "no_transactions"}
+
+    groups = split_transactions_by_type(transactions)
+    txns = groups.get("transaction", transactions)
+
+    # Totals
+    total_debit = round(sum(safe_float(t.get("debit", 0)) for t in txns), 2)
+    total_credit = round(sum(safe_float(t.get("credit", 0)) for t in txns), 2)
+
+    # Opening/closing (best effort)
+    opening_candidates = groups.get("opening_balance", [])
+    closing_candidates = groups.get("closing_balance", []) + groups.get("statement_balance", [])
+
+    opening_balance = None
+    if opening_candidates:
+        # first opening balance with non-null balance
+        for t in opening_candidates:
+            b = t.get("balance")
+            if b is not None:
+                opening_balance = round(float(safe_float(b)), 2)
+                break
+
+    closing_balance = None
+    if closing_candidates:
+        for t in reversed(closing_candidates):
+            b = t.get("balance")
+            if b is not None:
+                closing_balance = round(float(safe_float(b)), 2)
+                break
+
+    # If no explicit statement balances exist, try from last transaction balance
+    if closing_balance is None:
+        for t in reversed(txns):
+            b = t.get("balance")
+            if b is not None:
+                closing_balance = round(float(safe_float(b)), 2)
+                break
+
+    # Reconciliation check when both opening + closing exist
+    ok = True
+    expected_closing = None
+    diff = None
+    if opening_balance is not None and closing_balance is not None:
+        expected_closing = round(opening_balance + total_credit - total_debit, 2)
+        diff = round(closing_balance - expected_closing, 2)
+        # allow small rounding noise
+        ok = abs(diff) <= 0.05
+
+    return {
+        "ok": ok,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "opening_balance": opening_balance,
+        "closing_balance": closing_balance,
+        "expected_closing": expected_closing,
+        "difference": diff,
+    }
 
 
 def normalize_transactions(
