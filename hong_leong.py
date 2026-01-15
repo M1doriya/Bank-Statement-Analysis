@@ -13,11 +13,15 @@ DATE_TOKEN_RE = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 #   1,234.56
 #   1,234.56-
 #   1,234.56+
-MONEY_TOKEN_RE = re.compile(r"^(?P<num>[\d,]+\.\d{2})(?P<sign>[+-])?$")
+#   (34,923.86)
+#   (34,923.86)-
+#
+# We accept parentheses and optional trailing +/-.
+MONEY_TOKEN_RE = re.compile(r"^\(?(?P<num>[\d,]+\.\d{2})\)?(?P<sign>[+-])?$")
 
 # Optional: detect explicit OD mention in PDF text.
 OD_KEYWORDS_RE = re.compile(
-    r"\b(overdraft|od\s+facility|od\s+limit|overdrawn|excess\s+limit|interest\s+on\s+overdraft)\b",
+    r"\b(overdraft|od\s+facility|od\s+limit|overdrawn|excess\s+limit|interest\s+on\s+overdraft|excess\s+interest)\b",
     re.I
 )
 
@@ -28,22 +32,24 @@ OD_KEYWORDS_RE = re.compile(
 
 def parse_hong_leong(pdf, filename):
     """
-    Minimal-change fix:
-      - Keep existing debit/credit extraction (to avoid deviating from current totals/rows).
-      - ALSO extract statement Balance column token when available and anchor running_balance to it.
+    Minimal-change fix to your original parser:
+      - Keep existing debit/credit extraction (avoid deviating from current totals/rows).
+      - Extract statement Balance token when available and anchor running_balance to it.
       - Prevent false negative lowest-balance when Balance extraction is missing:
-          * If no OD keywords in statement and computed running balance goes negative,
-            carry forward last known statement balance (or last running_balance) instead of going negative.
+          * If no OD evidence and computed balance goes negative,
+            carry forward last known statement balance instead of outputting a fake negative.
+      - Support parentheses negatives: (34,923.86)
+      - Treat OD as possible if extracted statement balance itself is negative.
     """
     transactions = []
 
     opening_balance = extract_opening_balance(pdf)
-    running_balance = opening_balance
+    running_balance = float(opening_balance)
 
-    # Track last statement-anchored balance (more reliable than computed)
-    last_stmt_balance = None
+    # Track last statement-anchored balance; initialize to opening to prevent early drift negatives
+    last_stmt_balance = float(opening_balance)
 
-    # If the PDF explicitly mentions OD, allow negative balances to surface
+    # Keyword-based OD detection (backup signal)
     overdraft_possible = pdf_mentions_overdraft(pdf)
 
     for page_num, page in enumerate(pdf.pages, start=1):
@@ -88,41 +94,40 @@ def parse_hong_leong(pdf, filename):
             # Existing behavior: classify credit/debit from amount tokens
             credit, debit = classify_amounts_by_columns(amount_tokens, col_x)
 
-            # NEW: extract statement balance from balance column token if present
+            # Extract statement balance from balance column token if present
             stmt_balance = extract_statement_balance(amount_tokens, col_x)
 
-            # If nothing found, skip
+            # Skip empty
             if credit == 0.0 and debit == 0.0 and stmt_balance is None:
                 i = j
                 continue
 
-            # Compute balance as before
+            # Compute fallback running balance
             computed_balance = round(running_balance + credit - debit, 2)
 
-            # Anchor to statement balance if available (prevents drift and false OD)
+            # If statement balance exists and is negative, OD is possible regardless of keyword scan
+            if stmt_balance is not None and float(stmt_balance) < 0:
+                overdraft_possible = True
+
+            # Anchor to statement balance if available
             if stmt_balance is not None:
                 running_balance = float(stmt_balance)
                 last_stmt_balance = float(stmt_balance)
             else:
                 # No statement balance captured on this row:
-                # If computed would go negative but statement has no OD, do NOT surface fake negative.
+                # If computed would go negative but statement has no OD evidence, do NOT surface fake negative.
                 if (not overdraft_possible) and computed_balance < 0:
-                    # Prefer last known statement balance if we have it; otherwise keep previous running_balance.
-                    if last_stmt_balance is not None:
-                        running_balance = float(last_stmt_balance)
-                    else:
-                        # keep running_balance unchanged
-                        running_balance = float(running_balance)
+                    running_balance = float(last_stmt_balance)
                 else:
                     running_balance = float(computed_balance)
 
             transactions.append({
                 "date": date,
                 "description": clean_description(desc_tokens),
-                "debit": debit,
-                "credit": credit,
-                "balance": round(float(running_balance), 2),  # now anchored when possible
-                "page": page_num,
+                "debit": round(float(debit), 2),
+                "credit": round(float(credit), 2),
+                "balance": round(float(running_balance), 2),
+                "page": int(page_num),
                 "bank": "Hong Leong Islamic Bank",
                 "source_file": filename
             })
@@ -231,15 +236,27 @@ def extract_date(row):
 
 def parse_money_token(s: str) -> float:
     """
-    Parse '1,234.56', '1,234.56-' or '1,234.56+'.
+    Parse:
+      1,234.56
+      1,234.56-
+      1,234.56+
+      (34,923.86) or (34,923.86)-  -> negative
     Returns signed float.
     """
+    s = s.strip()
     m = MONEY_TOKEN_RE.match(s)
     if not m:
         raise ValueError("Not a money token")
+
     num = float(m.group("num").replace(",", ""))
     sign = m.group("sign")
-    if sign == "-":
+
+    # Parentheses indicate negative
+    is_paren_neg = s.startswith("(") and ")" in s
+    # Trailing minus indicates negative
+    is_minus = (sign == "-")
+
+    if is_paren_neg or is_minus:
         return -num
     return num
 
@@ -257,7 +274,7 @@ def extract_amount_tokens(row, col_x):
         if MONEY_TOKEN_RE.match(t):
             if w["x0"] >= min_amount_x:
                 val = parse_money_token(t)
-                out.append({"x": w["x0"], "value": val})
+                out.append({"x": float(w["x0"]), "value": float(val)})
 
     return out
 
@@ -289,9 +306,9 @@ def classify_amounts_by_columns(amount_words, col_x):
     bal = col_x["balance_x"]
 
     for a in amount_words:
-        x = a["x"]
+        x = float(a["x"])
         # deposit/withdrawal amounts should be positive magnitudes
-        val = abs(a["value"])
+        val = abs(float(a["value"]))
 
         dist_dep = abs(x - dep)
         dist_wdr = abs(x - wdr)
@@ -309,33 +326,46 @@ def classify_amounts_by_columns(amount_words, col_x):
 
 
 # =========================================================
-# NEW: STATEMENT BALANCE EXTRACTION
+# STATEMENT BALANCE EXTRACTION (robust selection)
 # =========================================================
 
-def extract_statement_balance(amount_words, col_x, tol=70.0):
+def extract_statement_balance(amount_words, col_x, tol=80.0):
     """
-    Extract the statement printed Balance token from amount_words using x proximity.
-    Returns float (can be negative if token has '-' sign), or None if not found.
+    Extract the statement printed Balance token from amount_words.
+
+    Most reliable heuristic:
+      - balance is the RIGHTMOST money token in the balance column area.
+
+    Returns signed float or None.
     """
-    bal_x = col_x["balance_x"]
-    dep_x = col_x["deposit_x"]
-    wdr_x = col_x["withdrawal_x"]
+    if not amount_words:
+        return None
+
+    bal_x = float(col_x["balance_x"])
+
+    # 1) Strong rule: anything clearly in/after balance column -> pick rightmost
+    balance_area = [a for a in amount_words if float(a["x"]) >= (bal_x - 10)]
+    if balance_area:
+        rightmost = max(balance_area, key=lambda a: float(a["x"]))
+        return round(float(rightmost["value"]), 2)
+
+    # 2) Fallback: proximity scoring if balance_x is slightly off
+    dep_x = float(col_x["deposit_x"])
+    wdr_x = float(col_x["withdrawal_x"])
 
     candidates = []
     for a in amount_words:
         x = float(a["x"])
         v = float(a["value"])
 
-        # Must be plausibly in balance column region
-        if abs(x - bal_x) <= tol or x >= (bal_x - 10):
-            # Also require it is closer to balance than deposit/withdrawal
+        if abs(x - bal_x) <= tol:
             if abs(x - bal_x) <= abs(x - dep_x) and abs(x - bal_x) <= abs(x - wdr_x):
+                # tie-breaker: prefer rightmost
                 candidates.append((abs(x - bal_x), -x, v))
 
     if not candidates:
         return None
 
-    # Closest to balance; tie-breaker: rightmost
     candidates.sort()
     return round(float(candidates[0][2]), 2)
 
