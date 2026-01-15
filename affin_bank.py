@@ -1,15 +1,20 @@
 # affin_bank.py
 """
-Affin Bank statement parser (OCR-first, line-by-line, column-zoned).
+Affin Bank Malaysia - Current Account statement parser.
 
-Fixes:
-- Prevents "page block" merges (no multi-line stitching into a single transaction).
-- Stabilizes credit/debit/balance extraction using x-zone columns.
-- Filters summary/footer/header lines (e.g., TOTAL CREDIT/DEBIT, INT/HIBAH/PROFIT).
-- Avoids treating B/F, C/F, and statement totals as transactions.
+Root cause of "No transactions detected":
+- Many Affin PDFs are IMAGE-ONLY (scanned). In that case pdfplumber.extract_text() returns empty,
+  so a pure text-regex parser will never see any rows.
 
-Output schema:
-  date, description, debit, credit, balance, page, bank, source_file, row_type
+This parser:
+1) Tries normal text extraction.
+2) If a page has no extractable text, falls back to OCR (pytesseract) on that page image.
+3) Parses transactions using a token-based approach that matches the Affin table layout:
+   Date | Description | Debit | Credit | Balance
+   - Handles values like ".00" (no leading zero)
+   - Supports multi-line descriptions (continuation lines without a date)
+   - Skips opening balance "B/F" row and trailing "TOTAL" summary rows
+4) Outputs ISO dates (YYYY-MM-DD) for stable downstream monthly summaries.
 """
 
 from __future__ import annotations
@@ -19,270 +24,333 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import pdfplumber
-import pytesseract
+
+try:
+    import pytesseract
+except Exception:  # pragma: no cover
+    pytesseract = None
 
 
 # -----------------------------
 # Regex
 # -----------------------------
-DATE_RE = re.compile(r"^(?P<d>\d{1,2})[/-](?P<m>\d{1,2})[/-](?P<y>\d{2,4})$")
-MONEY_RE = re.compile(r"^\d{1,3}(?:,\d{3})*(?:\.\d{2})$|^\d+(?:\.\d{2})$")
+DATE_TOKEN_RE = re.compile(r"^(?P<d>\d{1,2})/(?P<m>\d{2})/(?P<y>\d{2,4})$")
 
-# Lines that should never become transactions
-SKIP_LINE_RE = re.compile(
-    r"\b("
-    r"tarikh|uraian|wang\s+masuk|wang\s+keluar|baki|muka\s+surat|page\b|"
-    r"member\s+of|pidm|figures\s+and\s+balances|the\s+figures\s+and\s+balances|"
-    r"total\s+credit|total\s+debit|int/hibah/profit|s/charge|service\s+charge|"
-    r"balance\s*b/f|balance\s*c/f|\bb/f\b|\bc/f\b"
-    r")\b",
-    re.I
+# Money tokens in Affin statements often look like:
+#   900.00
+#   0.00
+#   .00              (common in credit/debit "empty" column)
+#   73,625.00
+MONEY_TOKEN_RE = re.compile(r"^(?:\d{1,3}(?:,\d{3})*|\d+)?\.\d{2}$")
+
+# Lines that should stop/skip parsing
+STOP_HINTS = (
+    "TOTAL DEBIT",
+    "TOTAL CREDIT",
+    "TOTAL",
+    "ACCOUNT",
+    "PENYATA",
+    "PAGE",
+    "MEMBER",
+    "PIDM",
 )
 
 
-# -----------------------------
-# OCR cleanup
-# -----------------------------
-_OCR_CHAR_MAP = str.maketrans({
-    "O": "0", "o": "0",
-    "S": "5", "s": "5",
-    "I": "1", "l": "1", "|": "1",
-    "“": "", "”": "", "’": "", "`": "", "'": "",
-})
-
-
-def _parse_date_token(tok: str) -> Optional[str]:
-    tok = (tok or "").strip()
-    m = DATE_RE.match(tok)
-    if not m:
-        return None
-    d = int(m.group("d"))
-    mo = int(m.group("m"))
-    y = m.group("y")
-    y_int = 2000 + int(y) if len(y) == 2 else int(y)
-    try:
-        return datetime(y_int, mo, d).strftime("%Y-%m-%d")
-    except Exception:
-        return None
-
-
-def _clean_money_token(tok: str) -> Optional[float]:
+def _money_to_float(tok: str) -> Optional[float]:
     if tok is None:
         return None
     s = str(tok).strip()
     if not s:
         return None
-
-    # Normalize common OCR substitutions
-    s = s.translate(_OCR_CHAR_MAP)
-
-    # Remove spaces and non-money chars (keep digits, comma, dot)
-    s = s.replace(" ", "")
-    s = re.sub(r"[^0-9,\.]", "", s)
-    if not s:
+    # normalize ".00" -> "0.00"
+    if s.startswith("."):
+        s = "0" + s
+    s = s.replace(",", "")
+    try:
+        return float(s)
+    except Exception:
         return None
 
-    # Fix occasional OCR comma issues like "11327,.00" -> "11327.00"
-    s = s.replace(",.", ".").replace(".,", ".")
 
-    if MONEY_RE.fullmatch(s):
-        try:
-            return float(s.replace(",", ""))
-        except Exception:
-            return None
-
-    return None
-
-
-def _ocr_words_from_page(page: pdfplumber.page.Page, resolution: int = 300) -> Tuple[List[Dict[str, Any]], float]:
-    im = page.to_image(resolution=resolution).original
-    width = float(im.size[0])
-
-    data = pytesseract.image_to_data(im, output_type=pytesseract.Output.DICT)
-    n = len(data.get("text", []))
-
-    words: List[Dict[str, Any]] = []
-    for i in range(n):
-        txt = (data["text"][i] or "").strip()
-        if not txt:
-            continue
-        try:
-            conf = float(data.get("conf", [])[i])
-        except Exception:
-            conf = -1.0
-
-        # Keep moderate quality tokens; too low creates garbage joins
-        if conf != -1.0 and conf < 40:
-            continue
-
-        x = float(data["left"][i])
-        y = float(data["top"][i])
-        w = float(data["width"][i])
-        h = float(data["height"][i])
-        words.append({"text": txt, "x0": x, "x1": x + w, "top": y, "bottom": y + h})
-
-    return words, width
+def _date_to_iso(dmy: str) -> Optional[str]:
+    m = DATE_TOKEN_RE.match(dmy.strip())
+    if not m:
+        return None
+    dd = int(m.group("d"))
+    mm = int(m.group("m"))
+    yy = m.group("y")
+    year = int(yy)
+    if year < 100:
+        year += 2000
+    try:
+        return datetime(year, mm, dd).strftime("%Y-%m-%d")
+    except Exception:
+        return None
 
 
-def _group_words_by_line(words: List[Dict[str, Any]], y_tol: float = 5.0) -> List[List[Dict[str, Any]]]:
+def _looks_like_noise(line: str) -> bool:
+    up = (line or "").upper().strip()
+    if not up:
+        return True
+    return any(h in up for h in STOP_HINTS)
+
+
+def _ocr_page_text(page: pdfplumber.page.Page) -> str:
     """
-    Group words into lines by 'top' coordinate.
-    Smaller y_tol reduces accidental line merging (important for your failures).
+    OCR a pdfplumber page into text using pytesseract.
+
+    Performance notes:
+    - Full-page OCR at high DPI is slow; crop to likely table region and use moderate DPI.
     """
-    lines: List[List[Dict[str, Any]]] = []
-    for w in words:
-        placed = False
-        for ln in lines:
-            if abs(float(ln[0]["top"]) - float(w["top"])) <= y_tol:
-                ln.append(w)
-                placed = True
-                break
-        if not placed:
-            lines.append([w])
+    if pytesseract is None:
+        return ""
 
-    for ln in lines:
-        ln.sort(key=lambda x: float(x.get("x0", 0.0)))
-    lines.sort(key=lambda ln: float(ln[0].get("top", 0.0)))
-    return lines
+    try:
+        # Crop away most headers/footers to speed OCR and reduce noise.
+        # Coordinates are in PDF points (A4 ~ 595 x 842).
+        w, h = float(page.width), float(page.height)
+        table_top = 140
+        table_bottom = h - 60
+        cropped = page.crop((0, table_top, w, table_bottom))
+
+        # Moderate resolution is usually sufficient for table rows.
+        img = cropped.to_image(resolution=200).original
+
+        # psm 6: assume a uniform block of text (good for tables/rows)
+        return pytesseract.image_to_string(img, config="--psm 6") or ""
+    except Exception:
+        return ""
 
 
-def _line_text(line: List[Dict[str, Any]]) -> str:
-    return " ".join((w.get("text") or "").strip() for w in line if (w.get("text") or "").strip()).strip()
+def _extract_text_or_ocr(page: pdfplumber.page.Page) -> str:
+    # Try normal text extraction first
+    text = page.extract_text(x_tolerance=1, y_tolerance=1) or ""
+    if text.strip():
+        return text
+
+    # OCR fallback (for scanned PDFs)
+    return _ocr_page_text(page)
 
 
-def _extract_line_fields(
-    line: List[Dict[str, Any]],
-    page_width: float,
-) -> Tuple[Optional[str], str, float, float, Optional[float]]:
-    """
-    Split a single line into:
-      date | description | credit | debit | balance
-    using fixed x-zones based on page width.
+def _finalize_tx(
+    cur: Dict[str, Any],
+    *,
+    bank_name: str,
+    source_file: str,
+    page_num: int,
+    prev_balance: Optional[float],
+) -> Tuple[Optional[Dict[str, Any]], Optional[float]]:
+    """Turn an in-progress transaction buffer into a canonical tx dict."""
+    if not cur:
+        return None, prev_balance
 
-    These proportions are robust for Affin's tabular layout and avoid global clustering drift.
-    """
-    # Zones (tuned for typical Affin statement layout):
-    # date: 0% - 18%
-    # desc: 18% - 62%
-    # credit: 62% - 75%
-    # debit: 75% - 87%
-    # balance: 87% - 100%
-    x_date_end = page_width * 0.18
-    x_desc_end = page_width * 0.62
-    x_credit_end = page_width * 0.75
-    x_debit_end = page_width * 0.87
+    date_iso = cur.get("date_iso")
+    if not date_iso:
+        return None, prev_balance
 
-    date_iso: Optional[str] = None
-    desc_tokens: List[str] = []
-    credit_vals: List[float] = []
-    debit_vals: List[float] = []
-    balance_vals: List[float] = []
+    desc = " ".join([p for p in cur.get("desc_parts", []) if p]).strip()
+    if not desc:
+        desc = cur.get("desc_head", "").strip()
 
-    for w in line:
-        txt = (w.get("text") or "").strip()
-        if not txt:
+    debit = cur.get("debit")
+    credit = cur.get("credit")
+    balance = cur.get("balance")
+
+    # Skip B/F row but use it as anchor
+    if "B/F" in (desc or "").upper():
+        if balance is not None:
+            prev_balance = balance
+        return None, prev_balance
+
+    # Skip totals/summary-like rows
+    if any(k in (desc or "").upper() for k in ("TOTAL DEBIT", "TOTAL CREDIT", "TOTAL :")):
+        return None, prev_balance
+
+    # If we have balance but debit/credit missing/zero, infer from balance delta
+    if balance is not None and prev_balance is not None:
+        if (debit is None and credit is None) or (float(debit or 0) == 0.0 and float(credit or 0) == 0.0):
+            delta = round(balance - prev_balance, 2)
+            if delta > 0:
+                credit = abs(delta)
+                debit = 0.0
+            elif delta < 0:
+                debit = abs(delta)
+                credit = 0.0
+
+    debit = float(debit or 0.0)
+    credit = float(credit or 0.0)
+
+    # If still nothing meaningful, drop safely
+    if debit == 0.0 and credit == 0.0 and balance is None:
+        return None, prev_balance
+
+    tx = {
+        "date": date_iso,
+        "description": desc.strip(),
+        "debit": round(debit, 2),
+        "credit": round(credit, 2),
+        "balance": round(float(balance), 2) if balance is not None else None,
+        "page": page_num,
+        "bank": bank_name,
+        "source_file": source_file or "",
+    }
+
+    if balance is not None:
+        prev_balance = float(balance)
+
+    return tx, prev_balance
+
+
+def _parse_lines(
+    lines: List[str],
+    *,
+    page_num: int,
+    bank_name: str,
+    source_file: str,
+    prev_balance: Optional[float],
+) -> Tuple[List[Dict[str, Any]], Optional[float]]:
+    """Parse already-extracted lines (from text extraction or OCR)."""
+    txs: List[Dict[str, Any]] = []
+    cur: Optional[Dict[str, Any]] = None
+
+    for raw in lines:
+        line = re.sub(r"\s+", " ", (raw or "")).strip()
+        if not line:
             continue
 
-        x0 = float(w.get("x0", 0.0))
+        # Sometimes OCR returns pipe-like separators; remove obvious ones
+        line = line.replace("|", " ").strip()
 
-        # Date zone
-        if x0 <= x_date_end:
-            d = _parse_date_token(txt)
-            if d:
-                date_iso = d
-                continue
-            # non-date junk in date zone -> ignore
+        if _looks_like_noise(line) and cur is None:
             continue
 
-        # Money?
-        mv = _clean_money_token(txt)
-        if mv is not None:
-            if x0 <= x_credit_end:
-                credit_vals.append(mv)
-            elif x0 <= x_debit_end:
-                debit_vals.append(mv)
+        tokens = line.split()
+
+        # New transaction start: first token is a date
+        date_iso = _date_to_iso(tokens[0]) if tokens else None
+        if date_iso:
+            # finalize previous buffer
+            if cur is not None:
+                tx, prev_balance = _finalize_tx(
+                    cur,
+                    bank_name=bank_name,
+                    source_file=source_file,
+                    page_num=page_num,
+                    prev_balance=prev_balance,
+                )
+                if tx:
+                    txs.append(tx)
+
+            money_positions = [i for i, t in enumerate(tokens) if MONEY_TOKEN_RE.match(t)]
+            debit = credit = balance = None
+
+            if money_positions:
+                balance = _money_to_float(tokens[money_positions[-1]])
+
+                # Prefer last three money tokens: debit, credit, balance
+                if len(money_positions) >= 3:
+                    debit = _money_to_float(tokens[money_positions[-3]])
+                    credit = _money_to_float(tokens[money_positions[-2]])
+                elif len(money_positions) == 2:
+                    debit = _money_to_float(tokens[money_positions[-2]])
+                    credit = None
+
+                first_money_idx = money_positions[0]
+                desc_head = " ".join(tokens[1:first_money_idx]).strip()
             else:
-                balance_vals.append(mv)
+                desc_head = " ".join(tokens[1:]).strip()
+
+            cur = {
+                "date_iso": date_iso,
+                "desc_head": desc_head,
+                "desc_parts": [desc_head] if desc_head else [],
+                "debit": debit,
+                "credit": credit,
+                "balance": balance,
+            }
             continue
 
-        # Description zone: keep only if not obvious noise
-        if x0 <= x_desc_end:
-            if not SKIP_LINE_RE.search(txt):
-                desc_tokens.append(txt)
+        # Continuation line (no date)
+        if cur is not None:
+            money_positions = [i for i, t in enumerate(tokens) if MONEY_TOKEN_RE.match(t)]
+            if money_positions:
+                bal_val = _money_to_float(tokens[money_positions[-1]])
+                if bal_val is not None:
+                    cur["balance"] = bal_val
 
-    description = " ".join(desc_tokens).strip()
+                if len(money_positions) >= 3:
+                    cur["debit"] = _money_to_float(tokens[money_positions[-3]])
+                    cur["credit"] = _money_to_float(tokens[money_positions[-2]])
 
-    # In table rows, there should be max one amount per column; OCR might split it, so sum within column.
-    credit = round(sum(credit_vals), 2) if credit_vals else 0.0
-    debit = round(sum(debit_vals), 2) if debit_vals else 0.0
-    balance = round(balance_vals[-1], 2) if balance_vals else None
+                first_money_idx = money_positions[0]
+                desc_part = " ".join(tokens[:first_money_idx]).strip()
+                if desc_part:
+                    cur["desc_parts"].append(desc_part)
+            else:
+                if not _looks_like_noise(line):
+                    cur["desc_parts"].append(line)
 
-    return date_iso, description, debit, credit, balance
+    # finalize last buffer
+    if cur is not None:
+        tx, prev_balance = _finalize_tx(
+            cur,
+            bank_name=bank_name,
+            source_file=source_file,
+            page_num=page_num,
+            prev_balance=prev_balance,
+        )
+        if tx:
+            txs.append(tx)
+
+    return txs, prev_balance
 
 
 def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, Any]]:
+    """
+    Entry used by app.py (via pdfplumber object):
+      parse_affin_bank(pdf, filename) -> list of tx dicts
+
+    Also supports being called with:
+      - file-like
+      - bytes
+      - filesystem path
+    """
     bank_name = "Affin Bank"
+    transactions: List[Dict[str, Any]] = []
+    prev_balance: Optional[float] = None
 
-    def _run(pdf: pdfplumber.PDF) -> List[Dict[str, Any]]:
-        out: List[Dict[str, Any]] = []
-
-        for page_idx, page in enumerate(pdf.pages, start=1):
-            words, page_width = _ocr_words_from_page(page, resolution=300)
-            if not words:
+    def _parse_pdf(pdf: pdfplumber.PDF):
+        nonlocal transactions, prev_balance
+        for page_num, page in enumerate(pdf.pages, start=1):
+            text = _extract_text_or_ocr(page)
+            if not text.strip():
                 continue
 
-            lines = _group_words_by_line(words, y_tol=5.0)
+            lines = [ln for ln in text.splitlines() if ln and ln.strip()]
+            page_txs, prev_balance = _parse_lines(
+                lines,
+                page_num=page_num,
+                bank_name=bank_name,
+                source_file=source_file,
+                prev_balance=prev_balance,
+            )
+            transactions.extend(page_txs)
 
-            for ln in lines:
-                raw = _line_text(ln)
-                if not raw:
-                    continue
-
-                # Fast skip for obvious headers/footers/summary lines
-                if SKIP_LINE_RE.search(raw):
-                    continue
-
-                date_iso, desc, debit, credit, balance = _extract_line_fields(ln, page_width)
-
-                if not date_iso:
-                    continue
-
-                # Must have at least an amount or a balance to be meaningful
-                if debit == 0.0 and credit == 0.0 and balance is None:
-                    continue
-
-                # Sanity rule: a single row should not have BOTH debit and credit.
-                # If it happens, it is almost certainly a column/OCR issue; keep the larger as the actual amount.
-                if debit != 0.0 and credit != 0.0:
-                    if debit >= credit:
-                        credit = 0.0
-                    else:
-                        debit = 0.0
-
-                out.append({
-                    "date": date_iso,
-                    "description": desc,
-                    "debit": float(debit),
-                    "credit": float(credit),
-                    "balance": balance,
-                    "page": int(page_idx),
-                    "bank": bank_name,
-                    "source_file": source_file,
-                    "row_type": "transaction",
-                })
-
-        return out
-
-    # Accept already-opened pdfplumber.PDF or file-like
     if hasattr(pdf_input, "pages"):
-        return _run(pdf_input)
+        _parse_pdf(pdf_input)
+        return transactions
 
     try:
-        try:
-            pdf_input.seek(0)
-        except Exception:
-            pass
+        if hasattr(pdf_input, "seek"):
+            try:
+                pdf_input.seek(0)
+            except Exception:
+                pass
+
         with pdfplumber.open(pdf_input) as pdf:
-            return _run(pdf)
+            _parse_pdf(pdf)
+
     except Exception as e:
         raise RuntimeError(f"Affin Bank parser failed for '{source_file}': {e}") from e
+
+    return transactions
