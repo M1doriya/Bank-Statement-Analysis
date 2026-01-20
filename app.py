@@ -1,33 +1,3 @@
-# app.py
-# Streamlit Multi-Bank Statement Parser (Multi-File Support)
-# - Standardizes input as PDF bytes
-# - Calls bank-specific parsers (pdfplumber/fitz as needed)
-# - Normalizes transaction schema/types
-# - De-duplicates across files
-# - Deterministic sorting
-# - Monthly summary + exports (JSON/XLSX)
-#
-# FIX INCLUDED:
-#   Monthly summary month-bucketing was wrong for ISO dates (YYYY-MM-DD) because
-#   pd.to_datetime(..., dayfirst=True) can flip month/day on ISO strings where both <= 12.
-#   This version parses ISO strictly with format="%Y-%m-%d" and only uses dayfirst=True
-#   for non-ISO formats. Same fix applied to sorting.
-#
-# NEW FIX (Bank Islam only):
-#   Bank Islam statements may show temporary negative ledger balances which are reversed
-#   on the same date (e.g., "REVERSE POSTED DEBIT"). These should NOT be treated as OD.
-#   We keep balances as-is for audit, but compute lowest_balance_for_od by ignoring
-#   transient reversed negative dips (Bank Islam only). Other banks unchanged.
-#
-# NEW FIX (Affin Bank only):
-#   Affin OCR statements can produce:
-#     - duplicated transactions across overlapping statement PDFs
-#     - OCR balance outliers (e.g. extra digit -> millions), causing huge phantom deltas
-#   We apply:
-#     (1) outlier filtering on balances
-#     (2) Affin-specific dedupe that ignores description/page/source_file
-#   This does not affect other banks.
-
 import json
 import re
 from datetime import datetime
@@ -42,14 +12,8 @@ from core_utils import (
     dedupe_transactions,
     normalize_transactions,
     safe_float,
-    # ✅ Affin-only helpers (must exist in core_utils.py)
-    dedupe_transactions_affin,
-    filter_affin_balance_outliers,
 )
 
-# ---------------------------------------------------
-# Import bank parsers
-# ---------------------------------------------------
 from maybank import parse_transactions_maybank
 from public_bank import parse_transactions_pbb
 from rhb import parse_transactions_rhb
@@ -59,69 +23,45 @@ from bank_rakyat import parse_bank_rakyat
 from hong_leong import parse_hong_leong
 from ambank import parse_ambank
 from bank_muamalat import parse_transactions_bank_muamalat
-from affin_bank import parse_affin_bank
+from affin_bank import parse_affin_bank, extract_affin_statement_totals  # ✅ NEW
 from agro_bank import parse_agro_bank
-
-# NEW: OCBC
 from ocbc import parse_transactions_ocbc
 
 
-# ---------------------------------------------------
-# Streamlit Setup
-# ---------------------------------------------------
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
 st.title("📄 Bank Statement Parser (Multi-File Support)")
 st.write("Upload one or more bank statement PDFs to extract transactions.")
 
-
-# ---------------------------------------------------
-# Session State
-# ---------------------------------------------------
 if "status" not in st.session_state:
-    st.session_state.status = "idle"  # idle, running, stopped
+    st.session_state.status = "idle"
 
 if "results" not in st.session_state:
     st.session_state.results = []
 
+# ✅ store statement totals for Affin only
+if "affin_statement_totals" not in st.session_state:
+    st.session_state.affin_statement_totals = []
 
-# ---------------------------------------------------
-# Date parsing helper (FIX)
-# ---------------------------------------------------
+
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def parse_any_date_for_summary(x) -> pd.Timestamp:
-    """
-    Parse dates safely:
-    - ISO YYYY-MM-DD: parse with explicit format (never dayfirst)
-    - Otherwise: fall back to dayfirst=True for DD/MM/YYYY etc.
-    """
     if x is None:
         return pd.NaT
     s = str(x).strip()
     if not s:
         return pd.NaT
-
     if _ISO_RE.match(s):
         return pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
-
-    # fallback for non-ISO (DD/MM/YYYY, DD/MM/YY, etc.)
     return pd.to_datetime(s, errors="coerce", dayfirst=True)
 
 
-# ---------------------------------------------------
-# Parser Registry Helper
-# ---------------------------------------------------
 def _parse_with_pdfplumber(parser_func: Callable, pdf_bytes: bytes, filename: str) -> List[dict]:
-    """Open pdfplumber once for parsers expecting a pdfplumber.PDF."""
     with bytes_to_pdfplumber(pdf_bytes) as pdf:
         return parser_func(pdf, filename)
 
 
-# ---------------------------------------------------
-# Parser Registry
-# All parsers are called as: parser(pdf_bytes, filename) -> List[dict]
-# ---------------------------------------------------
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Affin Bank": lambda b, f: _parse_with_pdfplumber(parse_affin_bank, b, f),
     "Agro Bank": lambda b, f: _parse_with_pdfplumber(parse_agro_bank, b, f),
@@ -131,29 +71,14 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Bank Rakyat": lambda b, f: _parse_with_pdfplumber(parse_bank_rakyat, b, f),
     "CIMB Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_cimb, b, f),
     "Hong Leong": lambda b, f: _parse_with_pdfplumber(parse_hong_leong, b, f),
-
-    # Maybank parser should accept bytes (fitz open via stream)
     "Maybank": lambda b, f: parse_transactions_maybank(b, f),
-
     "Public Bank (PBB)": lambda b, f: _parse_with_pdfplumber(parse_transactions_pbb, b, f),
-
-    # RHB parser should accept bytes
     "RHB Bank": lambda b, f: parse_transactions_rhb(b, f),
-
-    # OCBC parser accepts bytes
     "OCBC Bank": lambda b, f: parse_transactions_ocbc(b, f),
 }
 
-
-# ---------------------------------------------------
-# Bank Selection
-# ---------------------------------------------------
 bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 
-
-# ---------------------------------------------------
-# File Upload
-# ---------------------------------------------------
 uploaded_files = st.file_uploader(
     "Upload PDF files",
     type=["pdf"],
@@ -163,15 +88,13 @@ uploaded_files = st.file_uploader(
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
 
-
-# ---------------------------------------------------
-# Start / Stop / Reset Controls
-# ---------------------------------------------------
 col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
+        # reset Affin totals for a fresh run
+        st.session_state.affin_statement_totals = []
 
 with col2:
     if st.button("⏹️ Stop"):
@@ -181,14 +104,11 @@ with col3:
     if st.button("🔄 Reset"):
         st.session_state.status = "idle"
         st.session_state.results = []
+        st.session_state.affin_statement_totals = []
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
-
-# ---------------------------------------------------
-# MAIN PROCESSING
-# ---------------------------------------------------
 all_tx: List[dict] = []
 
 if uploaded_files and st.session_state.status == "running":
@@ -209,10 +129,17 @@ if uploaded_files and st.session_state.status == "running":
         try:
             pdf_bytes = uploaded_file.getvalue()
 
-            # 1) Parse (bank-specific)
-            tx_raw = parser(pdf_bytes, uploaded_file.name) or []
+            # ✅ Affin: extract statement totals as ground truth
+            if bank_choice == "Affin Bank":
+                with bytes_to_pdfplumber(pdf_bytes) as pdf:
+                    totals = extract_affin_statement_totals(pdf, uploaded_file.name)
+                    st.session_state.affin_statement_totals.append(totals)
 
-            # 2) Normalize schema/types (stabilizes summary + exports + fraud analysis)
+                    # optional: keep transactions for listing (if your parse_affin_bank extracts them)
+                    tx_raw = parse_affin_bank(pdf, uploaded_file.name) or []
+            else:
+                tx_raw = parser(pdf_bytes, uploaded_file.name) or []
+
             tx_norm = normalize_transactions(
                 tx_raw,
                 default_bank=bank_choice,
@@ -233,20 +160,9 @@ if uploaded_files and st.session_state.status == "running":
 
     bank_display_box.success(f"🏦 Completed processing: **{bank_choice}**")
 
-    # ---------------------------------------------------
-    # 3) De-duplicate across files
-    #    - Default: global dedupe (other banks)
-    #    - Affin: OCR-safe outlier filtering + OCR-safe dedupe ignoring description
-    # ---------------------------------------------------
-    if bank_choice == "Affin Bank":
-        # Remove obviously wrong OCR balances (prevents huge phantom movement)
-        all_tx = filter_affin_balance_outliers(all_tx)
-        # Collapse overlaps across statement files even if description differs
-        all_tx = dedupe_transactions_affin(all_tx)
-    else:
-        all_tx = dedupe_transactions(all_tx)
+    # De-dupe transactions for all banks (including Affin transactions if present)
+    all_tx = dedupe_transactions(all_tx)
 
-    # 4) Sort deterministically by date -> page -> description
     def _sort_key(t: dict) -> Tuple:
         dt = parse_any_date_for_summary(t.get("date"))
         return (
@@ -259,10 +175,42 @@ if uploaded_files and st.session_state.status == "running":
     st.session_state.results = all_tx
 
 
-# ---------------------------------------------------
-# CALCULATE MONTHLY SUMMARY (FIXED + Bank Islam OD logic)
-# ---------------------------------------------------
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
+    # ✅ Affin monthly summary from statement totals (ground truth)
+    if bank_choice == "Affin Bank" and st.session_state.affin_statement_totals:
+        rows = []
+        for t in st.session_state.affin_statement_totals:
+            month = t.get("statement_month") or "UNKNOWN"
+            td = safe_float(t.get("total_debit"))
+            tc = safe_float(t.get("total_credit"))
+            ob = t.get("opening_balance")
+            eb = t.get("ending_balance")
+
+            rows.append(
+                {
+                    "month": month,
+                    "transaction_count": None,
+                    "opening_balance": round(safe_float(ob), 2) if ob is not None else None,
+                    "total_debit": round(td, 2),
+                    "total_credit": round(tc, 2),
+                    "net_change": round(tc - td, 2),
+                    "ending_balance": round(safe_float(eb), 2) if eb is not None else None,
+                    "lowest_balance": None,
+                    "lowest_balance_raw": None,
+                    "highest_balance": None,
+                    "od_flag": False,
+                    "source_files": t.get("source_file", ""),
+                }
+            )
+
+        # sort by month when possible
+        def _mkey(r: dict) -> str:
+            return str(r.get("month", "9999-99"))
+
+        rows = sorted(rows, key=_mkey)
+        return rows
+
+    # otherwise use your existing logic (including Bank Islam OD logic)
     if not transactions:
         return []
 
@@ -270,7 +218,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     if df.empty:
         return []
 
-    # FIX: Use safe parser that treats ISO unambiguously
     df["date_parsed"] = df.get("date").apply(parse_any_date_for_summary)
     df = df.dropna(subset=["date_parsed"])
     if df.empty:
@@ -278,22 +225,11 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return []
 
     df["month_period"] = df["date_parsed"].dt.strftime("%Y-%m")
-
-    # Defensive numeric normalization
     df["debit"] = df.get("debit", 0).apply(safe_float)
     df["credit"] = df.get("credit", 0).apply(safe_float)
     df["balance"] = df.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
 
     def _transient_negative_mask_bank_islam(group_sorted: pd.DataFrame) -> pd.Series:
-        """
-        Bank Islam statements may show temporary negative ledger balances which are reversed
-        on the same date (e.g., "REVERSE POSTED DEBIT"). These should not be treated as OD.
-
-        We mark negative balances as 'transient' if:
-          - balance < 0 at row i
-          - within the next 1..3 rows on the same date, there is a row containing REVERSE/REVERSAL
-            and its balance returns to the last known non-negative balance (within 0.01).
-        """
         if group_sorted.empty:
             return pd.Series([], dtype=bool)
 
@@ -312,20 +248,16 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             except Exception:
                 bal_f = None
 
-            # update anchor
             if bal_f is not None and bal_f >= 0:
                 last_nonneg = bal_f
                 continue
 
-            # consider negative only
             if bal_f is None or bal_f >= 0:
                 continue
 
-            # cannot classify without a prior non-negative anchor
             if last_nonneg is None:
                 continue
 
-            # look ahead up to 3 rows on same date
             for j in range(i + 1, min(i + 4, len(g))):
                 dt_j = g.at[j, "date_parsed"]
                 if pd.isna(dt) or pd.isna(dt_j) or dt_j.date() != dt.date():
@@ -342,7 +274,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                     continue
 
                 if ("REVERSE" in desc_j or "REVERSAL" in desc_j) and abs(bal_jf - last_nonneg) <= 0.01:
-                    # mark negative rows from i..j-1 as transient
                     for k in range(i, j):
                         try:
                             bk = float(g.at[k, "balance"])
@@ -361,11 +292,8 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         balances = group_sorted["balance"].dropna()
         ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
         highest_balance = round(float(balances.max()), 2) if not balances.empty else None
-
-        # Raw lowest (audit truth)
         lowest_balance_raw = round(float(balances.min()), 2) if not balances.empty else None
 
-        # Bank Islam only: adjust lowest balance used for OD decisions
         bank_names = set(str(x) for x in group_sorted.get("bank", []).dropna().unique())
         if "Bank Islam" in bank_names and not balances.empty:
             transient_mask = _transient_negative_mask_bank_islam(group_sorted)
@@ -386,8 +314,8 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 "total_credit": round(float(group_sorted["credit"].sum()), 2),
                 "net_change": round(float(group_sorted["credit"].sum() - group_sorted["debit"].sum()), 2),
                 "ending_balance": ending_balance,
-                "lowest_balance": lowest_balance,          # used for OD logic
-                "lowest_balance_raw": lowest_balance_raw,  # true min printed balance (audit)
+                "lowest_balance": lowest_balance,
+                "lowest_balance_raw": lowest_balance_raw,
                 "highest_balance": highest_balance,
                 "od_flag": od_flag,
                 "source_files": ", ".join(sorted(set(group_sorted.get("source_file", []))))
@@ -399,19 +327,17 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     return sorted(monthly_summary, key=lambda x: x["month"])
 
 
-# ---------------------------------------------------
-# DISPLAY RESULTS
-# ---------------------------------------------------
-if st.session_state.results:
+if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals):
     st.subheader("📊 Extracted Transactions")
 
-    df = pd.DataFrame(st.session_state.results)
-
-    display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
-    display_cols = [c for c in display_cols if c in df.columns]
-    df_display = df[display_cols] if display_cols else df
-
-    st.dataframe(df_display, use_container_width=True)
+    df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
+    if not df.empty:
+        display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
+        display_cols = [c for c in display_cols if c in df.columns]
+        df_display = df[display_cols] if display_cols else df
+        st.dataframe(df_display, use_container_width=True)
+    else:
+        st.info("No line-item transactions extracted (this is okay for Affin if you rely on statement totals).")
 
     monthly_summary = calculate_monthly_summary(st.session_state.results)
     if monthly_summary:
@@ -420,9 +346,12 @@ if st.session_state.results:
         st.dataframe(summary_df, use_container_width=True)
 
         st.markdown("---")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = sts = st.columns(4)
         with col1:
-            st.metric("Total Transactions", int(summary_df["transaction_count"].sum()))
+            if "transaction_count" in summary_df.columns and summary_df["transaction_count"].notna().any():
+                st.metric("Total Transactions", int(summary_df["transaction_count"].dropna().sum()))
+            else:
+                st.metric("Total Transactions", "—")
         with col2:
             st.metric("Total Debits", f"RM {summary_df['total_debit'].sum():,.2f}")
         with col3:
@@ -431,11 +360,16 @@ if st.session_state.results:
             net_total = float(summary_df["net_change"].sum())
             st.metric("Net Change", f"RM {net_total:,.2f}")
 
-    # ---------------------------------------------------
-    # DOWNLOAD OPTIONS
-    # ---------------------------------------------------
     st.subheader("⬇️ Download Options")
     col1, col2, col3 = st.columns(3)
+
+    # build display dataframe for downloads
+    if not df.empty:
+        display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
+        display_cols = [c for c in display_cols if c in df.columns]
+        df_display = df[display_cols] if display_cols else df
+    else:
+        df_display = pd.DataFrame([])
 
     with col1:
         st.download_button(
@@ -446,7 +380,6 @@ if st.session_state.results:
         )
 
     with col2:
-        # Date range: keep prior behavior (string min/max)
         date_min = df_display["date"].min() if "date" in df_display.columns and not df_display.empty else None
         date_max = df_display["date"].max() if "date" in df_display.columns and not df_display.empty else None
 
@@ -455,8 +388,8 @@ if st.session_state.results:
                 "total_transactions": int(len(df_display)),
                 "date_range": f"{date_min} to {date_max}" if date_min and date_max else None,
                 "total_files_processed": int(df_display["source_file"].nunique())
-                if "source_file" in df_display.columns
-                else None,
+                if "source_file" in df_display.columns and not df_display.empty
+                else (len(st.session_state.affin_statement_totals) if bank_choice == "Affin Bank" else None),
                 "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
             "monthly_summary": monthly_summary,
