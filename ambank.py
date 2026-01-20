@@ -100,7 +100,7 @@ def parse_ambank(pdf: pdfplumber.PDF, filename: str) -> List[Dict]:
         )
         transactions.extend(page_txs)
 
-    # Sort deterministically (date + seq)
+    # Sort deterministically (date + page + seq)
     transactions = _sort_transactions(transactions)
 
     return transactions
@@ -280,7 +280,7 @@ def _extract_last_balance_from_text(text: str) -> Optional[float]:
         if ms:
             raw = ms.group("num")
 
-        # Explicit negative: -(1,234.56) OR -123.45
+        # Explicit negative: -123.45
         mneg = NEG_MONEY_RE.match(raw)
         if mneg:
             try:
@@ -353,7 +353,7 @@ def _finalize_tx(
         "credit": round(float(credit), 2),
         "balance": round(float(balance), 2),
         "page": int(page_num),
-        "seq": int(seq),  # critical for stable monthly ending_balance
+        "seq": int(seq),  # stable within parsing
         "bank": "AmBank Islamic",
         "source_file": filename,
     }
@@ -374,15 +374,16 @@ def _sort_transactions(transactions: List[Dict]) -> List[Dict]:
 
 
 # =========================================================
-# Monthly Summary Builder (use this instead of your current groupby logic)
+# Monthly Summary Builder (FIXED)
 # =========================================================
 def build_monthly_summary(transactions: List[Dict]):
     """
     Build a stable, correct monthly summary.
 
-    Fixes your screenshot issue:
-      - Ensures ending_balance is truly the last transaction balance in that month
-        by sorting by (month, date, page, seq) before groupby first/last.
+    ### FIX:
+    - Force numeric types for debit/credit/balance/page/seq
+    - Add a final deterministic tie-breaker (row_order) so even if upstream code
+      reorders the list/dataframe, this function's "last" selection remains stable.
     """
     try:
         import pandas as pd
@@ -407,39 +408,63 @@ def build_monthly_summary(transactions: List[Dict]):
 
     df = pd.DataFrame(transactions).copy()
 
+    # Parse and clean
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["date", "balance"])
+    df = df.dropna(subset=["date"])
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "month",
+                "transaction_count",
+                "total_debit",
+                "total_credit",
+                "net_change",
+                "ending_balance",
+                "lowest_balance",
+                "highest_balance",
+                "source_files",
+            ]
+        )
 
+    # ### FIX: enforce numeric types (prevents weird lexicographic ordering)
+    for col in ("debit", "credit", "balance"):
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    for col in ("page", "seq"):
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
+    # Month key
     df["month"] = df["date"].dt.to_period("M").astype(str)
 
+    # ### FIX: ultimate deterministic tie-breaker for "last"
+    # This prevents wrong ending_balance if upstream pipeline reorders rows.
+    df["row_order"] = range(len(df))
+
     # CRITICAL: stable sort before groupby first/last
-    sort_cols = ["month", "date", "page", "seq"]
-    for c in sort_cols:
-        if c not in df.columns:
-            df[c] = 0
-    df = df.sort_values(sort_cols, ascending=True)
+    df = df.sort_values(["month", "date", "page", "seq", "row_order"], ascending=True)
 
     g = df.groupby("month", sort=False)
 
     summary = pd.DataFrame(
         {
             "transaction_count": g.size(),
-            "total_debit": g["debit"].sum(),
-            "total_credit": g["credit"].sum(),
+            "total_debit": g["debit"].sum(min_count=1),
+            "total_credit": g["credit"].sum(min_count=1),
             "opening_balance": g["balance"].first(),
             "ending_balance": g["balance"].last(),
             "lowest_balance": g["balance"].min(),
             "highest_balance": g["balance"].max(),
-            "source_files": g["source_file"].agg(lambda x: ", ".join(sorted(set(x)))),
+            "source_files": g["source_file"].agg(lambda x: ", ".join(sorted(set(x.dropna().astype(str))))),
         }
     ).reset_index()
 
-    summary["total_debit"] = summary["total_debit"].round(2)
-    summary["total_credit"] = summary["total_credit"].round(2)
-    summary["opening_balance"] = summary["opening_balance"].round(2)
-    summary["ending_balance"] = summary["ending_balance"].round(2)
-    summary["lowest_balance"] = summary["lowest_balance"].round(2)
-    summary["highest_balance"] = summary["highest_balance"].round(2)
+    # Rounding
+    for c in ("total_debit", "total_credit", "opening_balance", "ending_balance", "lowest_balance", "highest_balance"):
+        summary[c] = pd.to_numeric(summary[c], errors="coerce").round(2)
 
     summary["net_change"] = (summary["ending_balance"] - summary["opening_balance"]).round(2)
 
