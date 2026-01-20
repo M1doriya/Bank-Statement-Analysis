@@ -1,3 +1,4 @@
+# ambank.py
 from __future__ import annotations
 
 import re
@@ -6,41 +7,34 @@ from typing import Dict, List, Optional, Tuple
 
 import pdfplumber
 
-# =========================================================
-# AmBank Islamic (Malaysia) - Robust text parser
-# =========================================================
-# Key fixes vs your current version:
-# - MULTI-LINE ROWS: the statement often prints BALANCE on the first line
-#   and the DEBIT/CREDIT amount on the next line. We therefore parse by
-#   accumulating lines until the next date anchor.
-# - NO FAKE OD: the token "DR" can appear in the *summary* section (and
-#   sometimes gets extracted as a stray token). For the provided AmBank PDFs
-#   it MUST NOT be interpreted as "negative overdraft".
-# - OPENING BALANCE: we anchor running delta using "Balance b/f" if present;
-#   otherwise fall back to the "OPENING BALANCE / BAKI PEMBUKAAN" label.
 
-
-# -----------------------------
+# =========================================================
 # Regex patterns
-# -----------------------------
+# =========================================================
+
+# Transaction starts look like: 01May <rest...>
 TX_START_RE = re.compile(
     r"^(?P<day>\d{1,2})(?P<mon>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
-# money token without sign (AmBank tables are positive; any sign is handled separately)
+# Money tokens
 MONEY_TOKEN_RE = re.compile(r"^\d{1,3}(?:,\d{3})*\.\d{2}$|^\d+\.\d{2}$")
 
-# sometimes a suffix is attached to the number (e.g. 10,400.52DR in summary)
+# Sometimes text extraction glues suffix: 10,400.52DR / 10,400.52CR
 MONEY_WITH_SUFFIX_RE = re.compile(
     r"^(?P<num>\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})(?P<suf>DR|CR)$",
     re.IGNORECASE,
 )
 
-# Header / noise lines
+# Negative formats sometimes appear as -(1,234.56) or (1,234.56)
+PAREN_MONEY_RE = re.compile(r"^\((?P<num>\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})\)$")
+NEG_MONEY_RE = re.compile(r"^-(?P<num>\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})$")
+
+# Header / noise lines (keep this conservative)
 NOISE_PREFIX_RE = re.compile(
     r"^(?:ACCOUNT\s+NO\.|STATEMENT\s+DATE|CURRENCY|PAGE|ACCOUNT\s+STATEMENT|PENYATA\s+AKAUN|"
-    r"PROTECTED\s+BY\s+PIDM|DILINDUNGI\s+OLEH\s+PIDM|CATEGORY|KATEGORI|BALANCE|BAKI|"
+    r"PROTECTED\s+BY\s+PIDM|DILINDUNGI\s+OLEH\s+PIDM|CATEGORY|KATEGORI|"
     r"NO\.\s*OF\s*TRANSACTION|BILANGAN\s+TRANSAKSI|ACCOUNT\s+SUMMARY|RINGKASAN\s+AKAUN|"
     r"OPENING\s+BALANCE|TOTAL\s+DEBITS?|TOTAL\s+CREDITS?|CLOSING\s+BALANCE|CHEQUES\s+NOT\s+CLEARED|"
     r"DATE\s*$|TARIKH\s*$|CHEQUE\s+NO\.|NO\.\s+CEK|TRANSACTION\s*$|TRANSAKSI\s*$|DEBIT\s*$|CREDIT\s*$|BALANCE\s*$)\b",
@@ -48,7 +42,6 @@ NOISE_PREFIX_RE = re.compile(
 )
 
 BAL_BF_RE = re.compile(r"\bBaki\s+Bawa\s+Ke\s+Hadapan\b|\bBalance\s+b/f\b", re.IGNORECASE)
-
 
 _MONTH_MAP = {
     "JAN": "01",
@@ -66,46 +59,58 @@ _MONTH_MAP = {
 }
 
 
+# =========================================================
+# Public entry point (your Streamlit app calls this)
+# =========================================================
 def parse_ambank(pdf: pdfplumber.PDF, filename: str) -> List[Dict]:
-    """Entry point used by app.py (expects a pdfplumber.PDF object)."""
+    """
+    Parse AmBank statement and extract all transactions.
 
+    Output fields include:
+      - date (YYYY-MM-DD)
+      - description
+      - debit, credit
+      - balance
+      - page
+      - seq (stable ordering within the file)
+      - bank, source_file
+    """
     statement_info = extract_statement_info(pdf)
     detected_year = statement_info.get("year") or datetime.now().year
 
     transactions: List[Dict] = []
+    seq = 0
 
-    # running balance anchor
+    # Opening anchor (best-effort)
     prev_balance: Optional[float] = statement_info.get("opening_balance")
 
-    # We parse per page, but preserve natural order (page order) then sort.
     for page_num, page in enumerate(pdf.pages, start=1):
         text = page.extract_text(x_tolerance=1) or ""
         if not text.strip():
             continue
 
-        page_lines = _normalize_lines(text)
-        page_txs, prev_balance = _parse_transactions_from_lines(
-            page_lines,
+        lines = _normalize_lines(text)
+        page_txs, prev_balance, seq = _parse_transactions_from_lines(
+            lines,
             page_num=page_num,
             filename=filename,
-            detected_year=detected_year,
+            detected_year=int(detected_year),
             prev_balance=prev_balance,
+            seq_start=seq,
         )
         transactions.extend(page_txs)
 
-    # Final sort (chronological, stable by page order)
+    # Sort deterministically (date + seq)
     transactions = _sort_transactions(transactions)
 
     return transactions
 
 
-# ---------------------------------------------------------------------
-# STATEMENT INFO
-# ---------------------------------------------------------------------
-
+# =========================================================
+# Statement Info
+# =========================================================
 def extract_statement_info(pdf: pdfplumber.PDF) -> Dict:
     """Extract account number, statement period, and opening balance."""
-
     info: Dict = {
         "account_number": None,
         "statement_period": None,
@@ -116,12 +121,10 @@ def extract_statement_info(pdf: pdfplumber.PDF) -> Dict:
 
     first_page = pdf.pages[0].extract_text(x_tolerance=1) or ""
 
-    # Account number
     m = re.search(r"ACCOUNT\s+NO\..*?:\s*(\d+)", first_page, re.IGNORECASE)
     if m:
         info["account_number"] = m.group(1)
 
-    # Statement period
     m = re.search(
         r"STATEMENT\s+DATE.*?:\s*(\d{2}/\d{2}/\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})",
         first_page,
@@ -134,7 +137,7 @@ def extract_statement_info(pdf: pdfplumber.PDF) -> Dict:
         except Exception:
             pass
 
-    # Preferred opening balance source in these PDFs is the "Balance b/f" line
+    # Preferred opening balance source: Balance b/f line
     m = re.search(
         r"Baki\s+Bawa\s+Ke\s+Hadapan\s*/\s*Balance\s+b/f\s+(?P<bal>[\d,]+\.\d{2})",
         first_page,
@@ -156,18 +159,16 @@ def extract_statement_info(pdf: pdfplumber.PDF) -> Dict:
     return info
 
 
-# ---------------------------------------------------------------------
-# PAGE / LINE PARSING
-# ---------------------------------------------------------------------
-
+# =========================================================
+# Page / Line Parsing (multi-line transaction support)
+# =========================================================
 def _normalize_lines(text: str) -> List[str]:
-    lines: List[str] = []
+    out: List[str] = []
     for raw in text.splitlines():
         ln = re.sub(r"\s+", " ", (raw or "")).strip()
-        if not ln:
-            continue
-        lines.append(ln)
-    return lines
+        if ln:
+            out.append(ln)
+    return out
 
 
 def _parse_transactions_from_lines(
@@ -177,41 +178,56 @@ def _parse_transactions_from_lines(
     filename: str,
     detected_year: int,
     prev_balance: Optional[float],
-) -> Tuple[List[Dict], Optional[float]]:
+    seq_start: int,
+) -> Tuple[List[Dict], Optional[float], int]:
+    """
+    Parse transactions by buffering lines from a date anchor until next date anchor.
+    Returns txs, updated prev_balance, updated seq.
+    """
     txs: List[Dict] = []
 
     current_date_iso: Optional[str] = None
     current_buf: List[str] = []
 
+    seq = seq_start
+
     def flush():
-        nonlocal prev_balance, current_date_iso, current_buf
-        if not current_date_iso or not current_buf:
-            current_date_iso, current_buf = None, []
+        nonlocal prev_balance, current_date_iso, current_buf, seq
+
+        if not current_date_iso:
+            current_buf = []
+            return
+
+        if not current_buf:
+            current_date_iso = None
             return
 
         tx, prev_balance = _finalize_tx(
-            current_date_iso=current_date_iso,
+            date_iso=current_date_iso,
             buf=current_buf,
             page_num=page_num,
             filename=filename,
             prev_balance=prev_balance,
+            seq=seq,
         )
         if tx:
             txs.append(tx)
-        current_date_iso, current_buf = None, []
+            seq += 1
+
+        current_date_iso = None
+        current_buf = []
 
     for ln in lines:
-        # Skip clear header/noise lines
+        # skip header-ish / summary-ish noise lines
         if NOISE_PREFIX_RE.match(ln):
             continue
 
-        # Some PDFs emit a lone 'DR' token near the summary section. Ignore.
+        # ignore lone DR/CR tokens which can appear near summary extraction
         if ln.strip().upper() in {"DR", "CR"}:
             continue
 
-        # Anchor opening balance from Balance b/f line if it appears mid-file
+        # allow mid-file opening anchor (Balance b/f)
         if BAL_BF_RE.search(ln):
-            # extract last numeric token as balance
             bal = _extract_last_balance_from_text(ln)
             if bal is not None:
                 prev_balance = bal
@@ -219,7 +235,6 @@ def _parse_transactions_from_lines(
 
         m = TX_START_RE.match(ln)
         if m:
-            # new tx starts -> flush previous
             flush()
 
             dd = int(m.group("day"))
@@ -229,86 +244,101 @@ def _parse_transactions_from_lines(
                 continue
 
             current_date_iso = f"{detected_year:04d}-{mm}-{dd:02d}"
+
             rest = (m.group("rest") or "").strip()
-            if rest:
-                current_buf = [rest]
-            else:
-                current_buf = []
+            current_buf = [rest] if rest else []
             continue
 
-        # Continuation line for current tx
+        # continuation line
         if current_date_iso is not None:
             current_buf.append(ln)
 
-    # flush last tx on page
     flush()
+    return txs, prev_balance, seq
 
-    return txs, prev_balance
 
-
-# ---------------------------------------------------------------------
-# TX FINALIZATION
-# ---------------------------------------------------------------------
-
+# =========================================================
+# TX Finalization
+# =========================================================
 def _extract_last_balance_from_text(text: str) -> Optional[float]:
-    """Return the right-most money token on the text, ignoring DR/CR suffix."""
+    """
+    Return the right-most balance-like number from the text.
+
+    IMPORTANT:
+      - We DO NOT treat DR as negative.
+      - Only treat negative if explicit '-' or parentheses format is present.
+    """
     if not text:
         return None
 
     toks = text.split()
     for tok in reversed(toks):
-        t = tok.strip().replace(",", "")
+        raw = tok.strip()
 
-        m = MONEY_WITH_SUFFIX_RE.match(tok)
-        if m:
-            t = m.group("num").replace(",", "")
+        # Handle glued suffix (10,400.52DR) => 10,400.52
+        ms = MONEY_WITH_SUFFIX_RE.match(raw)
+        if ms:
+            raw = ms.group("num")
 
-        if MONEY_TOKEN_RE.match(tok) or m:
+        # Explicit negative: -(1,234.56) OR -123.45
+        mneg = NEG_MONEY_RE.match(raw)
+        if mneg:
             try:
-                return float(t)
+                return -float(mneg.group("num").replace(",", ""))
             except Exception:
                 return None
+
+        # Parentheses negative: (1,234.56)
+        mpar = PAREN_MONEY_RE.match(raw)
+        if mpar:
+            try:
+                return -float(mpar.group("num").replace(",", ""))
+            except Exception:
+                return None
+
+        # Normal positive money token
+        if MONEY_TOKEN_RE.match(raw):
+            try:
+                return float(raw.replace(",", ""))
+            except Exception:
+                return None
+
     return None
 
 
 def _finalize_tx(
     *,
-    current_date_iso: str,
+    date_iso: str,
     buf: List[str],
     page_num: int,
     filename: str,
     prev_balance: Optional[float],
+    seq: int,
 ) -> Tuple[Optional[Dict], Optional[float]]:
-    """Build a transaction dict from buffered lines."""
-
     joined = " ".join([b for b in buf if b]).strip()
     if not joined:
         return None, prev_balance
 
     balance = _extract_last_balance_from_text(joined)
     if balance is None:
-        # if we cannot find a balance, we cannot infer reliably
+        # cannot infer debit/credit without balance (for this approach)
         return None, prev_balance
 
-    # description is joined text with the *last* balance token stripped
-    desc = joined
-    # strip a trailing "<amount>[DR|CR]?" at end
+    # strip trailing balance chunk (and optional DR/CR) from description
     desc = re.sub(
-        r"\s*(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})\s*(?:DR|CR)?\s*$",
+        r"\s*(\(?-?\d{1,3}(?:,\d{3})*\.\d{2}\)?|-?\d+\.\d{2})\s*(?:DR|CR)?\s*$",
         "",
-        desc,
+        joined,
         flags=re.IGNORECASE,
     ).strip()
 
-    # clean repeated commas/spaces from pdf extraction
+    # clean spacing/comma artifacts
     desc = re.sub(r"\s+", " ", desc)
     desc = re.sub(r",\s*,+", ", ", desc)
     desc = re.sub(r",\s*$", "", desc).strip()
 
-    # infer debit/credit from balance delta
     debit = 0.0
     credit = 0.0
-
     if prev_balance is not None:
         delta = round(balance - prev_balance, 2)
         if delta > 0:
@@ -317,12 +347,13 @@ def _finalize_tx(
             debit = abs(delta)
 
     tx: Dict = {
-        "date": current_date_iso,
+        "date": date_iso,
         "description": desc,
         "debit": round(float(debit), 2),
         "credit": round(float(credit), 2),
         "balance": round(float(balance), 2),
         "page": int(page_num),
+        "seq": int(seq),  # critical for stable monthly ending_balance
         "bank": "AmBank Islamic",
         "source_file": filename,
     }
@@ -330,13 +361,101 @@ def _finalize_tx(
     return tx, balance
 
 
-# ---------------------------------------------------------------------
-# Sorting helper
-# ---------------------------------------------------------------------
-
 def _sort_transactions(transactions: List[Dict]) -> List[Dict]:
-    def _key(t: Dict):
-        # ISO date -> safe lexical sort; tie-break by page
-        return (t.get("date") or "", int(t.get("page") or 0))
+    # Deterministic ordering across pages and within same date
+    return sorted(
+        transactions,
+        key=lambda t: (
+            t.get("date") or "",
+            int(t.get("page") or 0),
+            int(t.get("seq") or 0),
+        ),
+    )
 
-    return sorted(transactions, key=_key)
+
+# =========================================================
+# Monthly Summary Builder (use this instead of your current groupby logic)
+# =========================================================
+def build_monthly_summary(transactions: List[Dict]):
+    """
+    Build a stable, correct monthly summary.
+
+    Fixes your screenshot issue:
+      - Ensures ending_balance is truly the last transaction balance in that month
+        by sorting by (month, date, page, seq) before groupby first/last.
+    """
+    try:
+        import pandas as pd
+    except Exception as e:
+        raise RuntimeError("pandas is required for build_monthly_summary()") from e
+
+    if not transactions:
+        return pd.DataFrame(
+            columns=[
+                "month",
+                "transaction_count",
+                "total_debit",
+                "total_credit",
+                "net_change",
+                "opening_balance",
+                "ending_balance",
+                "lowest_balance",
+                "highest_balance",
+                "source_files",
+            ]
+        )
+
+    df = pd.DataFrame(transactions).copy()
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date", "balance"])
+
+    df["month"] = df["date"].dt.to_period("M").astype(str)
+
+    # CRITICAL: stable sort before groupby first/last
+    sort_cols = ["month", "date", "page", "seq"]
+    for c in sort_cols:
+        if c not in df.columns:
+            df[c] = 0
+    df = df.sort_values(sort_cols, ascending=True)
+
+    g = df.groupby("month", sort=False)
+
+    summary = pd.DataFrame(
+        {
+            "transaction_count": g.size(),
+            "total_debit": g["debit"].sum(),
+            "total_credit": g["credit"].sum(),
+            "opening_balance": g["balance"].first(),
+            "ending_balance": g["balance"].last(),
+            "lowest_balance": g["balance"].min(),
+            "highest_balance": g["balance"].max(),
+            "source_files": g["source_file"].agg(lambda x: ", ".join(sorted(set(x)))),
+        }
+    ).reset_index()
+
+    summary["total_debit"] = summary["total_debit"].round(2)
+    summary["total_credit"] = summary["total_credit"].round(2)
+    summary["opening_balance"] = summary["opening_balance"].round(2)
+    summary["ending_balance"] = summary["ending_balance"].round(2)
+    summary["lowest_balance"] = summary["lowest_balance"].round(2)
+    summary["highest_balance"] = summary["highest_balance"].round(2)
+
+    summary["net_change"] = (summary["ending_balance"] - summary["opening_balance"]).round(2)
+
+    # Match your UI column ordering
+    summary = summary[
+        [
+            "month",
+            "transaction_count",
+            "total_debit",
+            "total_credit",
+            "net_change",
+            "ending_balance",
+            "lowest_balance",
+            "highest_balance",
+            "source_files",
+        ]
+    ]
+
+    return summary
