@@ -18,6 +18,15 @@
 #   on the same date (e.g., "REVERSE POSTED DEBIT"). These should NOT be treated as OD.
 #   We keep balances as-is for audit, but compute lowest_balance_for_od by ignoring
 #   transient reversed negative dips (Bank Islam only). Other banks unchanged.
+#
+# NEW FIX (Affin Bank only):
+#   Affin OCR statements can produce:
+#     - duplicated transactions across overlapping statement PDFs
+#     - OCR balance outliers (e.g. extra digit -> millions), causing huge phantom deltas
+#   We apply:
+#     (1) outlier filtering on balances
+#     (2) Affin-specific dedupe that ignores description/page/source_file
+#   This does not affect other banks.
 
 import json
 import re
@@ -33,6 +42,9 @@ from core_utils import (
     dedupe_transactions,
     normalize_transactions,
     safe_float,
+    # ✅ Affin-only helpers (must exist in core_utils.py)
+    dedupe_transactions_affin,
+    filter_affin_balance_outliers,
 )
 
 # ---------------------------------------------------
@@ -221,8 +233,18 @@ if uploaded_files and st.session_state.status == "running":
 
     bank_display_box.success(f"🏦 Completed processing: **{bank_choice}**")
 
-    # 3) De-duplicate across files (prevents double-counting when overlap exists)
-    all_tx = dedupe_transactions(all_tx)
+    # ---------------------------------------------------
+    # 3) De-duplicate across files
+    #    - Default: global dedupe (other banks)
+    #    - Affin: OCR-safe outlier filtering + OCR-safe dedupe ignoring description
+    # ---------------------------------------------------
+    if bank_choice == "Affin Bank":
+        # Remove obviously wrong OCR balances (prevents huge phantom movement)
+        all_tx = filter_affin_balance_outliers(all_tx)
+        # Collapse overlaps across statement files even if description differs
+        all_tx = dedupe_transactions_affin(all_tx)
+    else:
+        all_tx = dedupe_transactions(all_tx)
 
     # 4) Sort deterministically by date -> page -> description
     def _sort_key(t: dict) -> Tuple:
