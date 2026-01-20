@@ -287,3 +287,65 @@ def dedupe_transactions(transactions: List[Dict[str, Any]]) -> List[Dict[str, An
         seen.add(fp)
         out.append(tx)
     return out
+
+
+# =========================================================
+# Affin-specific fixes (DO NOT affect other banks unless called)
+# =========================================================
+def dedupe_transactions_affin(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Affin statements are frequently OCR-based; description strings vary across files.
+    De-dupe must NOT depend on description/page/source_file, or overlap PDFs will inflate totals.
+
+    Key:
+      (date, debit, credit, balance, bank)
+    """
+    seen = set()
+    out = []
+    for tx in transactions:
+        date = normalize_text(tx.get("date"))
+        bank = normalize_text(tx.get("bank"))
+        debit = round(safe_float(tx.get("debit", 0.0)), 2)
+        credit = round(safe_float(tx.get("credit", 0.0)), 2)
+        bal_raw = tx.get("balance")
+        balance = None if bal_raw is None else round(safe_float(bal_raw), 2)
+
+        key = (date, debit, credit, balance, bank)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tx)
+    return out
+
+
+def filter_affin_balance_outliers(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Drop rows whose balance is a clear OCR outlier (e.g. extra digit -> millions),
+    which causes massive delta-based phantom debits/credits.
+
+    Method:
+      - compute median balance
+      - keep balances within +/- 1.5M of median
+      - keep rows with balance=None unchanged
+    """
+    bals = [safe_float(t.get("balance")) for t in transactions if t.get("balance") is not None]
+    if len(bals) < 10:
+        return transactions
+
+    bals_sorted = sorted(bals)
+    median = bals_sorted[len(bals_sorted) // 2]
+
+    lo = median - 1_500_000
+    hi = median + 1_500_000
+
+    out = []
+    for t in transactions:
+        b = t.get("balance")
+        if b is None:
+            out.append(t)
+            continue
+        bf = safe_float(b)
+        if lo <= bf <= hi:
+            out.append(t)
+
+    return out
