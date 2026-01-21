@@ -17,27 +17,14 @@ except Exception:  # pragma: no cover
 # Regex / constants
 # =========================================================
 
-DATE_IN_TOKEN_RE = re.compile(
-    r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})"
-)
-
+DATE_IN_TOKEN_RE = re.compile(r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})")
 MONEY_TOKEN_RE = re.compile(
     r"^\(?\s*(?:RM\s*)?(?P<num>(?:\d{1,3}(?:,\d{3})*|\d+)?\.\d{2})\s*\)?(?P<trail_sign>[+-])?\s*[\.,;:|]*\s*$",
     re.I,
 )
+MONEY_IN_TEXT_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
 
 HEADER_HINTS = ("DATE", "TARIKH", "DEBIT", "CREDIT", "BALANCE", "BAKI")
-TOTAL_HINTS = ("TOTAL", "JUMLAH")
-BF_HINTS = (
-    "B/F",
-    "BALANCE B/F",
-    "BAKI B/F",
-    "BAKI MULA",
-    "OPENING",
-    "BALANCE BROUGHT",
-    "BALANCE BROUGHT FORWARD",
-)
-
 NON_TX_HINTS = (
     "ACCOUNT",
     "NO.",
@@ -55,21 +42,35 @@ NON_TX_HINTS = (
     "STATEMENT DATE",
 )
 
-# Statement totals extraction
-MONEY_IN_TEXT_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
+BF_HINTS = (
+    "B/F",
+    "BALANCE B/F",
+    "BAKI B/F",
+    "BAKI MULA",
+    "BAKI AWAL",
+    "OPENING",
+    "BALANCE BROUGHT",
+    "BALANCE BROUGHT FORWARD",
+)
 
-# Filename month inference: 2025_04.pdf, 2025-04.pdf, 202504, etc.
 FILENAME_MONTH_RE = re.compile(r"(?P<y>20\d{2})[^\d]?(?P<m>0[1-9]|1[0-2])")
-
-# Guardrail for delta inference (avoid absurd OCR glitches)
 MAX_REASONABLE_DELTA = 5_000_000.00
 
 
 # =========================================================
-# Helpers
+# Basic helpers
 # =========================================================
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "")).strip()
+
+
+def _infer_month_from_filename(filename: str) -> Optional[str]:
+    if not filename:
+        return None
+    m = FILENAME_MONTH_RE.search(filename)
+    if not m:
+        return None
+    return f"{int(m.group('y')):04d}-{int(m.group('m')):02d}"
 
 
 def _to_iso_date(token: str) -> Optional[str]:
@@ -96,9 +97,7 @@ def _clean_money_token(token: str) -> Optional[str]:
     if not t:
         return None
 
-    # common OCR noise
-    t = t.replace("O", "0").replace("o", "0")
-    t = t.replace(" ", "")
+    t = t.replace("O", "0").replace("o", "0").replace(" ", "")
 
     m = MONEY_TOKEN_RE.match(t)
     if not m:
@@ -108,15 +107,13 @@ def _clean_money_token(token: str) -> Optional[str]:
             return None
         t = t2
 
-    num = m.group("num") or ""
+    num = (m.group("num") or "").replace(",", "")
     if num.startswith("."):
         num = "0" + num
 
-    num = num.replace(",", "")
-
-    is_paren_neg = t.startswith("(") and ")" in t
     sign = m.group("trail_sign")
-    if is_paren_neg or sign == "-":
+    paren_neg = t.startswith("(") and ")" in t
+    if paren_neg or sign == "-":
         return "-" + num
     return num
 
@@ -135,31 +132,16 @@ def _is_money_token(token: str) -> bool:
     return _clean_money_token(token) is not None
 
 
-def _is_summary_row(row_upper: str) -> bool:
-    return any(t in row_upper for t in TOTAL_HINTS)
+def _looks_non_tx_row(up: str) -> bool:
+    return any(h in up for h in NON_TX_HINTS)
 
 
-def _is_bf_row(row_upper: str) -> bool:
-    return any(t in row_upper for t in BF_HINTS)
-
-
-def _looks_non_tx_row(row_upper: str) -> bool:
-    return any(t in row_upper for t in NON_TX_HINTS)
-
-
-def _infer_month_from_filename(filename: str) -> Optional[str]:
-    if not filename:
-        return None
-    m = FILENAME_MONTH_RE.search(filename)
-    if not m:
-        return None
-    y = int(m.group("y"))
-    mo = int(m.group("m"))
-    return f"{y:04d}-{mo:02d}"
+def _is_bf_row(up: str) -> bool:
+    return any(h in up for h in BF_HINTS)
 
 
 # =========================================================
-# Word extraction (PDF text first, OCR fallback)
+# Extraction: words (PDF text first, OCR fallback)
 # =========================================================
 def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
     words = page.extract_words(
@@ -167,7 +149,6 @@ def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
         keep_blank_chars=False,
         extra_attrs=["x0", "x1", "top", "bottom"],
     ) or []
-
     out: List[Dict[str, Any]] = []
     for w in words:
         t = (w.get("text") or "").strip()
@@ -189,15 +170,12 @@ def _words_from_ocr(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
     if pytesseract is None:
         return []
 
-    # Crop away some header/footer to reduce OCR noise (tune if needed)
     try:
         w, h = float(page.width), float(page.height)
-        top = 90
-        bottom = h - 50
-        crop = page.crop((0, top, w, bottom))
-        img = crop.to_image(resolution=220).original
+        crop = page.crop((0, 80, w, h - 50))
+        img = crop.to_image(resolution=240).original
     except Exception:
-        img = page.to_image(resolution=220).original
+        img = page.to_image(resolution=240).original
 
     data = pytesseract.image_to_data(
         img,
@@ -211,21 +189,8 @@ def _words_from_ocr(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
         txt = (data["text"][i] or "").strip()
         if not txt:
             continue
-        x, y, ww, hh = (
-            data["left"][i],
-            data["top"][i],
-            data["width"][i],
-            data["height"][i],
-        )
-        out.append(
-            {
-                "text": txt,
-                "x0": float(x),
-                "x1": float(x + ww),
-                "y0": float(y),
-                "y1": float(y + hh),
-            }
-        )
+        x, y, ww, hh = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+        out.append({"text": txt, "x0": float(x), "x1": float(x + ww), "y0": float(y), "y1": float(y + hh)})
     return out
 
 
@@ -237,12 +202,11 @@ def _get_page_words(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
 
 
 # =========================================================
-# Row grouping
+# Row clustering (y grouping)
 # =========================================================
-def _cluster_rows(words: List[Dict[str, Any]], y_tol: float = 2.5) -> List[Tuple[float, List[Dict[str, Any]]]]:
+def _cluster_rows(words: List[Dict[str, Any]], y_tol: float = 2.8) -> List[Tuple[float, List[Dict[str, Any]]]]:
     if not words:
         return []
-
     words.sort(key=lambda r: (r["y0"], r["x0"]))
 
     buckets: List[Dict[str, Any]] = []
@@ -259,8 +223,7 @@ def _cluster_rows(words: List[Dict[str, Any]], y_tol: float = 2.5) -> List[Tuple
 
     out: List[Tuple[float, List[Dict[str, Any]]]] = []
     for b in sorted(buckets, key=lambda z: z["y"]):
-        row_words = sorted(b["items"], key=lambda z: z["x0"])
-        out.append((float(b["y"]), row_words))
+        out.append((float(b["y"]), sorted(b["items"], key=lambda z: z["x0"])))
     return out
 
 
@@ -276,13 +239,13 @@ def _row_has_date(row_words: List[Dict[str, Any]]) -> bool:
 
 
 # =========================================================
-# Column detection
+# Column detection for Debit/Credit/Balance
 # =========================================================
 def _detect_columns(rows: List[Tuple[float, List[Dict[str, Any]]]]) -> Optional[Dict[str, float]]:
-    # 1) Header scan
-    for _, rw in rows[:60]:
-        txtu = _row_text(rw).upper()
-        if not any(h in txtu for h in HEADER_HINTS):
+    # scan for a header row
+    for _, rw in rows[:80]:
+        up = _row_text(rw).upper()
+        if not any(h in up for h in HEADER_HINTS):
             continue
 
         debit_x = credit_x = balance_x = None
@@ -299,19 +262,19 @@ def _detect_columns(rows: List[Tuple[float, List[Dict[str, Any]]]]) -> Optional[
         if debit_x and credit_x and balance_x:
             return {"debit_x": float(debit_x), "credit_x": float(credit_x), "balance_x": float(balance_x)}
 
-    # 2) Fallback clustering: money token x-positions on date rows
+    # fallback: cluster money x positions on date rows
     money_xs: List[float] = []
     for _, rw in rows:
-        up = _row_text(rw).upper()
         if not _row_has_date(rw):
             continue
-        if _is_summary_row(up) or _looks_non_tx_row(up):
+        up = _row_text(rw).upper()
+        if _looks_non_tx_row(up):
             continue
         for w in rw:
             if _is_money_token(w["text"]):
                 money_xs.append(float((w["x0"] + w["x1"]) / 2.0))
 
-    if len(money_xs) < 15:
+    if len(money_xs) < 12:
         return None
 
     money_xs.sort()
@@ -332,14 +295,7 @@ def _detect_columns(rows: List[Tuple[float, List[Dict[str, Any]]]]) -> Optional[
     return {"debit_x": float(debit_x), "credit_x": float(credit_x), "balance_x": float(balance_x)}
 
 
-def _classify_money_by_columns(
-    row_words: List[Dict[str, Any]],
-    col: Optional[Dict[str, float]],
-) -> Tuple[Optional[float], Optional[float], Optional[float]]:
-    """
-    Returns (debit, credit, balance). Uses column centers if available.
-    If columns not available, returns (None, None, rightmost_money_as_balance).
-    """
+def _classify_money_by_columns(row_words: List[Dict[str, Any]], col: Optional[Dict[str, float]]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
     money_items: List[Tuple[float, float]] = []
     for w in row_words:
         if not _is_money_token(w["text"]):
@@ -353,36 +309,37 @@ def _classify_money_by_columns(
     if not money_items:
         return None, None, None
 
-    if not col:
-        money_items.sort(key=lambda t: t[0])
-        bal = money_items[-1][1]
-        return None, None, bal
+    money_items.sort(key=lambda t: t[0])
 
-    debit_x = float(col.get("debit_x", -1.0))
-    credit_x = float(col.get("credit_x", -1.0))
-    balance_x = float(col.get("balance_x", -1.0))
+    if not col:
+        # if we cannot detect columns, assume rightmost is balance
+        return None, None, money_items[-1][1]
+
+    debit_x = float(col.get("debit_x", -1))
+    credit_x = float(col.get("credit_x", -1))
+    balance_x = float(col.get("balance_x", -1))
 
     debit_vals: List[float] = []
     credit_vals: List[float] = []
     balance_vals: List[float] = []
 
     for xc, v in money_items:
-        # ignore left-side numbers that are not in the amount columns
+        # ignore left noise
         if balance_x > 0 and xc < (balance_x - 250):
             continue
 
-        dists = []
+        candidates = []
         if debit_x > 0:
-            dists.append(("debit", abs(xc - debit_x)))
+            candidates.append(("debit", abs(xc - debit_x)))
         if credit_x > 0:
-            dists.append(("credit", abs(xc - credit_x)))
+            candidates.append(("credit", abs(xc - credit_x)))
         if balance_x > 0:
-            dists.append(("balance", abs(xc - balance_x)))
-        if not dists:
+            candidates.append(("balance", abs(xc - balance_x)))
+        if not candidates:
             continue
 
-        label, dist = min(dists, key=lambda x: x[1])
-        if dist > 85:
+        label, dist = min(candidates, key=lambda x: x[1])
+        if dist > 90:
             continue
 
         if label == "debit":
@@ -394,30 +351,22 @@ def _classify_money_by_columns(
 
     debit = round(sum(debit_vals), 2) if debit_vals else None
     credit = round(sum(credit_vals), 2) if credit_vals else None
-
-    if balance_vals:
-        balance = float(balance_vals[-1])
-    else:
-        balance = float(sorted(money_items, key=lambda t: t[0])[-1][1])
-
-    return debit, credit, balance
+    balance = balance_vals[-1] if balance_vals else money_items[-1][1]
+    return debit, credit, float(balance)
 
 
 # =========================================================
-# Statement totals extraction (robust line-by-line)
+# Statement totals extraction (used for monthly summary)
 # =========================================================
 def _page_text_pdf_or_ocr(page: pdfplumber.page.Page) -> str:
     txt = (page.extract_text() or "").strip()
     if len(txt) >= 120:
         return txt
-
     if pytesseract is None:
         return txt
-
     try:
         img = page.to_image(resolution=260).original
-        ocr = pytesseract.image_to_string(img, config="--psm 6") or ""
-        return ocr
+        return pytesseract.image_to_string(img, config="--psm 6") or txt
     except Exception:
         return txt
 
@@ -433,78 +382,40 @@ def _rightmost_money_in_line(line: str) -> Optional[float]:
 
 
 def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
-    """
-    Robust to OCR wording variations:
-      - TOTAL/JUMLAH DEBIT/CREDIT
-      - JUMLAH PEMASUKAN / JUMLAH PENGELUARAN
-      - BAKI AWAL/MULA (opening)
-      - BAKI AKHIR/PENUTUP/TUTUP (ending)
-      - C/F, CARRIED FORWARD, CLOSING/ENDING BALANCE
-    """
-    out: Dict[str, Optional[float]] = {
-        "total_debit": None,
-        "total_credit": None,
-        "opening_balance": None,
-        "ending_balance": None,
-    }
+    out = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
     if not text:
         return out
-
-    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
     for line in lines:
         up = line.upper()
 
-        # TOTAL DEBIT (money out)
+        # debit (out)
         if out["total_debit"] is None:
-            debit_hit = (
-                (("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up)
-                or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up))
-            )
-            if debit_hit:
+            if ((("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up) or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up))):
                 v = _rightmost_money_in_line(line)
                 if v is not None:
                     out["total_debit"] = float(v)
                     continue
 
-        # TOTAL CREDIT (money in)
+        # credit (in)
         if out["total_credit"] is None:
-            credit_hit = (
-                (("TOTAL" in up or "JUMLAH" in up) and "CREDIT" in up)
-                or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up))
-            )
-            if credit_hit:
+            if ((("TOTAL" in up or "JUMLAH" in up) and "CREDIT" in up) or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up))):
                 v = _rightmost_money_in_line(line)
                 if v is not None:
                     out["total_credit"] = float(v)
                     continue
 
-        # OPENING BALANCE
+        # opening
         if out["opening_balance"] is None:
-            opening_hit = (
-                ("B/F" in up)
-                or ("BROUGHT FORWARD" in up)
-                or ("BALANCE B/F" in up)
-                or ("BAKI B/F" in up)
-                or ("BAKI" in up and ("MULA" in up or "AWAL" in up))
-            )
-            if opening_hit:
+            if ("B/F" in up) or ("BROUGHT FORWARD" in up) or ("BAKI" in up and ("AWAL" in up or "MULA" in up)):
                 v = _rightmost_money_in_line(line)
                 if v is not None:
                     out["opening_balance"] = float(v)
                     continue
 
-        # ENDING / CLOSING BALANCE
+        # ending/closing
         if out["ending_balance"] is None:
-            closing_hit = (
-                ("C/F" in up)
-                or ("CARRIED FORWARD" in up)
-                or ("BALANCE C/F" in up)
-                or ("BAKI C/F" in up)
-                or ("ENDING BALANCE" in up)
-                or ("CLOSING BALANCE" in up)
-                or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up))
-            )
-            if closing_hit:
+            if ("C/F" in up) or ("CARRIED FORWARD" in up) or ("ENDING BALANCE" in up) or ("CLOSING BALANCE" in up) or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up)):
                 v = _rightmost_money_in_line(line)
                 if v is not None:
                     out["ending_balance"] = float(v)
@@ -514,24 +425,17 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
 
 
 def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dict[str, Any]:
-    """
-    Extract Affin ground-truth statement totals for monthly summary.
-    Scans first 2 + last 2 pages with PDF text then OCR fallback.
-    """
     if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
         pdf = pdf_input
         should_close = False
     else:
         should_close = True
-        try:
-            if isinstance(pdf_input, (bytes, bytearray)):
-                pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
-            elif hasattr(pdf_input, "getvalue"):
-                pdf = pdfplumber.open(BytesIO(pdf_input.getvalue()))
-            else:
-                pdf = pdfplumber.open(pdf_input)
-        except Exception as e:
-            raise RuntimeError(f"Affin totals: cannot open PDF: {e}") from e
+        if isinstance(pdf_input, (bytes, bytearray)):
+            pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
+        elif hasattr(pdf_input, "getvalue"):
+            pdf = pdfplumber.open(BytesIO(pdf_input.getvalue()))
+        else:
+            pdf = pdfplumber.open(pdf_input)
 
     try:
         n = len(pdf.pages)
@@ -540,18 +444,11 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
             if 0 <= i < n and i not in idxs:
                 idxs.append(i)
 
-        best = {
-            "total_debit": None,
-            "total_credit": None,
-            "opening_balance": None,
-            "ending_balance": None,
-        }
+        best = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
 
         for i in idxs:
-            t = _page_text_pdf_or_ocr(pdf.pages[i])
-            t = t.replace("\x0c", " ")
-            found = _scan_lines_for_totals(t)
-
+            text = _page_text_pdf_or_ocr(pdf.pages[i]).replace("\x0c", " ")
+            found = _scan_lines_for_totals(text)
             for k in best.keys():
                 if best[k] is None and found.get(k) is not None:
                     best[k] = found.get(k)
@@ -565,7 +462,6 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
             "total_credit": best["total_credit"],
             "ending_balance": best["ending_balance"],
         }
-
     finally:
         if should_close:
             try:
@@ -575,16 +471,15 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
 
 
 # =========================================================
-# Public entry point: line-item extraction (PDF text + OCR fallback)
+# Public parser: transactions
 # =========================================================
 def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, Any]]:
     """
-    Line-item extraction for Affin.
-    For scanned PDFs, OCR is used via pytesseract if pdfplumber yields no words.
+    Extract transactions by detecting columns, not by matching whole lines.
+    OCR is used only when the PDF has no extractable text.
 
-    Note:
-      For accurate monthly totals, prefer extract_affin_statement_totals().
-      Transactions are still extracted for listing / analysis, best-effort.
+    Returns list[dict] with keys:
+      date, description, debit, credit, balance, page, bank, source_file
     """
     bank_name = "Affin Bank"
     txs: List[Dict[str, Any]] = []
@@ -594,18 +489,15 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
         should_close = False
     else:
         should_close = True
-        try:
-            if isinstance(pdf_input, (bytes, bytearray)):
-                pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
-            elif hasattr(pdf_input, "getvalue"):
-                pdf = pdfplumber.open(BytesIO(pdf_input.getvalue()))
-            else:
-                pdf = pdfplumber.open(pdf_input)
-        except Exception as e:
-            raise RuntimeError(f"Affin parser: cannot open PDF: {e}") from e
+        if isinstance(pdf_input, (bytes, bytearray)):
+            pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
+        elif hasattr(pdf_input, "getvalue"):
+            pdf = pdfplumber.open(BytesIO(pdf_input.getvalue()))
+        else:
+            pdf = pdfplumber.open(pdf_input)
 
     prev_balance: Optional[float] = None
-    seen = set()
+    seq = 0
 
     try:
         for page_num, page in enumerate(pdf.pages, start=1):
@@ -613,7 +505,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
             if not words:
                 continue
 
-            rows = _cluster_rows(words, y_tol=2.5)
+            rows = _cluster_rows(words, y_tol=2.8)
             if not rows:
                 continue
 
@@ -621,43 +513,40 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
 
             i = 0
             while i < len(rows):
-                _, row_words = rows[i]
+                row_y, row_words = rows[i]
                 txt = _row_text(row_words)
                 if not txt:
                     i += 1
                     continue
-
                 up = txt.upper()
 
-                if _is_summary_row(up):
-                    i += 1
-                    continue
-
+                # skip non-tx rows unless they contain date
                 if _looks_non_tx_row(up) and not _row_has_date(row_words):
                     i += 1
                     continue
 
-                # Identify date token in this row
+                # find date
                 date_iso = None
-                for w in row_words[:10]:
+                date_idx = None
+                for j, w in enumerate(row_words[:10]):
                     d = _to_iso_date(w["text"])
                     if d:
                         date_iso = d
+                        date_idx = j
                         break
                 if not date_iso:
                     i += 1
                     continue
 
-                # Merge continuation rows until next date row (handles wrapped descriptions)
+                # merge continuation lines (wrapped description)
                 block_words = list(row_words)
                 k = i + 1
                 while k < len(rows) and not _row_has_date(rows[k][1]):
                     nxt_up = _row_text(rows[k][1]).upper()
-                    if _is_summary_row(nxt_up):
+                    if any(h in nxt_up for h in HEADER_HINTS):
                         break
                     block_words.extend(rows[k][1])
                     k += 1
-
                 block_words.sort(key=lambda z: (z["y0"], z["x0"]))
 
                 debit, credit, balance = _classify_money_by_columns(block_words, col)
@@ -665,13 +554,13 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     i = k
                     continue
 
-                # B/F anchor row: not a transaction
+                # treat B/F as anchor
                 if _is_bf_row(up):
                     prev_balance = float(balance)
                     i = k
                     continue
 
-                # Description: concatenate non-money tokens excluding headers and dates
+                # description: all non-money after date token
                 desc_parts: List[str] = []
                 for ww in block_words:
                     t = (ww.get("text") or "").strip().strip("|")
@@ -679,9 +568,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                         continue
                     if _is_money_token(t):
                         continue
-                    tu = t.upper()
-                    if tu in ("DATE", "TARIKH", "DEBIT", "CREDIT", "BALANCE", "BAKI"):
-                        continue
+                    # remove the date token itself
                     if _to_iso_date(t) == date_iso:
                         continue
                     desc_parts.append(t)
@@ -691,35 +578,27 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                 debit_f = float(debit) if debit is not None else 0.0
                 credit_f = float(credit) if credit is not None else 0.0
 
-                # If both debit and credit are missing, infer using balance delta
-                if prev_balance is not None and debit is None and credit is None:
+                # infer when missing
+                if prev_balance is not None:
                     delta = round(float(balance) - float(prev_balance), 2)
                     if abs(delta) <= MAX_REASONABLE_DELTA:
-                        if delta > 0:
-                            credit_f = abs(delta)
-                            debit_f = 0.0
-                        elif delta < 0:
-                            debit_f = abs(delta)
-                            credit_f = 0.0
+                        if debit is None and credit is None:
+                            if delta > 0:
+                                credit_f = abs(delta)
+                                debit_f = 0.0
+                            elif delta < 0:
+                                debit_f = abs(delta)
+                                credit_f = 0.0
+                        # if both present (often OCR double-detected), force to delta
+                        elif debit_f > 0 and credit_f > 0:
+                            if delta > 0:
+                                credit_f = abs(delta)
+                                debit_f = 0.0
+                            elif delta < 0:
+                                debit_f = abs(delta)
+                                credit_f = 0.0
 
-                # If both debit and credit present, prefer delta if consistent
-                if prev_balance is not None and debit_f > 0 and credit_f > 0:
-                    delta = round(float(balance) - float(prev_balance), 2)
-                    if abs(delta) <= MAX_REASONABLE_DELTA:
-                        if delta > 0:
-                            credit_f = abs(delta)
-                            debit_f = 0.0
-                        elif delta < 0:
-                            debit_f = abs(delta)
-                            credit_f = 0.0
-
-                # OCR-safe dedupe key
-                key = (date_iso, round(debit_f, 2), round(credit_f, 2), round(float(balance), 2), bank_name)
-                if key in seen:
-                    i = k
-                    continue
-                seen.add(key)
-
+                seq += 1
                 txs.append(
                     {
                         "date": date_iso,
@@ -730,6 +609,8 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                         "page": int(page_num),
                         "bank": bank_name,
                         "source_file": source_file or "",
+                        "_y": float(row_y),
+                        "_seq": int(seq),
                     }
                 )
 
@@ -743,5 +624,9 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
             except Exception:
                 pass
 
-    txs.sort(key=lambda t: (t.get("date", ""), int(t.get("page", 0)), t.get("description", "")))
+    # stable sort
+    txs.sort(key=lambda x: (x.get("date", ""), int(x.get("page") or 0), float(x.get("_y") or 0), int(x.get("_seq") or 0)))
+    for t in txs:
+        t.pop("_y", None)
+        t.pop("_seq", None)
     return txs
