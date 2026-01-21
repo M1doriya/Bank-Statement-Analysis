@@ -17,12 +17,10 @@ except Exception:  # pragma: no cover
 # Regex / constants
 # =========================================================
 
-# Find a date anywhere inside a token (OCR may attach pipes etc.)
 DATE_IN_TOKEN_RE = re.compile(
     r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})"
 )
 
-# Money token (allow commas, optional leading digit for .00, optional trailing punctuation)
 MONEY_TOKEN_RE = re.compile(
     r"^\(?\s*(?:RM\s*)?(?P<num>(?:\d{1,3}(?:,\d{3})*|\d+)?\.\d{2})\s*\)?(?P<trail_sign>[+-])?\s*[\.,;:|]*\s*$",
     re.I,
@@ -63,7 +61,7 @@ MONEY_IN_TEXT_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
 # Filename month inference: 2025_04.pdf, 2025-04.pdf, 202504, etc.
 FILENAME_MONTH_RE = re.compile(r"(?P<y>20\d{2})[^\d]?(?P<m>0[1-9]|1[0-2])")
 
-# Guardrail to avoid absurd inferred deltas (OCR glitches)
+# Guardrail for delta inference (avoid absurd OCR glitches)
 MAX_REASONABLE_DELTA = 5_000_000.00
 
 
@@ -75,25 +73,16 @@ def _norm(s: str) -> str:
 
 
 def _to_iso_date(token: str) -> Optional[str]:
-    """
-    Accept:
-      - 01/05/25
-      - 1/5/2025
-      - OCR-attached pipes like '01/05/25|' or '|01/05/25'
-    """
     if not token:
         return None
-
     m = DATE_IN_TOKEN_RE.search(token)
     if not m:
         return None
-
     d = int(m.group("d"))
     mo = int(m.group("m"))
     y = int(m.group("y"))
     if y < 100:
         y += 2000
-
     try:
         return datetime(y, mo, d).strftime("%Y-%m-%d")
     except Exception:
@@ -113,7 +102,6 @@ def _clean_money_token(token: str) -> Optional[str]:
 
     m = MONEY_TOKEN_RE.match(t)
     if not m:
-        # Try stripping obvious punctuation and retry
         t2 = t.strip(".,;:|")
         m = MONEY_TOKEN_RE.match(t2)
         if not m:
@@ -311,7 +299,7 @@ def _detect_columns(rows: List[Tuple[float, List[Dict[str, Any]]]]) -> Optional[
         if debit_x and credit_x and balance_x:
             return {"debit_x": float(debit_x), "credit_x": float(credit_x), "balance_x": float(balance_x)}
 
-    # 2) Fallback clustering: use money token x-positions on date rows
+    # 2) Fallback clustering: money token x-positions on date rows
     money_xs: List[float] = []
     for _, rw in rows:
         up = _row_text(rw).upper()
@@ -419,11 +407,6 @@ def _classify_money_by_columns(
 # Statement totals extraction (robust line-by-line)
 # =========================================================
 def _page_text_pdf_or_ocr(page: pdfplumber.page.Page) -> str:
-    """
-    Best-effort full-page text:
-      - try embedded extract_text first
-      - OCR fallback
-    """
     txt = (page.extract_text() or "").strip()
     if len(txt) >= 120:
         return txt
@@ -451,8 +434,12 @@ def _rightmost_money_in_line(line: str) -> Optional[float]:
 
 def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
     """
-    Find totals/opening/closing via keywords, take rightmost money on that line.
-    Works better than blob-regex when OCR inserts line breaks.
+    Robust to OCR wording variations:
+      - TOTAL/JUMLAH DEBIT/CREDIT
+      - JUMLAH PEMASUKAN / JUMLAH PENGELUARAN
+      - BAKI AWAL/MULA (opening)
+      - BAKI AKHIR/PENUTUP/TUTUP (ending)
+      - C/F, CARRIED FORWARD, CLOSING/ENDING BALANCE
     """
     out: Dict[str, Optional[float]] = {
         "total_debit": None,
@@ -467,42 +454,61 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
     for line in lines:
         up = line.upper()
 
-        # TOTAL DEBIT
-        if out["total_debit"] is None and (("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up):
-            v = _rightmost_money_in_line(line)
-            if v is not None:
-                out["total_debit"] = float(v)
-                continue
+        # TOTAL DEBIT (money out)
+        if out["total_debit"] is None:
+            debit_hit = (
+                (("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up)
+                or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up))
+            )
+            if debit_hit:
+                v = _rightmost_money_in_line(line)
+                if v is not None:
+                    out["total_debit"] = float(v)
+                    continue
 
-        # TOTAL CREDIT
-        if out["total_credit"] is None and (("TOTAL" in up or "JUMLAH" in up) and "CREDIT" in up):
-            v = _rightmost_money_in_line(line)
-            if v is not None:
-                out["total_credit"] = float(v)
-                continue
+        # TOTAL CREDIT (money in)
+        if out["total_credit"] is None:
+            credit_hit = (
+                (("TOTAL" in up or "JUMLAH" in up) and "CREDIT" in up)
+                or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up))
+            )
+            if credit_hit:
+                v = _rightmost_money_in_line(line)
+                if v is not None:
+                    out["total_credit"] = float(v)
+                    continue
 
-        # Opening balance (B/F etc.)
-        if out["opening_balance"] is None and (
-            ("B/F" in up)
-            or ("BROUGHT FORWARD" in up)
-            or ("BAKI" in up and "MULA" in up)
-        ):
-            v = _rightmost_money_in_line(line)
-            if v is not None:
-                out["opening_balance"] = float(v)
-                continue
+        # OPENING BALANCE
+        if out["opening_balance"] is None:
+            opening_hit = (
+                ("B/F" in up)
+                or ("BROUGHT FORWARD" in up)
+                or ("BALANCE B/F" in up)
+                or ("BAKI B/F" in up)
+                or ("BAKI" in up and ("MULA" in up or "AWAL" in up))
+            )
+            if opening_hit:
+                v = _rightmost_money_in_line(line)
+                if v is not None:
+                    out["opening_balance"] = float(v)
+                    continue
 
-        # Ending / closing balance (C/F etc.)
-        if out["ending_balance"] is None and (
-            ("C/F" in up)
-            or ("CARRIED FORWARD" in up)
-            or ("ENDING BALANCE" in up)
-            or ("BAKI" in up and "AKHIR" in up)
-        ):
-            v = _rightmost_money_in_line(line)
-            if v is not None:
-                out["ending_balance"] = float(v)
-                continue
+        # ENDING / CLOSING BALANCE
+        if out["ending_balance"] is None:
+            closing_hit = (
+                ("C/F" in up)
+                or ("CARRIED FORWARD" in up)
+                or ("BALANCE C/F" in up)
+                or ("BAKI C/F" in up)
+                or ("ENDING BALANCE" in up)
+                or ("CLOSING BALANCE" in up)
+                or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up))
+            )
+            if closing_hit:
+                v = _rightmost_money_in_line(line)
+                if v is not None:
+                    out["ending_balance"] = float(v)
+                    continue
 
     return out
 
@@ -583,7 +589,6 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
     bank_name = "Affin Bank"
     txs: List[Dict[str, Any]] = []
 
-    # If app.py already opened it
     if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
         pdf = pdf_input
         should_close = False
@@ -600,7 +605,6 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
             raise RuntimeError(f"Affin parser: cannot open PDF: {e}") from e
 
     prev_balance: Optional[float] = None
-    # OCR-safe dedupe (do not depend on description/page/file)
     seen = set()
 
     try:
@@ -617,7 +621,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
 
             i = 0
             while i < len(rows):
-                row_y, row_words = rows[i]
+                _, row_words = rows[i]
                 txt = _row_text(row_words)
                 if not txt:
                     i += 1
@@ -635,18 +639,16 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
 
                 # Identify date token in this row
                 date_iso = None
-                date_idx = None
-                for j, w in enumerate(row_words[:10]):
+                for w in row_words[:10]:
                     d = _to_iso_date(w["text"])
                     if d:
                         date_iso = d
-                        date_idx = j
                         break
                 if not date_iso:
                     i += 1
                     continue
 
-                # Merge continuation rows (common on OCR: description wraps)
+                # Merge continuation rows until next date row (handles wrapped descriptions)
                 block_words = list(row_words)
                 k = i + 1
                 while k < len(rows) and not _row_has_date(rows[k][1]):
@@ -656,7 +658,6 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     block_words.extend(rows[k][1])
                     k += 1
 
-                # Keep order stable for classification
                 block_words.sort(key=lambda z: (z["y0"], z["x0"]))
 
                 debit, credit, balance = _classify_money_by_columns(block_words, col)
@@ -670,7 +671,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     i = k
                     continue
 
-                # Build description (exclude money tokens)
+                # Description: concatenate non-money tokens excluding headers and dates
                 desc_parts: List[str] = []
                 for ww in block_words:
                     t = (ww.get("text") or "").strip().strip("|")
@@ -679,10 +680,8 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     if _is_money_token(t):
                         continue
                     tu = t.upper()
-                    # skip header words
                     if tu in ("DATE", "TARIKH", "DEBIT", "CREDIT", "BALANCE", "BAKI"):
                         continue
-                    # skip the date token itself if it appears again
                     if _to_iso_date(t) == date_iso:
                         continue
                     desc_parts.append(t)
@@ -703,7 +702,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                             debit_f = abs(delta)
                             credit_f = 0.0
 
-                # If both debit and credit present, prefer delta if it's consistent (reduces OCR double-reading)
+                # If both debit and credit present, prefer delta if consistent
                 if prev_balance is not None and debit_f > 0 and credit_f > 0:
                     delta = round(float(balance) - float(prev_balance), 2)
                     if abs(delta) <= MAX_REASONABLE_DELTA:
@@ -714,7 +713,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                             debit_f = abs(delta)
                             credit_f = 0.0
 
-                # OCR-safe dedupe key (prevents double counting across overlap PDFs)
+                # OCR-safe dedupe key
                 key = (date_iso, round(debit_f, 2), round(credit_f, 2), round(float(balance), 2), bank_name)
                 if key in seen:
                     i = k
@@ -744,6 +743,5 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
             except Exception:
                 pass
 
-    # Stable ordering
     txs.sort(key=lambda t: (t.get("date", ""), int(t.get("page", 0)), t.get("description", "")))
     return txs
