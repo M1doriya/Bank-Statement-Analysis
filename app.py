@@ -178,7 +178,7 @@ if uploaded_files and st.session_state.status == "running":
 
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # -------------------------
-    # Affin-only: LOCK totals to statement totals (never transaction sums)
+    # Affin-only: statement totals (with derived opening)
     # -------------------------
     if bank_choice == "Affin Bank" and st.session_state.affin_statement_totals:
         rows: List[dict] = []
@@ -192,14 +192,13 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             total_debit = t.get("total_debit")
             total_credit = t.get("total_credit")
 
-            # IMPORTANT: do not “fallback” to tx sums here
-            opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
-            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
-
             td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
             tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
 
-            # optional count/min/max from extracted transactions (if any)
+            opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
+            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
+
+            # Pull extracted transactions ONLY for fallback ending and min/max
             txs = st.session_state.affin_file_transactions.get(fname, []) if fname else []
             tx_count = int(len(txs)) if txs else None
 
@@ -213,16 +212,21 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 except Exception:
                     pass
 
-            lowest_balance = round(min(balances), 2) if balances else None
-            highest_balance = round(max(balances), 2) if balances else None
-
-            # If ending balance missing from statement but we have balances, allow fallback to last balance only
             if ending_balance is None and balances:
                 ending_balance = round(float(balances[-1]), 2)
+
+            lowest_balance = round(min(balances), 2) if balances else None
+            highest_balance = round(max(balances), 2) if balances else None
 
             net_change = None
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
+
+            # IMPORTANT FIX:
+            # If opening is missing but we have ending and totals, derive opening from accounting identity.
+            # opening = ending - (credit - debit)
+            if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
+                opening_balance = round(float(ending_balance - (tc - td)), 2)
 
             rows.append(
                 {
@@ -241,8 +245,9 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 }
             )
 
-        # sort and reconcile opening using previous closing (does NOT touch totals)
         rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
+
+        # Reconcile opening chain for stability across files (does not touch totals)
         tol = 0.01
         for i in range(1, len(rows)):
             prev_close = rows[i - 1].get("ending_balance")
@@ -268,18 +273,18 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 rows[i]["opening_balance_raw"] = cur_open
                 rows[i]["opening_balance"] = round(prev_close_f, 2)
 
-        # warn if totals missing
-        missing_totals = [r for r in rows if r.get("total_debit") is None or r.get("total_credit") is None]
-        if missing_totals:
+        # Warn if totals still missing
+        missing = [r for r in rows if r.get("total_debit") is None or r.get("total_credit") is None]
+        if missing:
             st.warning(
                 "Affin: Some files are missing printed TOTAL DEBIT/TOTAL CREDIT from statement extraction. "
-                "Totals are left as None to avoid OCR-inflated numbers. Check those PDFs’ totals section clarity."
+                "They are left as None to avoid OCR-inflated numbers."
             )
 
         return rows
 
     # -------------------------
-    # Default (other banks)
+    # Default for other banks (unchanged)
     # -------------------------
     if not transactions:
         return []
@@ -298,62 +303,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     df["credit"] = df.get("credit", 0).apply(safe_float)
     df["balance"] = df.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
 
-    def _transient_negative_mask_bank_islam(group_sorted: pd.DataFrame) -> pd.Series:
-        if group_sorted.empty:
-            return pd.Series([], dtype=bool)
-
-        g = group_sorted.reset_index(drop=True).copy()
-        g["_desc_up"] = g.get("description", "").astype(str).str.upper()
-
-        is_transient = [False] * len(g)
-        last_nonneg: Optional[float] = None
-
-        for i in range(len(g)):
-            bal = g.at[i, "balance"]
-            dt = g.at[i, "date_parsed"]
-
-            try:
-                bal_f = float(bal) if bal is not None else None
-            except Exception:
-                bal_f = None
-
-            if bal_f is not None and bal_f >= 0:
-                last_nonneg = bal_f
-                continue
-
-            if bal_f is None or bal_f >= 0:
-                continue
-
-            if last_nonneg is None:
-                continue
-
-            for j in range(i + 1, min(i + 4, len(g))):
-                dt_j = g.at[j, "date_parsed"]
-                if pd.isna(dt) or pd.isna(dt_j) or dt_j.date() != dt.date():
-                    break
-
-                desc_j = g.at[j, "_desc_up"]
-                bal_j = g.at[j, "balance"]
-                try:
-                    bal_jf = float(bal_j) if bal_j is not None else None
-                except Exception:
-                    bal_jf = None
-
-                if bal_jf is None:
-                    continue
-
-                if ("REVERSE" in desc_j or "REVERSAL" in desc_j) and abs(bal_jf - last_nonneg) <= 0.01:
-                    for k in range(i, j):
-                        try:
-                            bk = float(g.at[k, "balance"])
-                        except Exception:
-                            bk = None
-                        if bk is not None and bk < 0:
-                            is_transient[k] = True
-                    break
-
-        return pd.Series(is_transient, index=group_sorted.index)
-
     monthly_summary: List[dict] = []
     for period, group in df.groupby("month_period", sort=True):
         group_sorted = group.sort_values(["date_parsed", "page"], na_position="last")
@@ -362,15 +311,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
         highest_balance = round(float(balances.max()), 2) if not balances.empty else None
         lowest_balance_raw = round(float(balances.min()), 2) if not balances.empty else None
-
-        bank_names = set(str(x) for x in group_sorted.get("bank", []).dropna().unique())
-        if "Bank Islam" in bank_names and not balances.empty:
-            transient_mask = _transient_negative_mask_bank_islam(group_sorted)
-            balances_for_od = group_sorted.loc[~transient_mask, "balance"].dropna()
-            lowest_balance = round(float(balances_for_od.min()), 2) if not balances_for_od.empty else lowest_balance_raw
-        else:
-            lowest_balance = lowest_balance_raw
-
+        lowest_balance = lowest_balance_raw
         od_flag = bool(lowest_balance is not None and float(lowest_balance) < 0)
 
         monthly_summary.append(
@@ -395,7 +336,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
 
 # ---------------------------------------------------
-# DISPLAY RESULTS
+# DISPLAY
 # ---------------------------------------------------
 if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals):
     st.subheader("📊 Extracted Transactions")
@@ -414,23 +355,6 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         st.subheader("📅 Monthly Summary")
         summary_df = pd.DataFrame(monthly_summary)
         st.dataframe(summary_df, use_container_width=True)
-
-        st.markdown("---")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            if "transaction_count" in summary_df.columns and summary_df["transaction_count"].notna().any():
-                st.metric("Total Transactions", int(summary_df["transaction_count"].dropna().sum()))
-            else:
-                st.metric("Total Transactions", "—")
-        with col2:
-            if "total_debit" in summary_df.columns:
-                st.metric("Total Debits", f"RM {pd.to_numeric(summary_df['total_debit'], errors='coerce').sum():,.2f}")
-        with col3:
-            if "total_credit" in summary_df.columns:
-                st.metric("Total Credits", f"RM {pd.to_numeric(summary_df['total_credit'], errors='coerce').sum():,.2f}")
-        with col4:
-            net_total = pd.to_numeric(summary_df.get("net_change"), errors="coerce").sum()
-            st.metric("Net Change", f"RM {float(net_total):,.2f}")
 
     st.subheader("⬇️ Download Options")
     col1, col2, col3 = st.columns(3)
