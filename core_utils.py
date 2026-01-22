@@ -120,39 +120,110 @@ def safe_float(value: Any) -> float:
     return float(f)
 
 
+def infer_year_from_source_file(source_file: str) -> Optional[int]:
+    """Infer a year from filename, e.g. '...2025...' or '..._24.pdf'."""
+    if not source_file:
+        return None
+
+    s = str(source_file)
+
+    m = re.search(r"\b(20\d{2})\b", s)
+    if m:
+        try:
+            return int(m.group(1))
+        except Exception:
+            return None
+
+    # conservative 2-digit year fallback (assume 2000+)
+    m2 = re.search(r"(?:^|[^0-9])(\d{2})(?:[^0-9]|$)", s)
+    if m2:
+        try:
+            yy = int(m2.group(1))
+            return 2000 + yy
+        except Exception:
+            return None
+
+    return None
+
+
 def normalize_date(date_value: Any, default_year: Optional[int] = None) -> Optional[str]:
     """Normalize many common bank-statement date formats to ISO YYYY-MM-DD.
     Returns None if parsing fails.
+
+    Fixes:
+    - Malay month abbreviations (MAC/MEI/OGO/OGOS/OKT/DIS)
+    - Compact formats: 01May2024 / 01May24 / 01May
+    - OCR noise inside digits (O->0, l/I->1)
+    - Accepts dots as separators
+    - If year missing, uses default_year if provided
     """
     if date_value is None:
         return None
 
-    s = normalize_text(date_value)
-    if not s:
+    s0 = normalize_text(date_value)
+    if not s0:
         return None
+
+    s = s0
+    s = s.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+    s = re.sub(r"[.,;]+$", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+
+    # Fix common OCR substitutions inside digit runs
+    s = re.sub(r"(?<=\d)[oO](?=\d)", "0", s)
+    s = re.sub(r"(?<=\d)[lI](?=\d)", "1", s)
 
     # already ISO
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         return s
 
+    # Month normalization (English + Malay -> English %b)
+    mon_map = {
+        # English
+        "JAN": "Jan", "FEB": "Feb", "MAR": "Mar", "APR": "Apr", "MAY": "May", "JUN": "Jun",
+        "JUL": "Jul", "AUG": "Aug", "SEP": "Sep", "SEPT": "Sep", "OCT": "Oct", "NOV": "Nov", "DEC": "Dec",
+        # Malay
+        "MAC": "Mar", "MEI": "May", "OGO": "Aug", "OGOS": "Aug", "OKT": "Oct", "DIS": "Dec",
+    }
+
+    def _norm_month_tokens(x: str) -> str:
+        def repl(m: re.Match) -> str:
+            key = m.group(0).upper()
+            return mon_map.get(key, m.group(0))
+        return re.sub(
+            r"\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|MAC|MEI|OGO|OGOS|OKT|DIS)\b",
+            repl,
+            x,
+            flags=re.I,
+        )
+
+    s = _norm_month_tokens(s)
+
+    # Compact formats without spaces: 01May2024 / 1May24 / 01May
+    s = re.sub(r"^(\d{1,2})([A-Za-z]{3,9})(\d{2,4})$", r"\1 \2 \3", s)
+    s = re.sub(r"^(\d{1,2})([A-Za-z]{3,9})$", r"\1 \2", s)
+
     # common patterns (day-first)
     patterns: List[Tuple[str, str]] = [
         (r"^\d{1,2}/\d{1,2}/\d{4}$", "%d/%m/%Y"),
         (r"^\d{1,2}-\d{1,2}-\d{4}$", "%d-%m-%Y"),
+        (r"^\d{1,2}\.\d{1,2}\.\d{4}$", "%d.%m.%Y"),
         (r"^\d{1,2}/\d{1,2}/\d{2}$", "%d/%m/%y"),
         (r"^\d{1,2}-\d{1,2}-\d{2}$", "%d-%m-%y"),
+        (r"^\d{1,2}\.\d{1,2}\.\d{2}$", "%d.%m.%y"),
         (r"^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$", "%d %b %Y"),
         (r"^\d{1,2}\s+[A-Za-z]{3}\s+\d{2}$", "%d %b %y"),
         (r"^\d{1,2}\s+[A-Za-z]{3}$", "%d %b"),
         (r"^\d{1,2}/\d{1,2}$", "%d/%m"),
         (r"^\d{1,2}-\d{1,2}$", "%d-%m"),
+        (r"^\d{1,2}\.\d{1,2}$", "%d.%m"),
     ]
 
     for rx, fmt in patterns:
         if not re.fullmatch(rx, s):
             continue
         try:
-            if fmt in {"%d %b", "%d/%m", "%d-%m"}:
+            if fmt in {"%d %b", "%d/%m", "%d-%m", "%d.%m"}:
                 if default_year is None:
                     return None
                 dt = datetime.strptime(f"{s} {default_year}", fmt + " %Y")
@@ -250,8 +321,16 @@ def normalize_transactions(
     default_bank: str,
     source_file: str,
 ) -> List[Dict[str, Any]]:
-    """Normalize a list of transactions and infer year if needed."""
+    """Normalize a list of transactions and infer year if needed.
+
+    Precedence:
+      1) any transaction that already includes a 4-digit year
+      2) year inferred from source filename
+    """
     year = infer_default_year(transactions)
+    if year is None:
+        year = infer_year_from_source_file(source_file)
+
     return [
         ensure_transaction_schema(
             tx,
