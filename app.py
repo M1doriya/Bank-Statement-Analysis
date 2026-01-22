@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Optional
 
 import pandas as pd
 import streamlit as st
@@ -21,7 +21,7 @@ from cimb import parse_transactions_cimb
 from bank_islam import parse_bank_islam
 from bank_rakyat import parse_bank_rakyat
 from hong_leong import parse_hong_leong
-from ambank import parse_ambank
+from ambank import parse_ambank, extract_ambank_statement_totals
 from bank_muamalat import parse_transactions_bank_muamalat
 from affin_bank import parse_affin_bank, extract_affin_statement_totals
 from agro_bank import parse_agro_bank
@@ -44,6 +44,13 @@ if "affin_statement_totals" not in st.session_state:
 
 if "affin_file_transactions" not in st.session_state:
     st.session_state.affin_file_transactions = {}
+
+# NEW: AmBank statement totals
+if "ambank_statement_totals" not in st.session_state:
+    st.session_state.ambank_statement_totals = []
+
+if "ambank_file_transactions" not in st.session_state:
+    st.session_state.ambank_file_transactions = {}
 
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -95,6 +102,10 @@ with col1:
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
 
+        # reset ambank state
+        st.session_state.ambank_statement_totals = []
+        st.session_state.ambank_file_transactions = {}
+
 with col2:
     if st.button("⏹️ Stop"):
         st.session_state.status = "stopped"
@@ -105,6 +116,8 @@ with col3:
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
+        st.session_state.ambank_statement_totals = []
+        st.session_state.ambank_file_transactions = {}
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
@@ -134,8 +147,14 @@ if uploaded_files and st.session_state.status == "running":
                 with bytes_to_pdfplumber(pdf_bytes) as pdf:
                     totals = extract_affin_statement_totals(pdf, uploaded_file.name)
                     st.session_state.affin_statement_totals.append(totals)
-
                     tx_raw = parse_affin_bank(pdf, uploaded_file.name) or []
+
+            elif bank_choice == "Ambank":
+                with bytes_to_pdfplumber(pdf_bytes) as pdf:
+                    totals = extract_ambank_statement_totals(pdf, uploaded_file.name)
+                    st.session_state.ambank_statement_totals.append(totals)
+                    tx_raw = parse_ambank(pdf, uploaded_file.name) or []
+
             else:
                 tx_raw = parser(pdf_bytes, uploaded_file.name) or []
 
@@ -147,6 +166,9 @@ if uploaded_files and st.session_state.status == "running":
 
             if bank_choice == "Affin Bank":
                 st.session_state.affin_file_transactions[uploaded_file.name] = tx_norm
+
+            if bank_choice == "Ambank":
+                st.session_state.ambank_file_transactions[uploaded_file.name] = tx_norm
 
             if tx_norm:
                 st.success(f"✅ Extracted {len(tx_norm)} transactions from {uploaded_file.name}")
@@ -162,48 +184,14 @@ if uploaded_files and st.session_state.status == "running":
 
     bank_display_box.success(f"🏦 Completed processing: **{bank_choice}**")
 
-    # Dedupe first
     all_tx = dedupe_transactions(all_tx)
-
-    # ------------------------------------------------------------------
-    # FIX 1: Stable global ordering (prevents “ending balance wrong” ties)
-    # Many banks (esp. AmBank) have multiple rows with same date+page.
-    # If you sort only by (date, page), “last row” becomes unstable.
-    # We add a deterministic tiebreaker:
-    #   - prefer tx["seq"] when available (parser-provided order)
-    #   - else fall back to preserved original list order
-    # ------------------------------------------------------------------
-    for idx, t in enumerate(all_tx):
-        # internal stable order fallback; harmless if already exists
-        if "__row_order" not in t:
-            t["__row_order"] = idx
 
     def _sort_key(t: dict) -> Tuple:
         dt = parse_any_date_for_summary(t.get("date"))
-        page = t.get("page")
-        try:
-            page_i = int(page) if page is not None else 10**9
-        except Exception:
-            page_i = 10**9
-
-        seq = t.get("seq", None)
-        try:
-            seq_i = int(seq) if seq is not None else 10**9
-        except Exception:
-            seq_i = 10**9
-
-        row_order = t.get("__row_order", 10**12)
-        try:
-            row_order_i = int(row_order)
-        except Exception:
-            row_order_i = 10**12
-
-        # IMPORTANT: do NOT use description as a tiebreaker; it can reshuffle.
         return (
             dt if pd.notna(dt) else pd.Timestamp.max,
-            page_i,
-            seq_i,
-            row_order_i,
+            t.get("page") if t.get("page") is not None else 10**9,
+            t.get("description", ""),
         )
 
     all_tx = sorted(all_tx, key=_sort_key)
@@ -232,7 +220,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
-            # Pull extracted transactions ONLY for fallback ending and min/max
             txs = st.session_state.affin_file_transactions.get(fname, []) if fname else []
             tx_count = int(len(txs)) if txs else None
 
@@ -256,8 +243,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
-            # If opening is missing but we have ending and totals, derive opening from accounting identity.
-            # opening = ending - (credit - debit)
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
 
@@ -279,55 +264,82 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             )
 
         rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
-
-        # Reconcile opening chain for stability across files (does not touch totals)
-        tol = 0.01
-        for i in range(1, len(rows)):
-            prev_close = rows[i - 1].get("ending_balance")
-            cur_open = rows[i].get("opening_balance")
-            if prev_close is None:
-                continue
-            try:
-                prev_close_f = float(prev_close)
-            except Exception:
-                continue
-
-            mismatch = False
-            if cur_open is None:
-                mismatch = True
-            else:
-                try:
-                    if abs(float(cur_open) - prev_close_f) > tol:
-                        mismatch = True
-                except Exception:
-                    mismatch = True
-
-            if mismatch:
-                rows[i]["opening_balance_raw"] = cur_open
-                rows[i]["opening_balance"] = round(prev_close_f, 2)
-
-        missing = [r for r in rows if r.get("total_debit") is None or r.get("total_credit") is None]
-        if missing:
-            st.warning(
-                "Affin: Some files are missing printed TOTAL DEBIT/TOTAL CREDIT from statement extraction. "
-                "They are left as None to avoid OCR-inflated numbers."
-            )
-
         return rows
 
     # -------------------------
-    # Default for other banks (FIXED: stable ending balance)
+    # NEW: AmBank-only: statement totals (source of truth)
+    # -------------------------
+    if bank_choice == "Ambank" and st.session_state.ambank_statement_totals:
+        rows: List[dict] = []
+
+        for t in st.session_state.ambank_statement_totals:
+            month = t.get("statement_month") or "UNKNOWN"
+            fname = t.get("source_file", "") or ""
+
+            opening = t.get("opening_balance")
+            ending = t.get("ending_balance")
+            total_debit = t.get("total_debit")
+            total_credit = t.get("total_credit")
+
+            td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
+            tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
+
+            opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
+            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
+
+            # min/max from extracted line items (not for totals)
+            txs = st.session_state.ambank_file_transactions.get(fname, []) if fname else []
+            tx_count = int(len(txs)) if txs else None
+
+            balances: List[float] = []
+            for x in txs:
+                b = x.get("balance")
+                if b is None:
+                    continue
+                try:
+                    balances.append(float(safe_float(b)))
+                except Exception:
+                    pass
+
+            lowest_balance = round(min(balances), 2) if balances else None
+            highest_balance = round(max(balances), 2) if balances else None
+
+            net_change = None
+            if td is not None and tc is not None:
+                net_change = round(float(tc - td), 2)
+
+            # If opening missing but totals exist, derive it
+            if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
+                opening_balance = round(float(ending_balance - (tc - td)), 2)
+
+            rows.append(
+                {
+                    "month": month,
+                    "transaction_count": tx_count,
+                    "opening_balance": opening_balance,
+                    "total_debit": td,
+                    "total_credit": tc,
+                    "net_change": net_change,
+                    "ending_balance": ending_balance,
+                    "lowest_balance": lowest_balance,
+                    "lowest_balance_raw": lowest_balance,
+                    "highest_balance": highest_balance,
+                    "od_flag": bool(lowest_balance is not None and float(lowest_balance) < 0),
+                    "source_files": fname,
+                }
+            )
+
+        rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
+        return rows
+
+    # -------------------------
+    # Default for other banks (unchanged)
     # -------------------------
     if not transactions:
         return []
     df = pd.DataFrame(transactions)
     if df.empty:
         return []
-
-    # FIX 2: deterministic row order to break ties when seq is missing
-    df = df.reset_index(drop=True)
-    if "__row_order" not in df.columns:
-        df["__row_order"] = range(len(df))
 
     df["date_parsed"] = df.get("date").apply(parse_any_date_for_summary)
     df = df.dropna(subset=["date_parsed"])
@@ -340,28 +352,9 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     df["credit"] = df.get("credit", 0).apply(safe_float)
     df["balance"] = df.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
 
-    # Make sure page/seq are sortable
-    if "page" in df.columns:
-        df["page"] = pd.to_numeric(df["page"], errors="coerce").fillna(0).astype(int)
-    else:
-        df["page"] = 0
-
-    has_seq = "seq" in df.columns
-    if has_seq:
-        df["seq"] = pd.to_numeric(df["seq"], errors="coerce").fillna(0).astype(int)
-
-    df["__row_order"] = pd.to_numeric(df["__row_order"], errors="coerce").fillna(0).astype(int)
-
     monthly_summary: List[dict] = []
     for period, group in df.groupby("month_period", sort=True):
-        # CRITICAL FIX:
-        # Sort by date + page + seq (if present) else __row_order
-        sort_cols = ["date_parsed", "page"]
-        if has_seq:
-            sort_cols.append("seq")
-        sort_cols.append("__row_order")
-
-        group_sorted = group.sort_values(sort_cols, na_position="last")
+        group_sorted = group.sort_values(["date_parsed", "page"], na_position="last")
 
         balances = group_sorted["balance"].dropna()
         ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
@@ -394,17 +387,17 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 # ---------------------------------------------------
 # DISPLAY
 # ---------------------------------------------------
-if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals):
+if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals) or (bank_choice == "Ambank" and st.session_state.ambank_statement_totals):
     st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
     if not df.empty:
-        display_cols = ["date", "description", "debit", "credit", "balance", "page", "seq", "bank", "source_file"]
+        display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
         display_cols = [c for c in display_cols if c in df.columns]
         df_display = df[display_cols] if display_cols else df
         st.dataframe(df_display, use_container_width=True)
     else:
-        st.info("No line-item transactions extracted. For Affin, monthly totals are computed from statement totals when available.")
+        st.info("No line-item transactions extracted.")
 
     monthly_summary = calculate_monthly_summary(st.session_state.results)
     if monthly_summary:
@@ -435,7 +428,11 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 "date_range": f"{date_min} to {date_max}" if date_min and date_max else None,
                 "total_files_processed": int(df_display["source_file"].nunique())
                 if "source_file" in df_display.columns and not df_display.empty
-                else (len(st.session_state.affin_statement_totals) if bank_choice == "Affin Bank" else None),
+                else (
+                    len(st.session_state.affin_statement_totals)
+                    if bank_choice == "Affin Bank"
+                    else (len(st.session_state.ambank_statement_totals) if bank_choice == "Ambank" else None)
+                ),
                 "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
             "monthly_summary": monthly_summary,
