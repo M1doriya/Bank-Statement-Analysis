@@ -12,6 +12,7 @@ from core_utils import (
     dedupe_transactions,
     normalize_transactions,
     safe_float,
+    normalize_date,  # ✅ NEW import
 )
 
 from maybank import parse_transactions_maybank
@@ -62,13 +63,27 @@ _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def parse_any_date_for_summary(x) -> pd.Timestamp:
+    """
+    ✅ FIX:
+    Normalize date first (Malay months, OCR noise, compact formats),
+    then parse as ISO to keep summary stable across banks.
+    """
     if x is None:
         return pd.NaT
     s = str(x).strip()
     if not s:
         return pd.NaT
+
+    # Prefer ISO if already normalized
     if _ISO_RE.match(s):
         return pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
+
+    # Normalize using core utils (handles MAC/MEI/OGOS/OKT/DIS, OCR O->0, l->1, 01May2024, etc.)
+    iso = normalize_date(s)
+    if iso and _ISO_RE.match(iso):
+        return pd.to_datetime(iso, format="%Y-%m-%d", errors="coerce")
+
+    # Last resort fallback
     return pd.to_datetime(s, errors="coerce", dayfirst=True)
 
 
@@ -263,7 +278,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             txs = st.session_state.bank_rakyat_file_transactions.get(fname, []) if fname else []
             tx_count = int(len(txs)) if txs else None
 
-            # FIX: if no line items (scanned), use OCR-derived transaction_count
             if tx_count is None and tx_count_from_totals is not None:
                 try:
                     tx_count = int(tx_count_from_totals)
@@ -287,7 +301,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
-            # safety derive opening
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
 
