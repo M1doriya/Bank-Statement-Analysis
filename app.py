@@ -46,7 +46,7 @@ from bank_rakyat import parse_bank_rakyat
 from hong_leong import parse_hong_leong
 from ambank import parse_ambank
 from bank_muamalat import parse_transactions_bank_muamalat
-from affin_bank import parse_affin_bank, extract_affin_statement_totals
+from affin_bank import parse_affin_bank
 from agro_bank import parse_agro_bank
 from ocbc import parse_transactions_ocbc
 
