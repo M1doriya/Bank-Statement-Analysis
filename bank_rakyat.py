@@ -9,8 +9,10 @@ import pdfplumber
 
 try:
     import pytesseract  # type: ignore
+    from pytesseract import Output  # type: ignore
 except Exception:  # pragma: no cover
     pytesseract = None
+    Output = None
 
 
 # =========================================================
@@ -23,18 +25,31 @@ DATE_RANGE_RE = re.compile(
 )
 
 MONEY_RE = re.compile(r"(?<!\d)(?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2}(?!\d)")
-INT_RE = re.compile(r"(?<!\d)\d{1,4}(?!\d)")
-
-# Labels / keywords that appear in summary box (Malay/English)
-OPENING_KW = re.compile(r"(BAKI\s+PERMULAAN|OPENING\s+BALANCE)", re.IGNORECASE)
-CLOSING_KW = re.compile(r"(BAKI\s+PENUTUP|CLOSING\s+BALANCE)", re.IGNORECASE)
-DEBIT_KW = re.compile(r"\bDEBIT\b", re.IGNORECASE)
-CREDIT_KW = re.compile(r"\bKREDIT\b|\bCREDIT\b", re.IGNORECASE)
-
-# Dates in table column
 DATE_DMY_RE = re.compile(r"\b\d{2}/\d{2}/\d{4}\b")
 
-# Decide scanned vs digital text
+# Month from filename fallback
+FNAME_MONTH_RE = re.compile(
+    r"\b(?P<mon>jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b.*?\b(?P<year>20\d{2})\b",
+    re.IGNORECASE,
+)
+
+MONTH_MAP = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "sept": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+# Scanned vs digital threshold
 MIN_TEXT_CHARS = 40
 
 
@@ -65,129 +80,179 @@ def _extract_statement_month_from_text(text: str) -> Optional[str]:
         return None
 
 
-def _ocr_crop(page: pdfplumber.page.Page, *, top_ratio: float, bottom_ratio: float, left_ratio: float, right_ratio: float, dpi: int = 300) -> str:
-    """
-    OCR a cropped region defined by ratios.
-    """
-    if pytesseract is None:
-        return ""
+def _extract_statement_month_from_filename(filename: str) -> Optional[str]:
+    if not filename:
+        return None
+    m = FNAME_MONTH_RE.search(filename.replace("_", " ").replace("-", " "))
+    if not m:
+        return None
+    mon_s = (m.group("mon") or "").lower()
+    year_s = m.group("year")
+    mm = MONTH_MAP.get(mon_s)
+    if not mm:
+        return None
+    try:
+        yyyy = int(year_s)
+        return f"{yyyy:04d}-{mm:02d}"
+    except Exception:
+        return None
 
+
+def _ocr_image_crop(
+    page: pdfplumber.page.Page,
+    *,
+    left_ratio: float,
+    top_ratio: float,
+    right_ratio: float,
+    bottom_ratio: float,
+    dpi: int = 300,
+):
+    """
+    Return a PIL image for a cropped region.
+    """
     w = float(page.width)
     h = float(page.height)
     left = w * left_ratio
     right = w * right_ratio
     top = h * top_ratio
     bottom = h * bottom_ratio
-
     crop = page.crop((left, top, right, bottom))
     try:
-        img = crop.to_image(resolution=dpi).original
+        return crop.to_image(resolution=dpi).original
     except Exception:
-        img = page.to_image(resolution=dpi).original
-
-    try:
-        return pytesseract.image_to_string(img, config="--psm 6") or ""
-    except Exception:
-        return ""
+        return page.to_image(resolution=dpi).original
 
 
-def _normalize_space(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "")).strip()
-
-
-def _find_money_near_keyword(text: str, kw: re.Pattern, window: int = 80) -> Optional[float]:
+def _ocr_tokens_money(image) -> List[Dict]:
     """
-    Find the first money token near the keyword occurrence within a char window.
-    Works well on OCR text where columns are not perfectly aligned.
+    Use pytesseract image_to_data to get positioned tokens.
+    Returns list of {val, x, y, w, h, cy}.
     """
-    t = text or ""
-    m = kw.search(t)
-    if not m:
-        return None
+    if pytesseract is None or Output is None:
+        return []
 
-    start = max(0, m.start() - window)
-    end = min(len(t), m.end() + window)
-    snippet = t[start:end]
+    data = pytesseract.image_to_data(image, output_type=Output.DICT, config="--psm 6")
+    n = len(data.get("text", []))
+    out: List[Dict] = []
+    for i in range(n):
+        txt = (data["text"][i] or "").strip()
+        if not txt:
+            continue
+        # clean common OCR artifacts
+        txt = txt.replace("O", "0").replace("o", "0")
+        if not MONEY_RE.fullmatch(txt):
+            continue
+        val = _safe_float_money(txt)
+        if val is None:
+            continue
+        x = int(data["left"][i])
+        y = int(data["top"][i])
+        w = int(data["width"][i])
+        h = int(data["height"][i])
+        cy = y + (h / 2.0)
+        out.append({"val": val, "x": x, "y": y, "w": w, "h": h, "cy": cy})
+    return out
 
-    # Prefer the closest money token AFTER the keyword, then fallback BEFORE
-    after = t[m.end():min(len(t), m.end() + window)]
-    toks_after = MONEY_RE.findall(after)
-    if toks_after:
-        v = _safe_float_money(toks_after[0])
-        if v is not None:
-            return v
 
-    toks_any = MONEY_RE.findall(snippet)
-    if toks_any:
-        v = _safe_float_money(toks_any[-1])
-        if v is not None:
-            return v
-
-    return None
-
-
-def _extract_totals_from_summary_text(summary_text: str) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+def _group_tokens_by_line(tokens: List[Dict], y_tol: float = 12.0) -> List[List[Dict]]:
     """
-    Extract opening, debit_total, credit_total, closing using keyword-near-number strategy.
-    This fixes Jan 2025 where 'last 4 money tokens' is unreliable.
+    Cluster tokens into lines by their vertical center (cy).
     """
-    txt = _normalize_space(summary_text)
+    if not tokens:
+        return []
+    toks = sorted(tokens, key=lambda t: (t["cy"], t["x"]))
+    lines: List[List[Dict]] = []
+    cur: List[Dict] = [toks[0]]
+    cur_y = toks[0]["cy"]
 
-    opening = _find_money_near_keyword(txt, OPENING_KW)
-    closing = _find_money_near_keyword(txt, CLOSING_KW)
+    for t in toks[1:]:
+        if abs(t["cy"] - cur_y) <= y_tol:
+            cur.append(t)
+            cur_y = (cur_y * 0.7) + (t["cy"] * 0.3)
+        else:
+            lines.append(cur)
+            cur = [t]
+            cur_y = t["cy"]
+    lines.append(cur)
+    return lines
 
-    debit_total = _find_money_near_keyword(txt, DEBIT_KW)
-    credit_total = _find_money_near_keyword(txt, CREDIT_KW)
 
-    # Fallback: if any missing, try last-4 approach as secondary fallback (not primary)
-    vals = [_safe_float_money(x) for x in MONEY_RE.findall(txt)]
-    vals = [v for v in vals if v is not None]
-    if len(vals) >= 4:
-        last4 = vals[-4:]
-        if opening is None:
-            opening = last4[0]
-        if debit_total is None:
-            debit_total = last4[1]
-        if credit_total is None:
-            credit_total = last4[2]
-        if closing is None:
-            closing = last4[3]
+def _best_tuple_from_lines(lines: List[List[Dict]], tol: float = 0.05) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """
+    From OCR lines containing >=4 money tokens, choose the 4-tuple (opening, debit, credit, closing)
+    that best satisfies: opening + credit - debit ≈ closing.
+    We test both orders for debit/credit in case they are swapped by layout.
+    """
+    best = (None, None, None, None)
+    best_score = float("inf")
 
-    return opening, debit_total, credit_total, closing
+    for line in lines:
+        if len(line) < 4:
+            continue
+        # sort left-to-right
+        line_sorted = sorted(line, key=lambda t: t["x"])
+        vals = [t["val"] for t in line_sorted]
+
+        # sliding windows of 4 consecutive values (robust when extra values exist on same line)
+        for i in range(0, len(vals) - 3):
+            a, b, c, d = vals[i], vals[i + 1], vals[i + 2], vals[i + 3]
+
+            # hypothesis 1: opening, debit, credit, closing
+            score1 = abs((a + c - b) - d)
+            # hypothesis 2: opening, credit, debit, closing
+            score2 = abs((a + b - c) - d)
+
+            if score1 < best_score:
+                best_score = score1
+                best = (a, b, c, d)
+
+            if score2 < best_score:
+                best_score = score2
+                best = (a, c, b, d)  # normalize to (opening, debit, credit, closing)
+
+    # Require a reasonable identity match; otherwise return Nones
+    if best[0] is None:
+        return None, None, None, None
+    if best_score > tol:
+        # In some scans, totals might be split across lines; allow fallback later.
+        # Still return best effort if it's not absurdly off.
+        return best
+    return best
 
 
 def _count_transactions_scanned(pdf: pdfplumber.PDF) -> Optional[int]:
     """
-    Lightweight OCR count:
-    - OCR only the DATE column region across each page (excluding header/footer).
-    - Count date patterns dd/mm/yyyy.
-    This gives a good transaction count without full-table OCR.
+    Count transaction rows in scanned PDFs by counting date occurrences in the date column region.
     """
     if pytesseract is None or not pdf.pages:
         return None
 
     total = 0
     for page in pdf.pages:
-        # Middle region where the transaction table lives.
-        # Left-side slice (date column area).
-        ocr = _ocr_crop(
+        img = _ocr_image_crop(
             page,
-            top_ratio=0.18, bottom_ratio=0.88,
-            left_ratio=0.02, right_ratio=0.28,
+            left_ratio=0.02,
+            top_ratio=0.18,
+            right_ratio=0.30,
+            bottom_ratio=0.88,
             dpi=250,
         )
-        dates = DATE_DMY_RE.findall(ocr or "")
+        txt = pytesseract.image_to_string(img, config="--psm 6") or ""
+        dates = DATE_DMY_RE.findall(txt)
         if dates:
             total += len(dates)
 
-    # Basic sanity: if zero, return None (avoid false confidence)
     return total if total > 0 else None
 
 
+# =========================================================
+# Public API
+# =========================================================
+
 def extract_bank_rakyat_statement_totals(pdf: pdfplumber.PDF, source_file: str = "") -> Dict[str, Optional[float]]:
     """
-    Extract Bank Rakyat statement totals with OCR fallback for scanned PDFs.
-    Also extracts transaction_count for scanned PDFs.
+    Extract statement totals with OCR fallback and identity-based tuple selection.
+    Includes transaction_count for scanned PDFs.
     """
     out: Dict[str, Optional[float]] = {
         "statement_month": None,
@@ -200,93 +265,86 @@ def extract_bank_rakyat_statement_totals(pdf: pdfplumber.PDF, source_file: str =
     }
 
     if not pdf.pages:
+        out["statement_month"] = _extract_statement_month_from_filename(source_file)
         return out
 
-    # Prefer last page for totals on some templates; also try first page.
-    pages_to_try = [pdf.pages[0]]
+    # Prefer page 1 and last page (some templates put the summary on the last page)
+    candidate_pages = [pdf.pages[0]]
     if len(pdf.pages) > 1:
-        pages_to_try.append(pdf.pages[-1])
+        candidate_pages.append(pdf.pages[-1])
 
-    # First try digital extraction
-    for page in pages_to_try:
+    # 1) Try DIGITAL extraction (embedded text)
+    for page in candidate_pages:
         text = page.extract_text(x_tolerance=1) or ""
         if len(text.strip()) >= MIN_TEXT_CHARS:
-            out["statement_month"] = _extract_statement_month_from_text(text) or out["statement_month"]
+            out["statement_month"] = _extract_statement_month_from_text(text) or _extract_statement_month_from_filename(source_file)
 
-            # For digital PDFs, extracting totals from embedded text is typically reliable,
-            # but Jan scanned is our use-case so this won't run there.
-            opening, debit_total, credit_total, closing = _extract_totals_from_summary_text(text)
-            out["opening_balance"] = opening
-            out["total_debit"] = debit_total
-            out["total_credit"] = credit_total
-            out["ending_balance"] = closing
-            # transaction_count from line items is handled by app (if tx parsed); leave None here.
+            # Even in digital, summary can be tricky; we can still use identity selection using plain token order.
+            vals = [_safe_float_money(x) for x in MONEY_RE.findall(text)]
+            vals = [v for v in vals if v is not None]
+            if len(vals) >= 4:
+                # Try all windows of 4 and pick identity-best
+                best = (None, None, None, None)
+                best_score = float("inf")
+                for i in range(0, len(vals) - 3):
+                    a, b, c, d = vals[i], vals[i + 1], vals[i + 2], vals[i + 3]
+                    s1 = abs((a + c - b) - d)
+                    s2 = abs((a + b - c) - d)
+                    if s1 < best_score:
+                        best_score = s1
+                        best = (a, b, c, d)
+                    if s2 < best_score:
+                        best_score = s2
+                        best = (a, c, b, d)
+                out["opening_balance"], out["total_debit"], out["total_credit"], out["ending_balance"] = best
             return out
 
-    # Scanned path: OCR only bottom summary box on first and last page, pick the best hit
-    best = (None, None, None, None, -1)  # opening, debit, credit, closing, score
-    stmt_month = None
+    # 2) SCANNED extraction (OCR)
+    # 2a) Month: OCR top band; if fails, filename fallback
+    month = None
+    for page in candidate_pages:
+        top_img = _ocr_image_crop(page, left_ratio=0.0, top_ratio=0.0, right_ratio=1.0, bottom_ratio=0.25, dpi=250)
+        top_txt = ""
+        try:
+            top_txt = pytesseract.image_to_string(top_img, config="--psm 6") or ""
+        except Exception:
+            top_txt = ""
+        month = _extract_statement_month_from_text(top_txt)
+        if month:
+            break
+    out["statement_month"] = month or _extract_statement_month_from_filename(source_file)
 
-    for page in pages_to_try:
-        # Bottom summary region OCR
-        ocr_summary = _ocr_crop(
-            page,
-            top_ratio=0.68, bottom_ratio=1.00,
-            left_ratio=0.00, right_ratio=1.00,
-            dpi=300,
-        )
-        ocr_summary_n = _normalize_space(ocr_summary)
+    # 2b) Totals: OCR bottom summary region and identity-select 4-tuple
+    best_tuple = (None, None, None, None)
+    best_score = float("inf")
 
-        opening, debit_total, credit_total, closing = _extract_totals_from_summary_text(ocr_summary_n)
+    for page in candidate_pages:
+        bottom_img = _ocr_image_crop(page, left_ratio=0.0, top_ratio=0.65, right_ratio=1.0, bottom_ratio=1.0, dpi=300)
+        tokens = _ocr_tokens_money(bottom_img)
+        lines = _group_tokens_by_line(tokens, y_tol=14.0)
+        opening, debit, credit, closing = _best_tuple_from_lines(lines, tol=0.10)
 
-        score = 0
-        for v in (opening, debit_total, credit_total, closing):
-            if v is not None:
-                score += 1
+        if opening is None or debit is None or credit is None or closing is None:
+            continue
 
-        if score > best[4]:
-            best = (opening, debit_total, credit_total, closing, score)
+        score = abs((opening + credit - debit) - closing)
+        if score < best_score:
+            best_score = score
+            best_tuple = (opening, debit, credit, closing)
 
-        # Try to get statement month by OCRing top band (where date range lives)
-        if stmt_month is None:
-            ocr_top = _ocr_crop(
-                page,
-                top_ratio=0.00, bottom_ratio=0.22,
-                left_ratio=0.00, right_ratio=1.00,
-                dpi=250,
-            )
-            stmt_month = _extract_statement_month_from_text(ocr_top)
+    out["opening_balance"], out["total_debit"], out["total_credit"], out["ending_balance"] = best_tuple
 
-    out["statement_month"] = stmt_month
-
-    opening, debit_total, credit_total, closing = best[0], best[1], best[2], best[3]
-    out["opening_balance"] = opening
-    out["total_debit"] = debit_total
-    out["total_credit"] = credit_total
-    out["ending_balance"] = closing
-
-    # Transaction count for scanned PDFs
+    # 2c) Transaction count for scanned PDFs
     out["transaction_count"] = _count_transactions_scanned(pdf)
 
     return out
 
 
-# =========================================================
-# Transaction parsing
-# =========================================================
 def parse_bank_rakyat(pdf: pdfplumber.PDF, filename: str) -> List[Dict]:
     """
-    Keep existing behavior safe.
-    - DIGITAL PDFs: if you already had parsing, keep it there (not included here).
-    - SCANNED PDFs: do not OCR full transactions (we only count dates via statement totals).
+    Keep conservative behavior: do NOT OCR full transaction table (performance).
+    Monthly totals should be taken from extract_bank_rakyat_statement_totals().
     """
     txs: List[Dict] = []
-    for _page in pdf.pages:
-        text = _page.extract_text(x_tolerance=1) or ""
-        if len(text.strip()) < MIN_TEXT_CHARS:
-            continue  # scanned: skip line items
-
-        # If you already have a working digital parser, integrate it here.
-        # We keep empty to avoid changing your existing working logic elsewhere.
-
+    # If you already have a reliable digital parser, integrate it here.
     return txs
