@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover
 
 
 # =========================================================
-# Patterns
+# Patterns / constants
 # =========================================================
 DATE_IN_TOKEN_RE = re.compile(r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})")
 
@@ -23,7 +23,8 @@ MONEY_TOKEN_RE = re.compile(
     re.I,
 )
 
-MONEY_IN_TEXT_RE = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
+# For scanning in OCR text
+MONEY_IN_TEXT_RE = re.compile(r"\d[\d,]*\.\d{2}")
 
 HEADER_HINTS = ("DATE", "TARIKH", "DEBIT", "CREDIT", "BALANCE", "BAKI")
 NON_TX_HINTS = (
@@ -140,41 +141,84 @@ def _is_bf_row(up: str) -> bool:
 
 
 # =========================================================
-# OCR/text helpers for totals
+# OCR/text helpers for totals (FIXED)
 # =========================================================
 def _page_text_pdf_or_ocr(page: pdfplumber.page.Page) -> str:
     txt = (page.extract_text() or "").strip()
+    # Many Affin PDFs are image-only; text extraction is empty.
     if len(txt) >= 120:
         return txt
     if pytesseract is None:
         return txt
     try:
-        img = page.to_image(resolution=260).original
+        img = page.to_image(resolution=220).original
         ocr = pytesseract.image_to_string(img, config="--psm 6") or ""
         return ocr
     except Exception:
         return txt
 
 
-def _rightmost_money_in_line(line: str) -> Optional[float]:
+def _try_strip_prefixed_count(amount_str: str) -> Optional[float]:
+    """
+    Fix Affin totals lines where transaction-count digits get concatenated into the amount.
+    Example:
+      '480,932.36' might be '4' + '80,932.36'
+      '798,680.87' might be '7' + '98,680.87'
+    We attempt stripping 1..3 leading digits and accept the remainder if it is a valid money format.
+    """
+    s = (amount_str or "").strip()
+    if not s:
+        return None
+
+    def parse_money(x: str) -> Optional[float]:
+        x = x.strip()
+        if not re.fullmatch(r"\d{1,3}(?:,\d{3})*\.\d{2}", x):
+            return None
+        try:
+            return float(x.replace(",", ""))
+        except Exception:
+            return None
+
+    # direct parse first
+    direct = parse_money(s)
+    if direct is not None:
+        return direct
+
+    # strip 1..3 digits from front
+    for k in (1, 2, 3):
+        if len(s) <= k:
+            continue
+        rem = s[k:]
+        val = parse_money(rem)
+        if val is not None:
+            return val
+
+    return None
+
+
+def _pick_amount_from_totals_line(line: str) -> Optional[float]:
+    """
+    Extract the amount from a totals line robustly:
+    - Find last money-looking token in the line
+    - Repair if count digits are concatenated into the amount (strip prefix)
+    """
     nums = MONEY_IN_TEXT_RE.findall(line or "")
     if not nums:
         return None
+
+    candidate = nums[-1].strip()
+    repaired = _try_strip_prefixed_count(candidate)
+    if repaired is not None:
+        return float(repaired)
+
+    # fallback: naive parse
     try:
-        return float(nums[-1].replace(",", ""))
+        return float(candidate.replace(",", ""))
     except Exception:
         return None
 
 
 def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
-    """
-    Robust to common Affin wording:
-      - TOTAL DEBIT / TOTAL CREDIT
-      - JUMLAH DEBIT / JUMLAH CREDIT
-      - JUMLAH PENGELUARAN (debit) / JUMLAH PEMASUKAN (credit)
-      - BAKI AWAL/MULA (opening), BAKI AKHIR/PENUTUP/TUTUP (ending)
-      - B/F / C/F
-    """
     out = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
     if not text:
         return out
@@ -183,20 +227,20 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
     for line in lines:
         up = line.upper()
 
-        # Total debit (out)
+        # Total debit
         if out["total_debit"] is None:
             hit = ((("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up) or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up)))
             if hit:
-                v = _rightmost_money_in_line(line)
+                v = _pick_amount_from_totals_line(line)
                 if v is not None:
                     out["total_debit"] = float(v)
                     continue
 
-        # Total credit (in)
+        # Total credit
         if out["total_credit"] is None:
-            hit = ((("TOTAL" in up or "JUMLAH" in up) and "CREDIT" in up) or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up)))
+            hit = ((("TOTAL" in up or "JUMLAH" in up) and ("CREDIT" in up or "KREDIT" in up)) or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up)))
             if hit:
-                v = _rightmost_money_in_line(line)
+                v = _pick_amount_from_totals_line(line)
                 if v is not None:
                     out["total_credit"] = float(v)
                     continue
@@ -205,7 +249,7 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
         if out["opening_balance"] is None:
             hit = ("B/F" in up) or ("BROUGHT FORWARD" in up) or ("BAKI" in up and ("AWAL" in up or "MULA" in up))
             if hit:
-                v = _rightmost_money_in_line(line)
+                v = _pick_amount_from_totals_line(line)
                 if v is not None:
                     out["opening_balance"] = float(v)
                     continue
@@ -214,7 +258,7 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
         if out["ending_balance"] is None:
             hit = ("C/F" in up) or ("CARRIED FORWARD" in up) or ("ENDING BALANCE" in up) or ("CLOSING BALANCE" in up) or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up))
             if hit:
-                v = _rightmost_money_in_line(line)
+                v = _pick_amount_from_totals_line(line)
                 if v is not None:
                     out["ending_balance"] = float(v)
                     continue
@@ -224,8 +268,8 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
 
 def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dict[str, Any]:
     """
-    Extract printed totals from statement (ground truth).
-    This should be the ONLY source of total_debit/total_credit in monthly summary.
+    Extract printed totals (ground truth) from statement:
+      opening_balance, total_debit, total_credit, ending_balance
     """
     if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
         pdf = pdf_input
@@ -273,7 +317,7 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
 
 
 # =========================================================
-# Transaction extraction (for display only; NOT used for Affin totals)
+# Transaction extraction (for display / balances fallback)
 # =========================================================
 def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
     words = page.extract_words(
@@ -287,7 +331,13 @@ def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
         if not t:
             continue
         out.append(
-            {"text": t, "x0": float(w.get("x0", 0.0)), "x1": float(w.get("x1", 0.0)), "y0": float(w.get("top", 0.0)), "y1": float(w.get("bottom", 0.0))}
+            {
+                "text": t,
+                "x0": float(w.get("x0", 0.0)),
+                "x1": float(w.get("x1", 0.0)),
+                "y0": float(w.get("top", 0.0)),
+                "y1": float(w.get("bottom", 0.0)),
+            }
         )
     return out
 
@@ -399,8 +449,6 @@ def _classify_money_by_columns(row_words: List[Dict[str, Any]], col: Optional[Di
     balance_vals: List[float] = []
 
     for xc, v in money_items:
-        if balance_x > 0 and xc < (balance_x - 250):
-            continue
         candidates = []
         if debit_x > 0:
             candidates.append(("debit", abs(xc - debit_x)))
@@ -425,10 +473,6 @@ def _classify_money_by_columns(row_words: List[Dict[str, Any]], col: Optional[Di
 
 
 def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, Any]]:
-    """
-    Extract transactions for display/audit only.
-    DO NOT use these to compute monthly total debit/credit (use extract_affin_statement_totals).
-    """
     bank_name = "Affin Bank"
     txs: List[Dict[str, Any]] = []
 
@@ -468,12 +512,10 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     continue
 
                 date_iso = None
-                date_idx = None
                 for j, w in enumerate(row_words[:10]):
                     d = _to_iso_date(w["text"])
                     if d:
                         date_iso = d
-                        date_idx = j
                         break
                 if not date_iso:
                     i += 1
