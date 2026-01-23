@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, Dict, List, Tuple, Optional
+from typing import Callable, Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -162,14 +162,48 @@ if uploaded_files and st.session_state.status == "running":
 
     bank_display_box.success(f"🏦 Completed processing: **{bank_choice}**")
 
+    # Dedupe first
     all_tx = dedupe_transactions(all_tx)
+
+    # ------------------------------------------------------------------
+    # FIX 1: Stable global ordering (prevents “ending balance wrong” ties)
+    # Many banks (esp. AmBank) have multiple rows with same date+page.
+    # If you sort only by (date, page), “last row” becomes unstable.
+    # We add a deterministic tiebreaker:
+    #   - prefer tx["seq"] when available (parser-provided order)
+    #   - else fall back to preserved original list order
+    # ------------------------------------------------------------------
+    for idx, t in enumerate(all_tx):
+        # internal stable order fallback; harmless if already exists
+        if "__row_order" not in t:
+            t["__row_order"] = idx
 
     def _sort_key(t: dict) -> Tuple:
         dt = parse_any_date_for_summary(t.get("date"))
+        page = t.get("page")
+        try:
+            page_i = int(page) if page is not None else 10**9
+        except Exception:
+            page_i = 10**9
+
+        seq = t.get("seq", None)
+        try:
+            seq_i = int(seq) if seq is not None else 10**9
+        except Exception:
+            seq_i = 10**9
+
+        row_order = t.get("__row_order", 10**12)
+        try:
+            row_order_i = int(row_order)
+        except Exception:
+            row_order_i = 10**12
+
+        # IMPORTANT: do NOT use description as a tiebreaker; it can reshuffle.
         return (
             dt if pd.notna(dt) else pd.Timestamp.max,
-            t.get("page") if t.get("page") is not None else 10**9,
-            t.get("description", ""),
+            page_i,
+            seq_i,
+            row_order_i,
         )
 
     all_tx = sorted(all_tx, key=_sort_key)
@@ -222,7 +256,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
-            # IMPORTANT FIX:
             # If opening is missing but we have ending and totals, derive opening from accounting identity.
             # opening = ending - (credit - debit)
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
@@ -273,7 +306,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 rows[i]["opening_balance_raw"] = cur_open
                 rows[i]["opening_balance"] = round(prev_close_f, 2)
 
-        # Warn if totals still missing
         missing = [r for r in rows if r.get("total_debit") is None or r.get("total_credit") is None]
         if missing:
             st.warning(
@@ -284,13 +316,18 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # Default for other banks (unchanged)
+    # Default for other banks (FIXED: stable ending balance)
     # -------------------------
     if not transactions:
         return []
     df = pd.DataFrame(transactions)
     if df.empty:
         return []
+
+    # FIX 2: deterministic row order to break ties when seq is missing
+    df = df.reset_index(drop=True)
+    if "__row_order" not in df.columns:
+        df["__row_order"] = range(len(df))
 
     df["date_parsed"] = df.get("date").apply(parse_any_date_for_summary)
     df = df.dropna(subset=["date_parsed"])
@@ -303,9 +340,28 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     df["credit"] = df.get("credit", 0).apply(safe_float)
     df["balance"] = df.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
 
+    # Make sure page/seq are sortable
+    if "page" in df.columns:
+        df["page"] = pd.to_numeric(df["page"], errors="coerce").fillna(0).astype(int)
+    else:
+        df["page"] = 0
+
+    has_seq = "seq" in df.columns
+    if has_seq:
+        df["seq"] = pd.to_numeric(df["seq"], errors="coerce").fillna(0).astype(int)
+
+    df["__row_order"] = pd.to_numeric(df["__row_order"], errors="coerce").fillna(0).astype(int)
+
     monthly_summary: List[dict] = []
     for period, group in df.groupby("month_period", sort=True):
-        group_sorted = group.sort_values(["date_parsed", "page"], na_position="last")
+        # CRITICAL FIX:
+        # Sort by date + page + seq (if present) else __row_order
+        sort_cols = ["date_parsed", "page"]
+        if has_seq:
+            sort_cols.append("seq")
+        sort_cols.append("__row_order")
+
+        group_sorted = group.sort_values(sort_cols, na_position="last")
 
         balances = group_sorted["balance"].dropna()
         ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
@@ -343,7 +399,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
     if not df.empty:
-        display_cols = ["date", "description", "debit", "credit", "balance", "page", "bank", "source_file"]
+        display_cols = ["date", "description", "debit", "credit", "balance", "page", "seq", "bank", "source_file"]
         display_cols = [c for c in display_cols if c in df.columns]
         df_display = df[display_cols] if display_cols else df
         st.dataframe(df_display, use_container_width=True)
