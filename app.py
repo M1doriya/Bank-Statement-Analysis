@@ -19,7 +19,7 @@ from public_bank import parse_transactions_pbb
 from rhb import parse_transactions_rhb
 from cimb import parse_transactions_cimb
 from bank_islam import parse_bank_islam
-from bank_rakyat import parse_bank_rakyat, extract_bank_rakyat_statement_totals
+from bank_rakyat import parse_bank_rakyat
 from hong_leong import parse_hong_leong
 from ambank import parse_ambank, extract_ambank_statement_totals
 from bank_muamalat import parse_transactions_bank_muamalat
@@ -45,19 +45,12 @@ if "affin_statement_totals" not in st.session_state:
 if "affin_file_transactions" not in st.session_state:
     st.session_state.affin_file_transactions = {}
 
-# AmBank statement totals + per-file tx
+# NEW: AmBank statement totals + per-file tx
 if "ambank_statement_totals" not in st.session_state:
     st.session_state.ambank_statement_totals = []
 
 if "ambank_file_transactions" not in st.session_state:
     st.session_state.ambank_file_transactions = {}
-
-# Bank Rakyat statement totals + per-file tx
-if "bank_rakyat_statement_totals" not in st.session_state:
-    st.session_state.bank_rakyat_statement_totals = []
-
-if "bank_rakyat_file_transactions" not in st.session_state:
-    st.session_state.bank_rakyat_file_transactions = {}
 
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -110,8 +103,6 @@ with col1:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
-        st.session_state.bank_rakyat_statement_totals = []
-        st.session_state.bank_rakyat_file_transactions = {}
 
 with col2:
     if st.button("⏹️ Stop"):
@@ -125,8 +116,6 @@ with col3:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
-        st.session_state.bank_rakyat_statement_totals = []
-        st.session_state.bank_rakyat_file_transactions = {}
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
@@ -164,12 +153,6 @@ if uploaded_files and st.session_state.status == "running":
                     st.session_state.ambank_statement_totals.append(totals)
                     tx_raw = parse_ambank(pdf, uploaded_file.name) or []
 
-            elif bank_choice == "Bank Rakyat":
-                with bytes_to_pdfplumber(pdf_bytes) as pdf:
-                    totals = extract_bank_rakyat_statement_totals(pdf, uploaded_file.name, compute_tx_count=False)
-                    st.session_state.bank_rakyat_statement_totals.append(totals)
-                    tx_raw = parse_bank_rakyat(pdf, uploaded_file.name) or []
-
             else:
                 tx_raw = parser(pdf_bytes, uploaded_file.name) or []
 
@@ -184,9 +167,6 @@ if uploaded_files and st.session_state.status == "running":
 
             if bank_choice == "Ambank":
                 st.session_state.ambank_file_transactions[uploaded_file.name] = tx_norm
-
-            if bank_choice == "Bank Rakyat":
-                st.session_state.bank_rakyat_file_transactions[uploaded_file.name] = tx_norm
 
             if tx_norm:
                 st.success(f"✅ Extracted {len(tx_norm)} transactions from {uploaded_file.name}")
@@ -240,83 +220,13 @@ if uploaded_files and st.session_state.status == "running":
     st.session_state.results = all_tx
 
 
-def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> List[dict]:
-    """
-    Monthly summary logic:
-      - Affin & AmBank use statement totals per uploaded file
-      - Bank Rakyat uses statement totals per uploaded file (added)
-      - Other banks use inferred from transactions
-    """
-    # -----------------------------------------
-    # Bank Rakyat (use statement totals)
-    # -----------------------------------------
-    if bank_choice == "Bank Rakyat" and st.session_state.bank_rakyat_statement_totals:
-        rows: List[dict] = []
-
-        for t in st.session_state.bank_rakyat_statement_totals:
-            month = t.get("statement_month") or "UNKNOWN"
-            fname = t.get("source_file", "") or ""
-
-            opening = t.get("opening_balance")
-            ending = t.get("ending_balance")
-            total_debit = t.get("total_debit")
-            total_credit = t.get("total_credit")
-
-            td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
-            tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
-
-            opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
-            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
-
-            txs = st.session_state.bank_rakyat_file_transactions.get(fname, []) if fname else []
-            tx_count = int(len(txs)) if txs else None
-
-            balances: List[float] = []
-            for x in txs:
-                b = x.get("balance")
-                if b is None:
-                    continue
-                try:
-                    balances.append(float(safe_float(b)))
-                except Exception:
-                    pass
-
-            lowest_balance = round(min(balances), 2) if balances else None
-            highest_balance = round(max(balances), 2) if balances else None
-
-            net_change = None
-            if td is not None and tc is not None:
-                net_change = round(float(tc - td), 2)
-
-            # Derive opening if missing but other totals exist
-            if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
-                opening_balance = round(float(ending_balance - (tc - td)), 2)
-
-            rows.append(
-                {
-                    "month": month,
-                    "transaction_count": tx_count,
-                    "opening_balance": opening_balance,
-                    "total_debit": td,
-                    "total_credit": tc,
-                    "net_change": net_change,
-                    "ending_balance": ending_balance,
-                    "lowest_balance": lowest_balance,
-                    "lowest_balance_raw": lowest_balance,
-                    "highest_balance": highest_balance,
-                    "od_flag": bool(lowest_balance is not None and float(lowest_balance) < 0),
-                    "source_files": fname,
-                }
-            )
-
-        rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
-        return rows
-
-    # -----------------------------------------
-    # Affin Bank (existing behavior)
-    # -----------------------------------------
+def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
+    # -------------------------
+    # Affin-only: statement totals
+    # -------------------------
     if bank_choice == "Affin Bank" and st.session_state.affin_statement_totals:
         rows: List[dict] = []
+
         for t in st.session_state.affin_statement_totals:
             month = t.get("statement_month") or "UNKNOWN"
             fname = t.get("source_file", "") or ""
@@ -328,6 +238,7 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
 
             td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
             tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
+
             opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
@@ -344,6 +255,9 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
                 except Exception:
                     pass
 
+            if ending_balance is None and balances:
+                ending_balance = round(float(balances[-1]), 2)
+
             lowest_balance = round(min(balances), 2) if balances else None
             highest_balance = round(max(balances), 2) if balances else None
 
@@ -370,14 +284,16 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
                     "source_files": fname,
                 }
             )
+
         rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
         return rows
 
-    # -----------------------------------------
-    # AmBank (existing behavior)
-    # -----------------------------------------
+    # -------------------------
+    # Ambank-only: statement totals (FIX)
+    # -------------------------
     if bank_choice == "Ambank" and st.session_state.ambank_statement_totals:
         rows: List[dict] = []
+
         for t in st.session_state.ambank_statement_totals:
             month = t.get("statement_month") or "UNKNOWN"
             fname = t.get("source_file", "") or ""
@@ -389,6 +305,7 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
 
             td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
             tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
+
             opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
@@ -412,6 +329,7 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
+            # safety derive opening if missing
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
 
@@ -431,82 +349,163 @@ def calculate_monthly_summary(transactions: List[dict], bank_choice: str) -> Lis
                     "source_files": fname,
                 }
             )
+
         rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
         return rows
 
-    # -----------------------------------------
-    # Default: infer from transactions (other banks)
-    # -----------------------------------------
+    # -------------------------
+    # Default for other banks
+    # -------------------------
     if not transactions:
         return []
-
-    df = pd.DataFrame(transactions).copy()
-    df["dt"] = df["date"].apply(parse_any_date_for_summary)
-    df = df[pd.notna(df["dt"])].copy()
+    df = pd.DataFrame(transactions)
     if df.empty:
         return []
 
-    df["month"] = df["dt"].dt.strftime("%Y-%m")
-    for col in ["debit", "credit", "balance"]:
-        if col in df.columns:
-            df[col] = df[col].apply(lambda x: safe_float(x) if x is not None else None)
+    df = df.reset_index(drop=True)
+    if "__row_order" not in df.columns:
+        df["__row_order"] = range(len(df))
 
-    out_rows: List[dict] = []
-    for month, g in df.groupby("month"):
-        g = g.sort_values("dt")
+    df["date_parsed"] = df.get("date").apply(parse_any_date_for_summary)
+    df = df.dropna(subset=["date_parsed"])
+    if df.empty:
+        st.warning("⚠️ No valid transaction dates found.")
+        return []
 
-        total_debit = round(float(g["debit"].fillna(0).sum()), 2) if "debit" in g.columns else None
-        total_credit = round(float(g["credit"].fillna(0).sum()), 2) if "credit" in g.columns else None
+    df["month_period"] = df["date_parsed"].dt.strftime("%Y-%m")
+    df["debit"] = df.get("debit", 0).apply(safe_float)
+    df["credit"] = df.get("credit", 0).apply(safe_float)
+    df["balance"] = df.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
 
-        balances = [float(x) for x in g["balance"].dropna().tolist()] if "balance" in g.columns else []
-        ending_balance = round(float(balances[-1]), 2) if balances else None
-        opening_balance = round(float(balances[0]), 2) if balances else None
-        lowest_balance = round(float(min(balances)), 2) if balances else None
-        highest_balance = round(float(max(balances)), 2) if balances else None
+    if "page" in df.columns:
+        df["page"] = pd.to_numeric(df["page"], errors="coerce").fillna(0).astype(int)
+    else:
+        df["page"] = 0
 
-        net_change = None
-        if total_debit is not None and total_credit is not None:
-            net_change = round(float(total_credit - total_debit), 2)
+    has_seq = "seq" in df.columns
+    if has_seq:
+        df["seq"] = pd.to_numeric(df["seq"], errors="coerce").fillna(0).astype(int)
 
-        out_rows.append(
+    df["__row_order"] = pd.to_numeric(df["__row_order"], errors="coerce").fillna(0).astype(int)
+
+    monthly_summary: List[dict] = []
+    for period, group in df.groupby("month_period", sort=True):
+        sort_cols = ["date_parsed", "page"]
+        if has_seq:
+            sort_cols.append("seq")
+        sort_cols.append("__row_order")
+
+        group_sorted = group.sort_values(sort_cols, na_position="last")
+
+        balances = group_sorted["balance"].dropna()
+        ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
+        highest_balance = round(float(balances.max()), 2) if not balances.empty else None
+        lowest_balance_raw = round(float(balances.min()), 2) if not balances.empty else None
+        lowest_balance = lowest_balance_raw
+        od_flag = bool(lowest_balance is not None and float(lowest_balance) < 0)
+
+        monthly_summary.append(
             {
-                "month": month,
-                "transaction_count": int(len(g)),
-                "opening_balance": opening_balance,
-                "total_debit": total_debit,
-                "total_credit": total_credit,
-                "net_change": net_change,
+                "month": period,
+                "transaction_count": int(len(group_sorted)),
+                "total_debit": round(float(group_sorted["debit"].sum()), 2),
+                "total_credit": round(float(group_sorted["credit"].sum()), 2),
+                "net_change": round(float(group_sorted["credit"].sum() - group_sorted["debit"].sum()), 2),
                 "ending_balance": ending_balance,
                 "lowest_balance": lowest_balance,
-                "lowest_balance_raw": lowest_balance,
+                "lowest_balance_raw": lowest_balance_raw,
                 "highest_balance": highest_balance,
-                "od_flag": bool(lowest_balance is not None and float(lowest_balance) < 0),
-                "source_files": ", ".join(sorted(set(g.get("source_file", "").astype(str).tolist()))),
+                "od_flag": od_flag,
+                "source_files": ", ".join(sorted(set(group_sorted.get("source_file", []))))
+                if "source_file" in group_sorted.columns
+                else "",
             }
         )
 
-    out_rows = sorted(out_rows, key=lambda r: str(r.get("month", "9999-99")))
-    return out_rows
+    return sorted(monthly_summary, key=lambda x: x["month"])
 
 
-# ============================
-# UI outputs
-# ============================
+# ---------------------------------------------------
+# DISPLAY
+# ---------------------------------------------------
+if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals) or (
+    bank_choice == "Ambank" and st.session_state.ambank_statement_totals
+):
+    st.subheader("📊 Extracted Transactions")
+    df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
-st.write("---")
-st.subheader("📌 Extracted Transactions")
-
-if st.session_state.results:
-    df_out = pd.DataFrame(st.session_state.results)
-    st.dataframe(df_out, use_container_width=True)
-
-    st.write("---")
-    st.subheader("📊 Monthly Summary")
-
-    summary_rows = calculate_monthly_summary(st.session_state.results, bank_choice)
-    if summary_rows:
-        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+    if not df.empty:
+        display_cols = ["date", "description", "debit", "credit", "balance", "page", "seq", "bank", "source_file"]
+        display_cols = [c for c in display_cols if c in df.columns]
+        df_display = df[display_cols] if display_cols else df
+        st.dataframe(df_display, use_container_width=True)
     else:
-        st.info("No summary available.")
+        st.info("No line-item transactions extracted.")
+
+    monthly_summary = calculate_monthly_summary(st.session_state.results)
+    if monthly_summary:
+        st.subheader("📅 Monthly Summary")
+        summary_df = pd.DataFrame(monthly_summary)
+        st.dataframe(summary_df, use_container_width=True)
+
+    st.subheader("⬇️ Download Options")
+    col1, col2, col3 = st.columns(3)
+
+    df_display = df.copy() if not df.empty else pd.DataFrame([])
+
+    with col1:
+        st.download_button(
+            "📄 Download Transactions (JSON)",
+            json.dumps(df_display.to_dict(orient="records"), indent=4),
+            "transactions.json",
+            "application/json",
+        )
+
+    with col2:
+        date_min = df_display["date"].min() if "date" in df_display.columns and not df_display.empty else None
+        date_max = df_display["date"].max() if "date" in df_display.columns and not df_display.empty else None
+
+        total_files_processed = None
+        if "source_file" in df_display.columns and not df_display.empty:
+            total_files_processed = int(df_display["source_file"].nunique())
+        else:
+            if bank_choice == "Affin Bank":
+                total_files_processed = len(st.session_state.affin_statement_totals)
+            elif bank_choice == "Ambank":
+                total_files_processed = len(st.session_state.ambank_statement_totals)
+
+        full_report = {
+            "summary": {
+                "total_transactions": int(len(df_display)),
+                "date_range": f"{date_min} to {date_max}" if date_min and date_max else None,
+                "total_files_processed": total_files_processed,
+                "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+            "monthly_summary": monthly_summary,
+            "transactions": df_display.to_dict(orient="records"),
+        }
+
+        st.download_button(
+            "📊 Download Full Report (JSON)",
+            json.dumps(full_report, indent=4),
+            "full_report.json",
+            "application/json",
+        )
+
+    with col3:
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_display.to_excel(writer, sheet_name="Transactions", index=False)
+            if monthly_summary:
+                pd.DataFrame(monthly_summary).to_excel(writer, sheet_name="Monthly Summary", index=False)
+
+        st.download_button(
+            "📊 Download Full Report (XLSX)",
+            output.getvalue(),
+            "full_report.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
 else:
-    st.info("No transactions yet. Upload files and click Start Processing.")
+    if uploaded_files:
+        st.warning("⚠️ No transactions found — click **Start Processing**.")
