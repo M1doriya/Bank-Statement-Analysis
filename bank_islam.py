@@ -264,7 +264,6 @@ def parse_bank_islam_format3(pdf, source_file):
 
 # =========================================================
 # FORMAT 4 – eSTATEMENT (BALANCE DELTA, DIFFERENT LAYOUT)
-# FIXED: indentation + per-page processing
 # =========================================================
 def parse_bank_islam_format4(pdf, source_file):
     transactions: List[Dict[str, Any]] = []
@@ -290,7 +289,7 @@ def parse_bank_islam_format4(pdf, source_file):
         lines = [re.sub(r"\s+", " ", l).strip() for l in text.splitlines() if l.strip()]
 
         for line in lines:
-            # 1) Capture Opening Balance (Note the extra 'I' in 'B/IF' from OCR)
+            # 1) Capture Opening Balance (OCR sometimes sees B/IF)
             if BAL_BF_RE4.search(line):
                 nums = MONEY_RE4.findall(line)
                 if nums:
@@ -305,10 +304,9 @@ def parse_bank_islam_format4(pdf, source_file):
 
                 if nums:
                     current_balance = to_float(nums[-1])
-
                     delta = round(current_balance - prev_balance, 2)
 
-                    # Clean description: Remove date and all detected money values
+                    # Clean description
                     desc = line.replace(raw_date, "").strip()
                     for n in nums:
                         desc = desc.replace(n, "").strip()
@@ -333,11 +331,14 @@ def parse_bank_islam_format4(pdf, source_file):
 
 
 # =========================================================
-# OCR V2 (SCANNED PDFs) – MULTI-PASS + BALANCE-DELTA + VALIDATION
-# (Only used if scanned + totals mismatch)
+# OCR V2 (SCANNED / GARBLED PDFs) – MULTI-PASS + BALANCE-DELTA + VALIDATION
 # =========================================================
 _OCR_DATE_RE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/\d{2,4})\b")
 _OCR_MONEY_RE = re.compile(r"(?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2}")
+_OCR_STATEMENT_DATE_RE = re.compile(
+    r"(?:STATEMENT\s*DATE|TARIKH\s*PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
+    re.IGNORECASE,
+)
 
 
 def _ocr_float(s: str) -> Optional[float]:
@@ -368,21 +369,58 @@ def _ocr_text_page_multi(page) -> str:
     return t4 + "\n" + t6
 
 
+def _extract_statement_month_year_via_ocr(pdf) -> Optional[Tuple[int, int]]:
+    """
+    Extract statement month/year from OCR of page 1 header:
+      STATEMENT DATE : 28/02/25
+    Used to filter OCR date rows to the correct month (prevents page-2 disclaimer OCR noise).
+    """
+    if pytesseract is None or not getattr(pdf, "pages", None):
+        return None
+
+    try:
+        text = _ocr_text_page_multi(pdf.pages[0])
+    except Exception:
+        return None
+
+    m = _OCR_STATEMENT_DATE_RE.search(text or "")
+    if not m:
+        return None
+
+    dd = int(m.group(1))
+    mm = int(m.group(2))
+    yy_raw = m.group(3)
+    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+
+    # month/year only
+    if 1 <= mm <= 12 and 2000 <= yy <= 2100:
+        return (yy, mm)
+    return None
+
+
 def _extract_summary_totals_via_ocr(pdf) -> Tuple[Optional[float], Optional[float]]:
     """
     Find:
       TOTAL DEBIT  <count> <amount>
       TOTAL CREDIT <count> <amount>
+
+    Made slightly more tolerant for OCR variations:
+      - count might be misread or missing
+      - multiple spaces / missing spaces
     """
     if pytesseract is None or not getattr(pdf, "pages", None):
         return (None, None)
 
     text = _ocr_text_page_multi(pdf.pages[0])
-    text_norm = re.sub(r"\s+", " ", text).upper()
+    text_norm = re.sub(r"\s+", " ", (text or "")).upper()
 
     def find_total(label: str) -> Optional[float]:
+        # tolerate optional count and inconsistent spacing
+        # Examples:
+        #   TOTAL DEBIT 2 1,110,000.00
+        #   TOTAL DEBIT 1,110,000.00
         m = re.search(
-            rf"{label}\s+\d+\s+((?:\d{{1,3}}(?:,\d{{3}})*)\.\d{{2}})",
+            rf"{label}\s+(?:\d+\s+)?((?:\d{{1,3}}(?:,\d{{3}})*)\.\d{{2}})",
             text_norm,
         )
         return _ocr_float(m.group(1)) if m else None
@@ -395,7 +433,7 @@ def _extract_opening_balance_via_ocr(pdf) -> Optional[float]:
         return None
 
     text = _ocr_text_page_multi(pdf.pages[0])
-    text_norm = re.sub(r"\s+", " ", text).upper()
+    text_norm = re.sub(r"\s+", " ", (text or "")).upper()
 
     m = re.search(
         r"BAL\s*B/F\s+((?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2})",
@@ -414,21 +452,42 @@ def _date_sort_key(raw_date: str) -> datetime:
     return datetime(2100, 1, 1)
 
 
-def _collect_date_balances_from_ocr(pdf) -> List[Tuple[str, float, str, int]]:
+def _collect_date_balances_from_ocr(
+    pdf, stmt_year_month: Optional[Tuple[int, int]]
+) -> List[Tuple[str, float, str, int]]:
     """
     Returns list of (raw_date, ending_balance, line_text, page_num).
     Dedupe by (raw_date, balance) across OCR passes.
+
+    FIX:
+      - Filter OCR date rows to the statement month/year (when available),
+        to prevent page-2 disclaimer OCR noise from being treated as transactions.
     """
     rows: Dict[Tuple[str, float], Tuple[str, int]] = {}
 
     for page_num, page in enumerate(pdf.pages, start=1):
         text = _ocr_text_page_multi(page)
-        lines = [re.sub(r"\s+", " ", l).strip() for l in text.splitlines() if l.strip()]
+        lines = [re.sub(r"\s+", " ", l).strip() for l in (text or "").splitlines() if l.strip()]
 
         for line in lines:
             dm = _OCR_DATE_RE.match(line)
             if not dm:
                 continue
+
+            raw_date = dm.group(1)
+            iso = _parse_date(raw_date)
+            if not iso:
+                continue
+
+            # Month/year filter if we have statement month/year
+            if stmt_year_month is not None:
+                yy, mm = stmt_year_month
+                try:
+                    dt = datetime.strptime(iso, "%Y-%m-%d")
+                    if dt.year != yy or dt.month != mm:
+                        continue
+                except Exception:
+                    continue
 
             nums = _OCR_MONEY_RE.findall(line)
             if not nums:
@@ -438,7 +497,7 @@ def _collect_date_balances_from_ocr(pdf) -> List[Tuple[str, float, str, int]]:
             if bal is None:
                 continue
 
-            key = (dm.group(1), bal)
+            key = (raw_date, bal)
             rows[key] = (line, page_num)
 
     out: List[Tuple[str, float, str, int]] = []
@@ -475,10 +534,10 @@ def _recompute_totals_with_balance_adjustment(
 
 def parse_bank_islam_ocr_balance_delta(pdf, source_file) -> List[Dict[str, Any]]:
     """
-    OCR fallback for scanned statements:
+    OCR fallback for scanned/garbled statements:
     - Multi-pass OCR
     - Use ending balance and compute debit/credit via balance delta
-    - If statement totals exist, attempt tiny correction (±0.10/±0.20/±0.30) to fix OCR drift
+    - If statement totals exist, attempt tiny correction (±0.10/±0.20/±0.30)
     """
     if pytesseract is None or not getattr(pdf, "pages", None):
         return []
@@ -488,7 +547,9 @@ def parse_bank_islam_ocr_balance_delta(pdf, source_file) -> List[Dict[str, Any]]
         return []
 
     stmt_td, stmt_tc = _extract_summary_totals_via_ocr(pdf)
-    rows = _collect_date_balances_from_ocr(pdf)
+
+    stmt_ym = _extract_statement_month_year_via_ocr(pdf)
+    rows = _collect_date_balances_from_ocr(pdf, stmt_ym)
     if not rows:
         return []
 
@@ -549,7 +610,7 @@ def parse_bank_islam_ocr_balance_delta(pdf, source_file) -> List[Dict[str, Any]]
 
 
 # =========================================================
-# SCANNED DETECTION + SUM
+# SCANNED / GARBLED DETECTION + SUM
 # =========================================================
 def _sum_tx(tx: List[Dict[str, Any]]) -> Tuple[float, float]:
     return (
@@ -558,21 +619,16 @@ def _sum_tx(tx: List[Dict[str, Any]]) -> Tuple[float, float]:
     )
 
 
-# -------------------------
-# NEW (SAFE): detect CID-garbled / unreadable text extraction
-# -------------------------
 def _text_looks_garbled(txt: str) -> bool:
     """
-    Some PDFs are not scanned, but pdfplumber extraction is CID-garbled, e.g. "(cid:123)".
-    That content is effectively unparseable by regex-based logic, so we should treat it as
-    "needs OCR fallback" without changing normal parsing behavior.
+    Detect CID-encoded / unreadable pdfplumber extraction.
     """
     if not txt:
         return True
 
     up = txt.upper()
 
-    # Strong signal: CID-coded extraction (font/encoding issue)
+    # Strong signal: CID-coded extraction produced by some PDFs/fonts
     if up.count("(CID:") >= 20:
         return True
 
@@ -587,20 +643,16 @@ def _text_looks_garbled(txt: str) -> bool:
 
 def _looks_like_scanned(source_file: str, pdf) -> bool:
     """
-    Original behavior:
-      - If pdfplumber can't extract meaningful text, it's probably scanned
-
-    FIX (low risk):
-      - Also treat CID-garbled extraction as "needs OCR" (not changing normal months)
-      - Check first few pages (page 1 alone can be misleading)
+    Original behavior (short text => scanned) + FIX:
+    Treat CID-garbled extraction as "needs OCR" too.
     """
     try:
-        pages = getattr(pdf, "pages", None) or []
-        if not pages:
-            return True
-
         # filename hint
         if "scan" in (source_file or "").lower() or "scanned" in (source_file or "").lower():
+            return True
+
+        pages = getattr(pdf, "pages", []) or []
+        if not pages:
             return True
 
         texts = []
@@ -610,12 +662,12 @@ def _looks_like_scanned(source_file: str, pdf) -> bool:
             except Exception:
                 texts.append("")
 
-        # If any page has decent, non-garbled text, do not treat as scanned
+        # If any page has decent, non-garbled text, assume not scanned
         for t in texts:
             if len(t) >= 120 and not _text_looks_garbled(t):
                 return False
 
-        # If all are short or garbled, treat as needing OCR
+        # Otherwise: empty/short OR garbled -> needs OCR
         if all((len(t) < 80) or _text_looks_garbled(t) for t in texts):
             return True
 
@@ -626,7 +678,7 @@ def _looks_like_scanned(source_file: str, pdf) -> bool:
 
 
 # =========================================================
-# WRAPPER (FIXED ORDER + OCR OVERRIDE ONLY WHEN NEEDED)
+# WRAPPER (ORDER PRESERVED + OCR ONLY WHEN NEEDED)
 # =========================================================
 def parse_bank_islam(pdf, source_file):
     # 1) Keep existing behavior for normal (non-scanned) months
@@ -638,7 +690,7 @@ def parse_bank_islam(pdf, source_file):
     if not tx:
         tx = parse_bank_islam_format3(pdf, source_file)
 
-    # 2) For scanned/garbled statements: validate using statement totals and override with OCR v2 if mismatch
+    # 2) For scanned/garbled statements: validate using statement totals and override with OCR v2 if needed
     if _looks_like_scanned(source_file, pdf):
         stmt_td, stmt_tc = _extract_summary_totals_via_ocr(pdf)
         if stmt_td is not None and stmt_tc is not None:
@@ -646,16 +698,13 @@ def parse_bank_islam(pdf, source_file):
             if abs(parsed_td - stmt_td) > 0.01 or abs(parsed_tc - stmt_tc) > 0.01:
                 tx_ocr = parse_bank_islam_ocr_balance_delta(pdf, source_file)
                 if tx_ocr:
-                    # If OCR yields totals closer to statement, use it
                     o_td, o_tc = _sum_tx(tx_ocr)
                     if abs(o_td - stmt_td) <= 0.01 and abs(o_tc - stmt_tc) <= 0.01:
                         return tx_ocr
-                    # Otherwise still prefer OCR if it captured more rows (common for scanned PDFs)
                     if len(tx_ocr) > len(tx):
                         return tx_ocr
 
-        # NEW (safe): if normal parse found nothing, try OCR anyway
-        # This does NOT affect months that already parse, and only runs in the OCR-needed branch.
+        # Safe: if normal parse found nothing, try OCR anyway
         if not tx:
             tx_ocr = parse_bank_islam_ocr_balance_delta(pdf, source_file)
             if tx_ocr:
