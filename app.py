@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, Dict, List, Tuple, Optional
+from typing import Callable, Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -45,29 +45,15 @@ if "affin_statement_totals" not in st.session_state:
 if "affin_file_transactions" not in st.session_state:
     st.session_state.affin_file_transactions = {}
 
-# AmBank statement totals + per-file tx
+# NEW: AmBank statement totals + per-file tx
 if "ambank_statement_totals" not in st.session_state:
     st.session_state.ambank_statement_totals = []
 
 if "ambank_file_transactions" not in st.session_state:
     st.session_state.ambank_file_transactions = {}
 
-# Bank Islam: months per uploaded file (even if no tx)
-if "bank_islam_month_files" not in st.session_state:
-    # {"YYYY-MM": ["filename1.pdf", ...]}
-    st.session_state.bank_islam_month_files = {}
-
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-# Bank Islam statement date header (some are Malay/English)
-_BANK_ISLAM_STMT_DATE_RE = re.compile(
-    r"(?:STATEMENT\s*DATE|TARIKH\s*PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
-    re.IGNORECASE,
-)
-
-# Many Bank Islam eStatements include the month in the filename e.g. eStatement-202401_....
-_ESTATEMENT_MONTH_RE = re.compile(r"ESTATEMENT-(?P<y>20\d{2})(?P<m>0[1-9]|1[0-2])", re.IGNORECASE)
 
 
 def parse_any_date_for_summary(x) -> pd.Timestamp:
@@ -84,53 +70,6 @@ def parse_any_date_for_summary(x) -> pd.Timestamp:
 def _parse_with_pdfplumber(parser_func: Callable, pdf_bytes: bytes, filename: str) -> List[dict]:
     with bytes_to_pdfplumber(pdf_bytes) as pdf:
         return parser_func(pdf, filename)
-
-
-def _month_from_filename(name: str) -> Optional[str]:
-    """Try to infer YYYY-MM from common Bank Islam eStatement filename patterns."""
-    n = (name or "").strip()
-    if not n:
-        return None
-
-    m = _ESTATEMENT_MONTH_RE.search(n)
-    if m:
-        return f"{int(m.group('y')):04d}-{int(m.group('m')):02d}"
-
-    # fallback: first YYYYMM-like token where MM is valid
-    m2 = re.search(r"(?P<y>20\d{2})(?P<m>0[1-9]|1[0-2])", n)
-    if m2:
-        return f"{int(m2.group('y')):04d}-{int(m2.group('m')):02d}"
-
-    return None
-
-
-def extract_bank_islam_statement_month(pdf) -> Optional[str]:
-    """Extract YYYY-MM from statement header (STATEMENT DATE / TARIKH PENYATA)."""
-    try:
-        t = (pdf.pages[0].extract_text() or "")
-    except Exception:
-        return None
-
-    m = _BANK_ISLAM_STMT_DATE_RE.search(t)
-    if not m:
-        return None
-
-    mm = int(m.group(2))
-    yy_raw = m.group(3)
-    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
-
-    if 1 <= mm <= 12 and 2000 <= yy <= 2100:
-        return f"{yy:04d}-{mm:02d}"
-    return None
-
-
-def _bank_islam_register_month(filename: str, month: Optional[str]) -> None:
-    """Register file under month (Bank Islam only)."""
-    key = month or "UNKNOWN"
-    if key not in st.session_state.bank_islam_month_files:
-        st.session_state.bank_islam_month_files[key] = []
-    if filename not in st.session_state.bank_islam_month_files[key]:
-        st.session_state.bank_islam_month_files[key].append(filename)
 
 
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
@@ -164,7 +103,6 @@ with col1:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
-        st.session_state.bank_islam_month_files = {}
 
 with col2:
     if st.button("⏹️ Stop"):
@@ -178,7 +116,6 @@ with col3:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
-        st.session_state.bank_islam_month_files = {}
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
@@ -215,14 +152,6 @@ if uploaded_files and st.session_state.status == "running":
                     totals = extract_ambank_statement_totals(pdf, uploaded_file.name)
                     st.session_state.ambank_statement_totals.append(totals)
                     tx_raw = parse_ambank(pdf, uploaded_file.name) or []
-
-            elif bank_choice == "Bank Islam":
-                # Critical fix: register this month even if tx_raw is empty
-                with bytes_to_pdfplumber(pdf_bytes) as pdf:
-                    stmt_month = extract_bank_islam_statement_month(pdf) or _month_from_filename(uploaded_file.name)
-                    _bank_islam_register_month(uploaded_file.name, stmt_month)
-
-                    tx_raw = parse_bank_islam(pdf, uploaded_file.name) or []
 
             else:
                 tx_raw = parser(pdf_bytes, uploaded_file.name) or []
@@ -289,30 +218,6 @@ if uploaded_files and st.session_state.status == "running":
 
     all_tx = sorted(all_tx, key=_sort_key)
     st.session_state.results = all_tx
-
-
-def _bank_islam_zero_month_rows() -> List[dict]:
-    """Build zero-transaction rows for all registered Bank Islam months."""
-    out: List[dict] = []
-    month_files = st.session_state.get("bank_islam_month_files") or {}
-    for month in sorted(month_files.keys()):
-        files_for_month = ", ".join(sorted(set(month_files.get(month, []))))
-        out.append(
-            {
-                "month": month,
-                "transaction_count": 0,
-                "total_debit": 0.0,
-                "total_credit": 0.0,
-                "net_change": 0.0,
-                "ending_balance": None,
-                "lowest_balance": None,
-                "lowest_balance_raw": None,
-                "highest_balance": None,
-                "od_flag": False,
-                "source_files": files_for_month,
-            }
-        )
-    return out
 
 
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
@@ -384,7 +289,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # Ambank-only: statement totals
+    # Ambank-only: statement totals (FIX)
     # -------------------------
     if bank_choice == "Ambank" and st.session_state.ambank_statement_totals:
         rows: List[dict] = []
@@ -424,6 +329,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
+            # safety derive opening if missing
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
 
@@ -448,19 +354,12 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # Default monthly summary (transaction-based)
+    # Default for other banks
     # -------------------------
     if not transactions:
-        # Bank Islam: still show months for uploaded statements even if there are no transactions
-        if bank_choice == "Bank Islam" and (st.session_state.get("bank_islam_month_files") or {}):
-            return _bank_islam_zero_month_rows()
         return []
-
     df = pd.DataFrame(transactions)
     if df.empty:
-        # same behavior as above
-        if bank_choice == "Bank Islam" and (st.session_state.get("bank_islam_month_files") or {}):
-            return _bank_islam_zero_month_rows()
         return []
 
     df = df.reset_index(drop=True)
@@ -471,8 +370,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     df = df.dropna(subset=["date_parsed"])
     if df.empty:
         st.warning("⚠️ No valid transaction dates found.")
-        if bank_choice == "Bank Islam" and (st.session_state.get("bank_islam_month_files") or {}):
-            return _bank_islam_zero_month_rows()
         return []
 
     df["month_period"] = df["date_parsed"].dt.strftime("%Y-%m")
@@ -525,31 +422,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             }
         )
 
-    # Bank Islam: append missing months (0 totals) that had no transactions
-    if bank_choice == "Bank Islam":
-        month_files = st.session_state.get("bank_islam_month_files") or {}
-        if month_files:
-            present = {r.get("month") for r in monthly_summary}
-            for month in sorted(month_files.keys()):
-                if month in present:
-                    continue
-                files_for_month = ", ".join(sorted(set(month_files.get(month, []))))
-                monthly_summary.append(
-                    {
-                        "month": month,
-                        "transaction_count": 0,
-                        "total_debit": 0.0,
-                        "total_credit": 0.0,
-                        "net_change": 0.0,
-                        "ending_balance": None,
-                        "lowest_balance": None,
-                        "lowest_balance_raw": None,
-                        "highest_balance": None,
-                        "od_flag": False,
-                        "source_files": files_for_month,
-                    }
-                )
-
     return sorted(monthly_summary, key=lambda x: x["month"])
 
 
@@ -601,10 +473,6 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 total_files_processed = len(st.session_state.affin_statement_totals)
             elif bank_choice == "Ambank":
                 total_files_processed = len(st.session_state.ambank_statement_totals)
-            elif bank_choice == "Bank Islam":
-                # count uploaded months/files registered
-                month_files = st.session_state.get("bank_islam_month_files") or {}
-                total_files_processed = sum(len(v) for v in month_files.values())
 
         full_report = {
             "summary": {
