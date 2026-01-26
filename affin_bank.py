@@ -16,14 +16,23 @@ except Exception:  # pragma: no cover
 # =========================================================
 # Patterns / constants
 # =========================================================
+
+# Date token in OCR/text, allowing small OCR spacing noise
 DATE_IN_TOKEN_RE = re.compile(r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})")
 
+# Money token (OCR word) like:
+#   1,234.56
+#   1234.56
+#   (1,234.56)
+#   1,234.56-
+#   1,234.56+
+#   RM1,234.56
 MONEY_TOKEN_RE = re.compile(
     r"^\(?\s*(?:RM\s*)?(?P<num>(?:\d{1,3}(?:,\d{3})*|\d+)?\.\d{2})\s*\)?(?P<trail_sign>[+-])?\s*[\.,;:|]*\s*$",
     re.I,
 )
 
-# For scanning in OCR text
+# For scanning in OCR text (line-based) - lenient to commas being missed
 MONEY_IN_TEXT_RE = re.compile(r"\d[\d,]*\.\d{2}")
 
 HEADER_HINTS = ("DATE", "TARIKH", "DEBIT", "CREDIT", "BALANCE", "BAKI")
@@ -97,6 +106,7 @@ def _clean_money_token(token: str) -> Optional[str]:
     if not t:
         return None
 
+    # common OCR confusion
     t = t.replace("O", "0").replace("o", "0").replace(" ", "")
 
     m = MONEY_TOKEN_RE.match(t)
@@ -143,83 +153,102 @@ def _is_bf_row(up: str) -> bool:
 # =========================================================
 # OCR/text helpers for totals (FIXED)
 # =========================================================
-def _page_text_pdf_or_ocr(page: pdfplumber.page.Page) -> str:
+def _page_text_pdf_or_ocr(page: pdfplumber.page.Page, *, resolution: int = 130, crop: bool = False) -> str:
+    """
+    Return page text; if image-only, fallback to OCR.
+
+    Performance notes:
+    - For transaction pages, set crop=True to OCR only the table body (faster, fewer OCR errors).
+    - For totals/headers, use crop=False (full page).
+    """
     txt = (page.extract_text() or "").strip()
-    # Many Affin PDFs are image-only; text extraction is empty.
     if len(txt) >= 120:
         return txt
     if pytesseract is None:
         return txt
+
     try:
-        img = page.to_image(resolution=220).original
-        ocr = pytesseract.image_to_string(img, config="--psm 6") or ""
-        return ocr
+        if crop:
+            # focus on the table body, avoid heavy headers/footers
+            w, h = float(page.width), float(page.height)
+            page = page.crop((0, 90, w, h - 55))
+        img = page.to_image(resolution=resolution).original
+        return pytesseract.image_to_string(img, config="--psm 6") or ""
     except Exception:
         return txt
 
 
-def _try_strip_prefixed_count(amount_str: str) -> Optional[float]:
+def _parse_money_flexible(amount_str: str) -> Optional[float]:
     """
-    Fix Affin totals lines where transaction-count digits get concatenated into the amount.
-    Example:
-      '480,932.36' might be '4' + '80,932.36'
-      '798,680.87' might be '7' + '98,680.87'
-    We attempt stripping 1..3 leading digits and accept the remainder if it is a valid money format.
+    Parse money token that may have:
+      - commas or no commas (OCR often drops commas)
+      - accidental leading/trailing punctuation
     """
-    s = (amount_str or "").strip()
+    s = (amount_str or "").strip().strip(".,;:|")
     if not s:
         return None
-
-    def parse_money(x: str) -> Optional[float]:
-        x = x.strip()
-        if not re.fullmatch(r"\d{1,3}(?:,\d{3})*\.\d{2}", x):
-            return None
-        try:
-            return float(x.replace(",", ""))
-        except Exception:
-            return None
-
-    # direct parse first
-    direct = parse_money(s)
-    if direct is not None:
-        return direct
-
-    # strip 1..3 digits from front
-    for k in (1, 2, 3):
-        if len(s) <= k:
-            continue
-        rem = s[k:]
-        val = parse_money(rem)
-        if val is not None:
-            return val
-
-    return None
-
-
-def _pick_amount_from_totals_line(line: str) -> Optional[float]:
-    """
-    Extract the amount from a totals line robustly:
-    - Find last money-looking token in the line
-    - Repair if count digits are concatenated into the amount (strip prefix)
-    """
-    nums = MONEY_IN_TEXT_RE.findall(line or "")
-    if not nums:
+    s = s.replace("O", "0").replace("o", "0")
+    s = s.replace(",", "")
+    if not re.fullmatch(r"\d+(?:\.\d{2})", s):
         return None
-
-    candidate = nums[-1].strip()
-    repaired = _try_strip_prefixed_count(candidate)
-    if repaired is not None:
-        return float(repaired)
-
-    # fallback: naive parse
     try:
-        return float(candidate.replace(",", ""))
+        return float(s)
     except Exception:
         return None
 
 
-def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
-    out = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
+def _candidate_amounts_from_token(amount_str: str) -> List[float]:
+    """
+    Produce candidate parses for totals lines where a count digit may be concatenated
+    into the amount (e.g., "4" + "80,932.36" OCRed as "480,932.36").
+
+    Critical fix:
+    - DO NOT strip prefix digits just because commas are missing.
+      "400620.67" is a valid number and must be kept.
+    """
+    s_raw = (amount_str or "").strip()
+    if not s_raw:
+        return []
+
+    # 1) direct parse (preferred)
+    direct = _parse_money_flexible(s_raw)
+    candidates: List[float] = []
+    if direct is not None:
+        candidates.append(float(direct))
+
+    # 2) prefix-strip candidates ONLY if original token contains a comma
+    if "," in s_raw:
+        s = s_raw.strip().strip(".,;:|")
+        for k in (1, 2, 3):
+            if len(s) <= k:
+                continue
+            rem = s[k:]
+            v = _parse_money_flexible(rem)
+            if v is not None:
+                candidates.append(float(v))
+
+    # unique + stable order
+    out: List[float] = []
+    for v in candidates:
+        if v not in out:
+            out.append(v)
+    return out
+
+
+def _pick_last_money_token(line: str) -> Optional[str]:
+    nums = MONEY_IN_TEXT_RE.findall(line or "")
+    if not nums:
+        return None
+    return nums[-1].strip()
+
+
+def _scan_lines_for_totals_candidates(text: str) -> Dict[str, List[float]]:
+    out: Dict[str, List[float]] = {
+        "opening_balance": [],
+        "total_debit": [],
+        "total_credit": [],
+        "ending_balance": [],
+    }
     if not text:
         return out
 
@@ -227,49 +256,112 @@ def _scan_lines_for_totals(text: str) -> Dict[str, Optional[float]]:
     for line in lines:
         up = line.upper()
 
+        token = _pick_last_money_token(line)
+        if not token:
+            continue
+
+        cands = _candidate_amounts_from_token(token)
+        if not cands:
+            continue
+
         # Total debit
-        if out["total_debit"] is None:
-            hit = ((("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up) or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up)))
-            if hit:
-                v = _pick_amount_from_totals_line(line)
-                if v is not None:
-                    out["total_debit"] = float(v)
-                    continue
+        hit_debit = (
+            ((("TOTAL" in up or "JUMLAH" in up) and "DEBIT" in up))
+            or ("JUMLAH" in up and ("PENGELUARAN" in up or "KELUAR" in up))
+        )
+        if hit_debit:
+            out["total_debit"].extend(cands)
+            continue
 
         # Total credit
-        if out["total_credit"] is None:
-            hit = ((("TOTAL" in up or "JUMLAH" in up) and ("CREDIT" in up or "KREDIT" in up)) or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up)))
-            if hit:
-                v = _pick_amount_from_totals_line(line)
-                if v is not None:
-                    out["total_credit"] = float(v)
-                    continue
+        hit_credit = (
+            ((("TOTAL" in up or "JUMLAH" in up) and ("CREDIT" in up or "KREDIT" in up)))
+            or ("JUMLAH" in up and ("PEMASUKAN" in up or "MASUK" in up))
+        )
+        if hit_credit:
+            out["total_credit"].extend(cands)
+            continue
 
-        # Opening
-        if out["opening_balance"] is None:
-            hit = ("B/F" in up) or ("BROUGHT FORWARD" in up) or ("BAKI" in up and ("AWAL" in up or "MULA" in up))
-            if hit:
-                v = _pick_amount_from_totals_line(line)
-                if v is not None:
-                    out["opening_balance"] = float(v)
-                    continue
+        # Opening (B/F)
+        hit_open = ("B/F" in up) or ("BROUGHT FORWARD" in up) or ("BAKI" in up and ("AWAL" in up or "MULA" in up))
+        if hit_open:
+            out["opening_balance"].extend(cands)
+            continue
 
-        # Ending
-        if out["ending_balance"] is None:
-            hit = ("C/F" in up) or ("CARRIED FORWARD" in up) or ("ENDING BALANCE" in up) or ("CLOSING BALANCE" in up) or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up))
-            if hit:
-                v = _pick_amount_from_totals_line(line)
-                if v is not None:
-                    out["ending_balance"] = float(v)
-                    continue
+        # Ending (C/F)
+        hit_end = (
+            ("C/F" in up)
+            or ("CARRIED FORWARD" in up)
+            or ("ENDING BALANCE" in up)
+            or ("CLOSING BALANCE" in up)
+            or ("BAKI" in up and ("AKHIR" in up or "PENUTUP" in up or "TUTUP" in up))
+        )
+        if hit_end:
+            out["ending_balance"].extend(cands)
+            continue
 
     return out
+
+
+def _choose_best_totals(cands: Dict[str, List[float]]) -> Dict[str, Optional[float]]:
+    """
+    Choose best values by enforcing accounting identity when possible:
+      opening + total_credit - total_debit ~= ending
+    """
+    def uniq(xs: List[float]) -> List[float]:
+        out=[]
+        for x in xs:
+            if x not in out:
+                out.append(x)
+        return out
+
+    open_c = uniq(cands.get("opening_balance", []))
+    end_c = uniq(cands.get("ending_balance", []))
+    debit_c = uniq(cands.get("total_debit", []))
+    credit_c = uniq(cands.get("total_credit", []))
+
+    # Prefer "larger" opening/ending if multiple (stripping creates smaller artifacts)
+    open_sorted = sorted(open_c, reverse=True)
+    end_sorted = sorted(end_c, reverse=True)
+
+    best = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
+
+    tol = 0.05
+    best_err = None
+    for o in (open_sorted[:6] or [None]):
+        for e in (end_sorted[:6] or [None]):
+            for d in (sorted(debit_c, reverse=True)[:8] or [None]):
+                for c in (sorted(credit_c, reverse=True)[:8] or [None]):
+                    if o is None or e is None or d is None or c is None:
+                        continue
+                    err = abs((o + c - d) - e)
+                    if err <= tol:
+                        if best_err is None or err < best_err:
+                            best_err = err
+                            best = {"opening_balance": o, "total_debit": d, "total_credit": c, "ending_balance": e}
+
+    if best["opening_balance"] is not None:
+        return best
+
+    # Fallbacks if identity cannot be solved (partial totals)
+    best["opening_balance"] = open_sorted[0] if open_sorted else None
+    best["ending_balance"] = end_sorted[0] if end_sorted else None
+    best["total_debit"] = max(debit_c) if debit_c else None
+    best["total_credit"] = max(credit_c) if credit_c else None
+    return best
 
 
 def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dict[str, Any]:
     """
     Extract printed totals (ground truth) from statement:
       opening_balance, total_debit, total_credit, ending_balance
+
+    Fixes:
+    - OCR often drops commas (e.g., "400,620.67" -> "400620.67"). This must NOT be treated
+      as a "count digit glued to amount".
+    - If count digits are genuinely glued (rare), we keep both direct and stripped candidates
+      and choose the combination that satisfies:
+        opening + credit - debit = ending.
     """
     if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
         pdf = pdf_input
@@ -290,14 +382,15 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
             if 0 <= i < n and i not in idxs:
                 idxs.append(i)
 
-        best = {"opening_balance": None, "total_debit": None, "total_credit": None, "ending_balance": None}
+        merged_candidates = {"opening_balance": [], "total_debit": [], "total_credit": [], "ending_balance": []}
 
         for i in idxs:
-            text = _page_text_pdf_or_ocr(pdf.pages[i]).replace("\x0c", " ")
-            found = _scan_lines_for_totals(text)
-            for k in best.keys():
-                if best[k] is None and found.get(k) is not None:
-                    best[k] = found.get(k)
+            text = _page_text_pdf_or_ocr(pdf.pages[i], resolution=140, crop=False).replace("\x0c", " ")
+            found = _scan_lines_for_totals_candidates(text)
+            for k in merged_candidates.keys():
+                merged_candidates[k].extend(found.get(k, []))
+
+        best = _choose_best_totals(merged_candidates)
 
         return {
             "bank": "Affin Bank",
@@ -317,8 +410,92 @@ def extract_affin_statement_totals(pdf_input: Any, source_file: str = "") -> Dic
 
 
 # =========================================================
-# Transaction extraction (for display / balances fallback)
+# Transaction extraction
 # =========================================================
+
+_TX_LINE_RE = re.compile(
+    r"^(?P<date>\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4})\s*\|\s*(?P<rest>.*)$"
+)
+
+def _parse_transactions_from_ocr_text(pdf: pdfplumber.PDF, source_file: str) -> List[Dict[str, Any]]:
+    """
+    Fast, robust OCR-text parser for Affin image statements.
+
+    Strategy:
+    - OCR the page to text (psm6), cropped to table body
+    - Parse lines starting with "DD/MM/YY |"
+    - Extract last money token as running balance
+    - Compute debit/credit via balance delta (most reliable)
+    """
+    txs: List[Dict[str, Any]] = []
+    prev_balance: Optional[float] = None
+
+    for page_num, page in enumerate(pdf.pages, start=1):
+        text = _page_text_pdf_or_ocr(page, resolution=120, crop=True)
+        if not text:
+            continue
+
+        lines = [_norm(l) for l in text.splitlines() if _norm(l)]
+        for ln in lines:
+            m = _TX_LINE_RE.match(ln)
+            if not m:
+                continue
+
+            date_iso = _to_iso_date(m.group("date"))
+            if not date_iso:
+                continue
+
+            rest = m.group("rest").strip()
+            up = rest.upper()
+
+            nums = MONEY_IN_TEXT_RE.findall(ln)
+            if not nums:
+                continue
+
+            bal_token = nums[-1]
+            bal = _parse_money_flexible(bal_token)
+            if bal is None:
+                continue
+
+            # B/F row anchors prev_balance but is not a transaction
+            if _is_bf_row(up) or "BALANCE BROUGHT" in up:
+                prev_balance = float(bal)
+                continue
+
+            debit = credit = 0.0
+            if prev_balance is not None:
+                delta = round(float(bal) - float(prev_balance), 2)
+                if delta > 0:
+                    credit = delta
+                elif delta < 0:
+                    debit = -delta
+
+            prev_balance = float(bal)
+
+            desc = rest
+            for tok in nums:
+                desc = desc.replace(tok, " ").strip()
+            desc = _norm(desc)
+
+            txs.append(
+                {
+                    "date": date_iso,
+                    "description": desc,
+                    "debit": round(float(debit), 2),
+                    "credit": round(float(credit), 2),
+                    "balance": round(float(bal), 2),
+                    "page": int(page_num),
+                    "bank": "Affin Bank",
+                    "source_file": source_file or "",
+                }
+            )
+
+    return txs
+
+
+# -----------------------------
+# Word-based extraction (kept for text PDFs)
+# -----------------------------
 def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
     words = page.extract_words(
         use_text_flow=True,
@@ -340,35 +517,6 @@ def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
             }
         )
     return out
-
-
-def _words_from_ocr(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
-    if pytesseract is None:
-        return []
-    try:
-        w, h = float(page.width), float(page.height)
-        crop = page.crop((0, 80, w, h - 50))
-        img = crop.to_image(resolution=240).original
-    except Exception:
-        img = page.to_image(resolution=240).original
-
-    data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT, config="--psm 6")
-    n = len(data.get("text", []))
-    out: List[Dict[str, Any]] = []
-    for i in range(n):
-        txt = (data["text"][i] or "").strip()
-        if not txt:
-            continue
-        x, y, ww, hh = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
-        out.append({"text": txt, "x0": float(x), "x1": float(x + ww), "y0": float(y), "y1": float(y + hh)})
-    return out
-
-
-def _get_page_words(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
-    w = _words_from_pdf(page)
-    if w:
-        return w
-    return _words_from_ocr(page)
 
 
 def _cluster_rows(words: List[Dict[str, Any]], y_tol: float = 2.8) -> List[Tuple[float, List[Dict[str, Any]]]]:
@@ -473,8 +621,15 @@ def _classify_money_by_columns(row_words: List[Dict[str, Any]], col: Optional[Di
 
 
 def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, Any]]:
+    """
+    Affin Bank parser.
+
+    Fix:
+    - For image-only statements, word-box OCR + column detection is unstable and causes
+      wrong total debit/credit. We now switch to OCR-text parsing with balance-delta
+      inference, which is significantly more robust.
+    """
     bank_name = "Affin Bank"
-    txs: List[Dict[str, Any]] = []
 
     if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
         pdf = pdf_input
@@ -489,10 +644,26 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
             pdf = pdfplumber.open(pdf_input)
 
     try:
+        # If pdfplumber can extract words, use the word-based parser.
+        # Otherwise, fall back to OCR-text mode.
+        has_words = False
+        try:
+            for p in pdf.pages[:2]:
+                if _words_from_pdf(p):
+                    has_words = True
+                    break
+        except Exception:
+            has_words = False
+
+        if not has_words:
+            return _parse_transactions_from_ocr_text(pdf, source_file)
+
+        txs: List[Dict[str, Any]] = []
         for page_num, page in enumerate(pdf.pages, start=1):
-            words = _get_page_words(page)
+            words = _words_from_pdf(page)
             if not words:
                 continue
+
             rows = _cluster_rows(words, y_tol=2.8)
             if not rows:
                 continue
@@ -512,7 +683,7 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                     continue
 
                 date_iso = None
-                for j, w in enumerate(row_words[:10]):
+                for w in row_words[:10]:
                     d = _to_iso_date(w["text"])
                     if d:
                         date_iso = d
@@ -569,14 +740,14 @@ def parse_affin_bank(pdf_input: Any, source_file: str = "") -> List[Dict[str, An
                 )
                 i = k
 
+        txs.sort(key=lambda x: (x.get("date", ""), int(x.get("page") or 0), float(x.get("_y") or 0.0)))
+        for t in txs:
+            t.pop("_y", None)
+        return txs
+
     finally:
         if should_close:
             try:
                 pdf.close()
             except Exception:
                 pass
-
-    txs.sort(key=lambda x: (x.get("date", ""), int(x.get("page") or 0), float(x.get("_y") or 0.0)))
-    for t in txs:
-        t.pop("_y", None)
-    return txs
