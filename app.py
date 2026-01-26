@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Optional
 
 import pandas as pd
 import streamlit as st
@@ -52,6 +52,10 @@ if "ambank_statement_totals" not in st.session_state:
 if "ambank_file_transactions" not in st.session_state:
     st.session_state.ambank_file_transactions = {}
 
+# NEW: Bank Islam per-file statement month (for zero-transaction months)
+if "bank_islam_file_month" not in st.session_state:
+    st.session_state.bank_islam_file_month = {}
+
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -70,6 +74,34 @@ def parse_any_date_for_summary(x) -> pd.Timestamp:
 def _parse_with_pdfplumber(parser_func: Callable, pdf_bytes: bytes, filename: str) -> List[dict]:
     with bytes_to_pdfplumber(pdf_bytes) as pdf:
         return parser_func(pdf, filename)
+
+
+# Bank Islam: extract statement month for files that contain no transactions
+_BANK_ISLAM_STMT_DATE_RE = re.compile(
+    r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\
+s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
+    re.IGNORECASE,
+)
+
+
+def extract_bank_islam_statement_month(pdf) -> Optional[str]:
+    """Return YYYY-MM from statement header if available."""
+    try:
+        t = (pdf.pages[0].extract_text() or "")
+    except Exception:
+        return None
+
+    m = _BANK_ISLAM_STMT_DATE_RE.search(t)
+    if not m:
+        return None
+
+    mm = int(m.group(2))
+    yy_raw = m.group(3)
+    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+
+    if 1 <= mm <= 12 and 2000 <= yy <= 2100:
+        return f"{yy:04d}-{mm:02d}"
+    return None
 
 
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
@@ -103,6 +135,7 @@ with col1:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
+        st.session_state.bank_islam_file_month = {}
 
 with col2:
     if st.button("⏹️ Stop"):
@@ -116,6 +149,7 @@ with col3:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
+        st.session_state.bank_islam_file_month = {}
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
@@ -152,6 +186,13 @@ if uploaded_files and st.session_state.status == "running":
                     totals = extract_ambank_statement_totals(pdf, uploaded_file.name)
                     st.session_state.ambank_statement_totals.append(totals)
                     tx_raw = parse_ambank(pdf, uploaded_file.name) or []
+
+            elif bank_choice == "Bank Islam":
+                with bytes_to_pdfplumber(pdf_bytes) as pdf:
+                    tx_raw = parse_bank_islam(pdf, uploaded_file.name) or []
+                    stmt_month = extract_bank_islam_statement_month(pdf)
+                    if stmt_month:
+                        st.session_state.bank_islam_file_month[uploaded_file.name] = stmt_month
 
             else:
                 tx_raw = parser(pdf_bytes, uploaded_file.name) or []
@@ -357,7 +398,28 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # Default for other banks
     # -------------------------
     if not transactions:
+        # Bank Islam: show months from uploaded statements even if there are no transactions
+        if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
+            rows: List[dict] = []
+            for fname, month in sorted(st.session_state.bank_islam_file_month.items(), key=lambda x: x[1]):
+                rows.append(
+                    {
+                        "month": month,
+                        "transaction_count": 0,
+                        "total_debit": 0.0,
+                        "total_credit": 0.0,
+                        "net_change": 0.0,
+                        "ending_balance": None,
+                        "lowest_balance": None,
+                        "lowest_balance_raw": None,
+                        "highest_balance": None,
+                        "od_flag": False,
+                        "source_files": fname,
+                    }
+                )
+            return rows
         return []
+
     df = pd.DataFrame(transactions)
     if df.empty:
         return []
@@ -421,6 +483,28 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 else "",
             }
         )
+
+    # Bank Islam: ensure statement months with zero transactions still appear
+    if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
+        existing_months = {r.get("month") for r in monthly_summary}
+        for fname, month in st.session_state.bank_islam_file_month.items():
+            if month in existing_months:
+                continue
+            monthly_summary.append(
+                {
+                    "month": month,
+                    "transaction_count": 0,
+                    "total_debit": 0.0,
+                    "total_credit": 0.0,
+                    "net_change": 0.0,
+                    "ending_balance": None,
+                    "lowest_balance": None,
+                    "lowest_balance_raw": None,
+                    "highest_balance": None,
+                    "od_flag": False,
+                    "source_files": fname,
+                }
+            )
 
     return sorted(monthly_summary, key=lambda x: x["month"])
 
