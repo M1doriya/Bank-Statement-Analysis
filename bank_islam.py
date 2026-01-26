@@ -12,7 +12,7 @@ try:
 except Exception:  # pragma: no cover
     pytesseract = None
 
-from PIL import ImageOps, ImageEnhance
+from PIL import ImageEnhance, ImageOps
 
 
 # =========================================================
@@ -39,9 +39,18 @@ def parse_bank_islam_format1(pdf, source_file):
                 row.append(None)
 
             (
-                no, txn_date, customer_eft, txn_code, description,
-                ref_no, branch, debit_raw, credit_raw,
-                balance_raw, sender_recipient, payment_details
+                no,
+                txn_date,
+                customer_eft,
+                txn_code,
+                description,
+                ref_no,
+                branch,
+                debit_raw,
+                credit_raw,
+                balance_raw,
+                sender_recipient,
+                payment_details,
             ) = row[:12]
 
             if not txn_date or not re.search(r"\d{2}/\d{2}/\d{4}", str(txn_date)):
@@ -49,8 +58,7 @@ def parse_bank_islam_format1(pdf, source_file):
 
             try:
                 date = datetime.strptime(
-                    re.search(r"\d{2}/\d{2}/\d{4}", str(txn_date)).group(),
-                    "%d/%m/%Y"
+                    re.search(r"\d{2}/\d{2}/\d{4}", str(txn_date)).group(), "%d/%m/%Y"
                 ).date().isoformat()
             except Exception:
                 continue
@@ -75,17 +83,19 @@ def parse_bank_islam_format1(pdf, source_file):
                 if x and str(x).lower() != "nan"
             )
 
-            transactions.append({
-                "date": date,
-                "description": description_clean,
-                "debit": round(debit, 2),
-                "credit": round(credit, 2),
-                "balance": round(balance, 2),
-                "page": page_num,
-                "bank": "Bank Islam",
-                "source_file": source_file,
-                "format": "format1"
-            })
+            transactions.append(
+                {
+                    "date": date,
+                    "description": description_clean,
+                    "debit": round(debit, 2),
+                    "credit": round(credit, 2),
+                    "balance": round(balance, 2),
+                    "page": page_num,
+                    "bank": "Bank Islam",
+                    "source_file": source_file,
+                    "format": "format1",
+                }
+            )
 
     return transactions
 
@@ -161,21 +171,23 @@ def parse_bank_islam_format2(pdf, source_file):
             prev_balance = balance
 
             # 4) Description
-            desc = line[len(m_date.group(1)):].strip()
+            desc = line[len(m_date.group(1)) :].strip()
             for tok in money_raw:
                 desc = desc.replace(tok, "").strip()
 
-            transactions.append({
-                "date": date,
-                "description": desc,
-                "debit": round(debit, 2),
-                "credit": round(credit, 2),
-                "balance": round(balance, 2),
-                "page": page_num,
-                "bank": "Bank Islam",
-                "source_file": source_file,
-                "format": "format2_balance_delta"
-            })
+            transactions.append(
+                {
+                    "date": date,
+                    "description": desc,
+                    "debit": round(debit, 2),
+                    "credit": round(credit, 2),
+                    "balance": round(balance, 2),
+                    "page": page_num,
+                    "bank": "Bank Islam",
+                    "source_file": source_file,
+                    "format": "format2_balance_delta",
+                }
+            )
 
     return transactions
 
@@ -231,17 +243,19 @@ def parse_bank_islam_format3(pdf, source_file):
 
                     delta = round(balance - prev_balance, 2)
 
-                    transactions.append({
-                        "date": parse_date(raw_date),
-                        "description": desc,
-                        "debit": abs(delta) if delta < 0 else 0.0,
-                        "credit": delta if delta > 0 else 0.0,
-                        "balance": balance,
-                        "page": page_num,
-                        "bank": "Bank Islam",
-                        "source_file": source_file,
-                        "format": "format3_estatement"
-                    })
+                    transactions.append(
+                        {
+                            "date": parse_date(raw_date),
+                            "description": desc,
+                            "debit": abs(delta) if delta < 0 else 0.0,
+                            "credit": delta if delta > 0 else 0.0,
+                            "balance": balance,
+                            "page": page_num,
+                            "bank": "Bank Islam",
+                            "source_file": source_file,
+                            "format": "format3_estatement",
+                        }
+                    )
 
                     prev_balance = balance
 
@@ -250,7 +264,7 @@ def parse_bank_islam_format3(pdf, source_file):
 
 # =========================================================
 # FORMAT 4 – eSTATEMENT (BALANCE DELTA, DIFFERENT LAYOUT)
-# FIXED: indentation + per-page processing (your original had a bug)
+# FIXED: indentation + per-page processing
 # =========================================================
 def parse_bank_islam_format4(pdf, source_file):
     transactions: List[Dict[str, Any]] = []
@@ -276,7 +290,7 @@ def parse_bank_islam_format4(pdf, source_file):
         lines = [re.sub(r"\s+", " ", l).strip() for l in text.splitlines() if l.strip()]
 
         for line in lines:
-            # 1) Capture Opening Balance (Note the extra 'I' in 'B/IF' from your OCR)
+            # 1) Capture Opening Balance (Note the extra 'I' in 'B/IF' from OCR)
             if BAL_BF_RE4.search(line):
                 nums = MONEY_RE4.findall(line)
                 if nums:
@@ -299,17 +313,19 @@ def parse_bank_islam_format4(pdf, source_file):
                     for n in nums:
                         desc = desc.replace(n, "").strip()
 
-                    transactions.append({
-                        "date": parse_date(raw_date),
-                        "description": desc,
-                        "debit": abs(delta) if delta < 0 else 0.0,
-                        "credit": delta if delta > 0 else 0.0,
-                        "balance": current_balance,
-                        "page": page_num,
-                        "bank": "Bank Islam",
-                        "source_file": source_file,
-                        "format": "format4_normalized"
-                    })
+                    transactions.append(
+                        {
+                            "date": parse_date(raw_date),
+                            "description": desc,
+                            "debit": abs(delta) if delta < 0 else 0.0,
+                            "credit": delta if delta > 0 else 0.0,
+                            "balance": current_balance,
+                            "page": page_num,
+                            "bank": "Bank Islam",
+                            "source_file": source_file,
+                            "format": "format4_normalized",
+                        }
+                    )
 
                     prev_balance = current_balance
 
@@ -318,7 +334,7 @@ def parse_bank_islam_format4(pdf, source_file):
 
 # =========================================================
 # OCR V2 (SCANNED PDFs) – MULTI-PASS + BALANCE-DELTA + VALIDATION
-# This is only used if scanned + totals mismatch, so other months won't change.
+# (Only used if scanned + totals mismatch)
 # =========================================================
 _OCR_DATE_RE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/\d{2,4})\b")
 _OCR_MONEY_RE = re.compile(r"(?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2}")
@@ -367,7 +383,7 @@ def _extract_summary_totals_via_ocr(pdf) -> Tuple[Optional[float], Optional[floa
     def find_total(label: str) -> Optional[float]:
         m = re.search(
             rf"{label}\s+\d+\s+((?:\d{{1,3}}(?:,\d{{3}})*)\.\d{{2}})",
-            text_norm
+            text_norm,
         )
         return _ocr_float(m.group(1)) if m else None
 
@@ -383,7 +399,7 @@ def _extract_opening_balance_via_ocr(pdf) -> Optional[float]:
 
     m = re.search(
         r"BAL\s*B/F\s+((?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2})",
-        text_norm
+        text_norm,
     )
     return _ocr_float(m.group(1)) if m else None
 
@@ -437,7 +453,7 @@ def _recompute_totals_with_balance_adjustment(
     opening: float,
     date_bal_rows: List[Tuple[str, float, str, int]],
     adjust_index: Optional[int] = None,
-    adjust_amount: float = 0.0
+    adjust_amount: float = 0.0,
 ) -> Tuple[float, float]:
     prev = opening
     total_debit = 0.0
@@ -462,7 +478,7 @@ def parse_bank_islam_ocr_balance_delta(pdf, source_file) -> List[Dict[str, Any]]
     OCR fallback for scanned statements:
     - Multi-pass OCR
     - Use ending balance and compute debit/credit via balance delta
-    - If statement totals exist, attempt tiny correction (±0.10/±0.20/±0.30) to fix OCR 0.10 drift
+    - If statement totals exist, attempt tiny correction (±0.10/±0.20/±0.30) to fix OCR drift
     """
     if pytesseract is None or not getattr(pdf, "pages", None):
         return []
@@ -513,17 +529,19 @@ def parse_bank_islam_ocr_balance_delta(pdf, source_file) -> List[Dict[str, Any]]
         for n in _OCR_MONEY_RE.findall(line):
             desc = desc.replace(n, "").strip()
 
-        tx.append({
-            "date": date_iso,
-            "description": desc,
-            "debit": round(debit, 2),
-            "credit": round(credit, 2),
-            "balance": round(bal, 2),
-            "page": page_num,
-            "bank": "Bank Islam",
-            "source_file": source_file,
-            "format": "ocr_balance_delta_v2"
-        })
+        tx.append(
+            {
+                "date": date_iso,
+                "description": desc,
+                "debit": round(debit, 2),
+                "credit": round(credit, 2),
+                "balance": round(bal, 2),
+                "page": page_num,
+                "bank": "Bank Islam",
+                "source_file": source_file,
+                "format": "ocr_balance_delta_v2",
+            }
+        )
 
         prev = bal
 
@@ -540,18 +558,71 @@ def _sum_tx(tx: List[Dict[str, Any]]) -> Tuple[float, float]:
     )
 
 
-def _looks_like_scanned(source_file: str, pdf) -> bool:
-    # If pdfplumber can't extract meaningful text, it's probably scanned
-    try:
-        sample = (pdf.pages[0].extract_text() or "").strip()
-    except Exception:
-        sample = ""
-    if len(sample) < 20:
+# -------------------------
+# NEW (SAFE): detect CID-garbled / unreadable text extraction
+# -------------------------
+def _text_looks_garbled(txt: str) -> bool:
+    """
+    Some PDFs are not scanned, but pdfplumber extraction is CID-garbled, e.g. "(cid:123)".
+    That content is effectively unparseable by regex-based logic, so we should treat it as
+    "needs OCR fallback" without changing normal parsing behavior.
+    """
+    if not txt:
         return True
-    # filename hint
-    if "scan" in source_file.lower() or "scanned" in source_file.lower():
+
+    up = txt.upper()
+
+    # Strong signal: CID-coded extraction (font/encoding issue)
+    if up.count("(CID:") >= 20:
         return True
+
+    # Secondary signal: low alphanumeric ratio in a long string
+    if len(txt) > 800:
+        alnum = sum(ch.isalnum() for ch in txt)
+        if (alnum / max(len(txt), 1)) < 0.15:
+            return True
+
     return False
+
+
+def _looks_like_scanned(source_file: str, pdf) -> bool:
+    """
+    Original behavior:
+      - If pdfplumber can't extract meaningful text, it's probably scanned
+
+    FIX (low risk):
+      - Also treat CID-garbled extraction as "needs OCR" (not changing normal months)
+      - Check first few pages (page 1 alone can be misleading)
+    """
+    try:
+        pages = getattr(pdf, "pages", None) or []
+        if not pages:
+            return True
+
+        # filename hint
+        if "scan" in (source_file or "").lower() or "scanned" in (source_file or "").lower():
+            return True
+
+        texts = []
+        for p in pages[:3]:
+            try:
+                texts.append(((p.extract_text() or "").strip()))
+            except Exception:
+                texts.append("")
+
+        # If any page has decent, non-garbled text, do not treat as scanned
+        for t in texts:
+            if len(t) >= 120 and not _text_looks_garbled(t):
+                return False
+
+        # If all are short or garbled, treat as needing OCR
+        if all((len(t) < 80) or _text_looks_garbled(t) for t in texts):
+            return True
+
+        return False
+    except Exception:
+        # Fail safe: allow OCR path
+        return True
 
 
 # =========================================================
@@ -567,7 +638,7 @@ def parse_bank_islam(pdf, source_file):
     if not tx:
         tx = parse_bank_islam_format3(pdf, source_file)
 
-    # 2) For scanned statements: validate using statement totals and override with OCR v2 if mismatch
+    # 2) For scanned/garbled statements: validate using statement totals and override with OCR v2 if mismatch
     if _looks_like_scanned(source_file, pdf):
         stmt_td, stmt_tc = _extract_summary_totals_via_ocr(pdf)
         if stmt_td is not None and stmt_tc is not None:
@@ -582,5 +653,12 @@ def parse_bank_islam(pdf, source_file):
                     # Otherwise still prefer OCR if it captured more rows (common for scanned PDFs)
                     if len(tx_ocr) > len(tx):
                         return tx_ocr
+
+        # NEW (safe): if normal parse found nothing, try OCR anyway
+        # This does NOT affect months that already parse, and only runs in the OCR-needed branch.
+        if not tx:
+            tx_ocr = parse_bank_islam_ocr_balance_delta(pdf, source_file)
+            if tx_ocr:
+                return tx_ocr
 
     return tx
