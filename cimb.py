@@ -1,14 +1,17 @@
 # cimb.py - Standalone CIMB Bank Parser
 #
-# Strategy:
-#   1) Parse using pdfplumber.extract_table()
-#   2) Also parse using robust text parsing fallback
-#   3) If statement footer totals (Total Withdrawal/Deposits) exist, choose the parse
-#      whose summed totals best match the footer totals.
-#   4) Always attempt to extract closing balance from the FULL document text.
+# Primary strategy:
+#   1) Try table extraction (existing behavior).
+#   2) If table extraction fails / yields no transactions, fall back to robust text parsing.
 #
-# Notes:
-# - Without OCR, scanned/image-only PDFs cannot be parsed reliably.
+# IMPORTANT FIX:
+# CIMB prints "CLOSING BALANCE / BAKI PENUTUP" near the end of the PDF.
+# So we must scan the FULL document text for closing balance (and statement totals),
+# not just the first 1-2 pages.
+#
+# Additionally, CIMB prints statement-level totals:
+#   "TOTAL WITHDRAWAL" (Total Debit) and "TOTAL DEPOSITS" (Total Credit)
+# which are the most reliable numbers for monthly summaries.
 
 import re
 from datetime import datetime
@@ -39,7 +42,7 @@ def extract_year_from_text(text):
 
 
 # ---------------------------------------------------------
-# CLOSING BALANCE EXTRACTION
+# CLOSING BALANCE EXTRACTION (layout regex)
 # ---------------------------------------------------------
 
 def extract_closing_balance_from_text(text):
@@ -63,13 +66,14 @@ def extract_closing_balance_from_text(text):
 
 
 def extract_statement_totals_from_text(text):
-    """Extract statement-level Total Withdrawal/Total Deposits if present.
+    """Extract statement footer totals when present.
 
-    Common CIMB footer looks like:
-        No of Withdrawal No of Deposits Total Withdrawal Total Deposits
-        320 51 5,511,545.17 6,609,360.94
+    CIMB commonly prints a summary block containing:
+      TOTAL WITHDRAWAL  TOTAL DEPOSITS
+    Often preceded by "No of Withdrawal" and "No of Deposits".
 
-    Returns (total_withdrawal, total_deposits) as floats, or (None, None).
+    Returns:
+        (total_withdrawal, total_deposits) as floats, or (None, None).
     """
     if not text:
         return (None, None)
@@ -78,16 +82,17 @@ def extract_statement_totals_from_text(text):
     if "TOTAL WITHDRAWAL" not in up or "TOTAL DEPOSITS" not in up:
         return (None, None)
 
+    # Take a local window near the last occurrence (footer is usually near the end)
     idx = up.rfind("TOTAL WITHDRAWAL")
-    window = text[idx: idx + 700] if idx != -1 else text
+    window = text[idx: idx + 900] if idx != -1 else text
 
-    # Try to match: count count amount amount
-    m = re.search(r"\b\d{1,6}\s+\d{1,6}\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\b", window)
+    # Common layout: <count> <count> <amount> <amount>
+    m = re.search(r"\b\d{1,6}\s+\d{1,6}\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\b", window)
     if m:
         return (parse_float(m.group(1)), parse_float(m.group(2)))
 
-    # Fallback: last two money tokens in window
-    money = re.findall(r"[\d,]+\.\d{2}", window)
+    # Fallback: last two monetary tokens in the window
+    money = re.findall(r"-?[\d,]+\.\d{2}", window)
     if len(money) >= 2:
         return (parse_float(money[-2]), parse_float(money[-1]))
 
@@ -150,42 +155,48 @@ def format_date(date_str, year):
 
 
 # ---------------------------------------------------------
-# FALLBACK TEXT PARSER
+# FALLBACK TEXT PARSER (only used if table parsing fails)
 # ---------------------------------------------------------
 
 _MONEY_TOKEN_RE = re.compile(r"^-?\d{1,3}(?:,\d{3})*\.\d{2}$")
 
-
-def _extract_amounts_and_balance(line):
-    """Return (amount_tokens, balance, first_money_idx)."""
+def _extract_last_balance_token(line):
+    """
+    Finds the last money token on the line (e.g., balance), returns (balance_float, first_money_index).
+    Also returns first_money_index so we can strip trailing numeric columns from description.
+    """
     toks = line.split()
-    money_idx = [i for i, t in enumerate(toks) if _MONEY_TOKEN_RE.match(t)]
-    if not money_idx:
-        return [], None, None
+    last_idx = None
+    for i in range(len(toks) - 1, -1, -1):
+        if _MONEY_TOKEN_RE.match(toks[i]):
+            last_idx = i
+            break
+    if last_idx is None:
+        return None, None
 
-    last_idx = money_idx[-1]
-    balance = parse_float(toks[last_idx])
-    amount_tokens = [toks[i] for i in money_idx[:-1]]
+    bal = parse_float(toks[last_idx])
 
     first_money_idx = None
     for i, t in enumerate(toks):
+        # treat "0" sometimes used for tax column; it is not money token but appears as numeric column
         if t == "0" or _MONEY_TOKEN_RE.match(t):
             first_money_idx = i
             break
 
-    return amount_tokens, balance, first_money_idx
+    return bal, first_money_idx
 
 
 def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name="CIMB Bank", closing_balance=None):
     """
-    Text-mode parser:
-    - Detects transactions by date at line start (DD/MM/YYYY)
-    - Captures trailing money tokens and balance
+    Robust text-mode parser for CIMB Islamic / Current Account-i style statements.
+    Uses balance delta to infer debit/credit.
     """
-    raw_rows = []
-    opening_balance = None
+    transactions = []
+
+    # Track opening/previous balance
+    prev_balance = None
     latest_tx_date = None
-    seq = 0
+
     cur = None  # {"date":..., "parts":[...], "page":...}
 
     for page_num, page in enumerate(pdf.pages, start=1):
@@ -195,101 +206,106 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
         for ln in lines:
             up = ln.upper()
 
+            # detect opening balance
             if up.startswith("OPENING BALANCE"):
-                _, bal, _ = _extract_amounts_and_balance(ln)
+                bal, _ = _extract_last_balance_token(ln)
                 if bal is not None:
-                    opening_balance = bal
+                    prev_balance = bal
                 continue
 
+            # ignore closing balance line here (we append it once at end)
             if "CLOSING BALANCE" in up and "BAKI" in up:
                 continue
 
+            # Start of a transaction row
             m = re.match(r"^(\d{2}/\d{2}/\d{4})\s+(.*)$", ln)
             if m:
                 cur = {"date": m.group(1), "parts": [m.group(2)], "page": page_num}
 
-                amount_tokens, bal, first_money_idx = _extract_amounts_and_balance(ln)
+                # sometimes the same line already includes balance
+                bal, first_money_idx = _extract_last_balance_token(ln)
                 if bal is not None:
                     toks = ln.split()
-                    desc = " ".join(toks[1:first_money_idx]) if first_money_idx is not None else " ".join(toks[1:])
+                    # strip date token + numeric columns from desc
+                    if first_money_idx is not None:
+                        desc = " ".join(toks[1:first_money_idx])
+                    else:
+                        desc = " ".join(toks[1:])
                     date_iso = format_date(cur["date"], detected_year)
                     if date_iso:
-                        seq += 1
-                        raw_rows.append({
+                        debit = credit = 0.0
+                        if prev_balance is not None:
+                            delta = round(bal - prev_balance, 2)
+                            if delta > 0:
+                                credit = delta
+                            elif delta < 0:
+                                debit = -delta
+
+                        transactions.append({
                             "date": date_iso,
                             "description": clean_text(desc),
+                            "debit": round(debit, 2),
+                            "credit": round(credit, 2),
                             "balance": round(bal, 2),
-                            "amount_tokens": amount_tokens,
                             "page": page_num,
-                            "_seq": seq,
+                            "source_file": source_filename,
+                            "bank": bank_name
                         })
+
+                        prev_balance = bal
                         if latest_tx_date is None or date_iso > latest_tx_date:
                             latest_tx_date = date_iso
+
                     cur = None
+
                 continue
 
+            # Continuation lines (multi-line description) until we find a balance line
             if cur is not None:
-                amount_tokens, bal, first_money_idx = _extract_amounts_and_balance(ln)
+                bal, first_money_idx = _extract_last_balance_token(ln)
                 if bal is not None:
                     toks = ln.split()
-                    cur["parts"].append(" ".join(toks[:first_money_idx]) if first_money_idx is not None else ln)
+                    if first_money_idx is not None:
+                        cur["parts"].append(" ".join(toks[:first_money_idx]))
+                    else:
+                        cur["parts"].append(ln)
 
                     date_iso = format_date(cur["date"], detected_year)
                     if date_iso:
-                        seq += 1
-                        raw_rows.append({
+                        debit = credit = 0.0
+                        if prev_balance is not None:
+                            delta = round(bal - prev_balance, 2)
+                            if delta > 0:
+                                credit = delta
+                            elif delta < 0:
+                                debit = -delta
+
+                        transactions.append({
                             "date": date_iso,
                             "description": clean_text(" ".join(cur["parts"])),
+                            "debit": round(debit, 2),
+                            "credit": round(credit, 2),
                             "balance": round(bal, 2),
-                            "amount_tokens": amount_tokens,
                             "page": cur["page"],
-                            "_seq": seq,
+                            "source_file": source_filename,
+                            "bank": bank_name
                         })
+
+                        prev_balance = bal
                         if latest_tx_date is None or date_iso > latest_tx_date:
                             latest_tx_date = date_iso
+
                     cur = None
                 else:
                     cur["parts"].append(ln)
 
-    # Build transactions; best-effort debit/credit:
-    # If intermediate rows are missing, gross totals may still be understated (no OCR can fix that).
-    raw_rows = _dedupe_transactions(raw_rows)
-    raw_rows_chrono = list(reversed(raw_rows))
-
-    transactions = []
-    prev_balance = opening_balance
-
-    for r in raw_rows_chrono:
-        bal = parse_float(r.get("balance"))
-        debit = credit = 0.0
-        amount_tokens = r.get("amount_tokens") or []
-        amt = parse_float(amount_tokens[-1]) if amount_tokens else 0.0
-
-        if prev_balance is not None:
-            delta = round(bal - prev_balance, 2)
-            if delta > 0:
-                credit = round(amt if amt > 0 else delta, 2)
-            elif delta < 0:
-                debit = round(amt if amt > 0 else -delta, 2)
-
-        transactions.append({
-            "date": r.get("date"),
-            "description": r.get("description"),
-            "debit": round(debit, 2),
-            "credit": round(credit, 2),
-            "balance": round(bal, 2),
-            "page": r.get("page"),
-            "source_file": source_filename,
-            "bank": bank_name,
-        })
-        prev_balance = bal
-
+    # If caller didn't provide closing balance, try to find it from whole document text
     if closing_balance is None:
         all_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
         closing_balance = extract_closing_balance_from_text(all_text)
 
     if closing_balance is not None:
-        cb_date = latest_tx_date or (transactions[-1]["date"] if transactions else f"{detected_year}-01-01")
+        cb_date = latest_tx_date or f"{detected_year}-01-01"
         transactions.append({
             "date": cb_date,
             "description": "CLOSING BALANCE / BAKI PENUTUP",
@@ -302,89 +318,7 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
             "is_statement_balance": True
         })
 
-    return _dedupe_transactions(transactions)
-
-
-# ---------------------------------------------------------
-# POST-PROCESSING
-# ---------------------------------------------------------
-
-def _dedupe_transactions(transactions):
-    """De-duplicate rows that pdfplumber/text parsing can repeat."""
-    if not transactions:
-        return []
-
-    # Exact de-dupe
-    seen_exact = set()
-    stage = []
-    for t in transactions:
-        key = (
-            t.get("date"),
-            clean_text(t.get("description")),
-            clean_text(t.get("ref_no", "")),
-            round(parse_float(t.get("debit")), 2),
-            round(parse_float(t.get("credit")), 2),
-            None if t.get("balance") is None else round(parse_float(t.get("balance")), 2),
-        )
-        if key in seen_exact:
-            continue
-        seen_exact.add(key)
-        stage.append(t)
-
-    # Soft de-dupe on (date, desc, balance)
-    best_by_soft = {}
-    order = []
-    for t in stage:
-        soft_key = (
-            t.get("date"),
-            clean_text(t.get("description")),
-            None if t.get("balance") is None else round(parse_float(t.get("balance")), 2),
-        )
-        score = round(parse_float(t.get("debit")) + parse_float(t.get("credit")), 2)
-        if soft_key not in best_by_soft:
-            best_by_soft[soft_key] = (score, t)
-            order.append(soft_key)
-        else:
-            prev_score, _ = best_by_soft[soft_key]
-            if score > prev_score:
-                best_by_soft[soft_key] = (score, t)
-
-    return [best_by_soft[k][1] for k in order]
-
-
-def _table_parse_quality_bad(transactions, tolerance=0.05):
-    """Heuristic: if too many rows don't reconcile with balance deltas, table extraction is unreliable."""
-    rows = [t for t in transactions if t.get("balance") is not None]
-    if len(rows) < 15:
-        return False
-
-    mismatches = 0
-    checks = 0
-    prev_balance = None
-    for t in rows:
-        bal = parse_float(t.get("balance"))
-        if prev_balance is None:
-            prev_balance = bal
-            continue
-
-        debit = parse_float(t.get("debit"))
-        credit = parse_float(t.get("credit"))
-
-        if debit == 0.0 and credit == 0.0:
-            prev_balance = bal
-            continue
-
-        expected = round(prev_balance - debit + credit, 2)
-        checks += 1
-        if abs(expected - round(bal, 2)) > tolerance:
-            mismatches += 1
-
-        prev_balance = bal
-
-    if checks == 0:
-        return False
-
-    return (mismatches / checks) > 0.08
+    return transactions
 
 
 # ---------------------------------------------------------
@@ -394,47 +328,57 @@ def _table_parse_quality_bad(transactions, tolerance=0.05):
 def parse_transactions_cimb(pdf, source_filename=""):
     """
     CIMB parser:
-    - Parse via table extraction
-    - Also parse via robust text mode
-    - If footer totals exist, choose the parse whose totals best match
-    - Always try to extract closing balance from FULL document text
+    - First: attempt extract_table() (existing behavior).
+    - Fallback: text parsing for multi-line table layouts (CIMB Islamic / Current Account-i, etc.)
     """
     transactions = []
     detected_year = None
     closing_balance = None
+
     bank_name = "CIMB Bank"
 
-    # Detect year / branding quickly
+    # ---- Pass 1: detect year + closing balance + bank branding (fast scan) ----
     for page in pdf.pages[:2]:
         text = page.extract_text() or ""
+
         if "CIMB ISLAMIC BANK" in text.upper():
             bank_name = "CIMB Islamic Bank"
+
         if not detected_year:
             detected_year = extract_year_from_text(text)
+
         if closing_balance is None:
             closing_balance = extract_closing_balance_from_text(text)
+
         if detected_year and closing_balance is not None:
             break
 
     if not detected_year:
         detected_year = str(datetime.now().year)
 
-    # Full doc scan (critical for closing balance + footer totals)
+    # ---- Pass 1b (critical): full-document scan for footer totals + closing balance ----
+    # CIMB frequently prints "CLOSING BALANCE / BAKI PENUTUP" near the end of the PDF,
+    # so scanning only the first 1-2 pages is insufficient.
     full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
-    stmt_total_debit, stmt_total_credit = extract_statement_totals_from_text(full_text)
+    if closing_balance is None:
+        closing_balance = extract_closing_balance_from_text(full_text)
 
-    latest_tx_date = None
+    statement_total_debit, statement_total_credit = extract_statement_totals_from_text(full_text)
 
-    # ---- Table extraction ----
+    latest_tx_date = None  # YYYY-MM-DD string
+
+    # ---- Pass 2: primary parse via table extraction (existing behavior) ----
     for page_num, page in enumerate(pdf.pages, start=1):
         table = page.extract_table()
         if not table:
             continue
 
         for row in table:
+            # CIMB Structure: [Date, Desc, Ref, Withdrawal, Deposit, Balance]
             if not row or len(row) < 6:
                 continue
 
+            # Skip headers
             first_col = str(row[0]).lower() if row[0] else ""
             if "date" in first_col or "tarikh" in first_col:
                 continue
@@ -446,17 +390,22 @@ def parse_transactions_cimb(pdf, source_filename=""):
             if not row[5]:
                 continue
 
+            debit_val = parse_float(row[3])   # Withdrawal
+            credit_val = parse_float(row[4])  # Deposit
+
+            # skip spill rows without amounts
+            if debit_val == 0.0 and credit_val == 0.0:
+                continue
+
             date_formatted = format_date(row[0], detected_year)
             if not date_formatted:
                 continue
 
+            # track latest transaction date
             if latest_tx_date is None or date_formatted > latest_tx_date:
                 latest_tx_date = date_formatted
 
-            debit_val = parse_float(row[3])
-            credit_val = parse_float(row[4])
-
-            transactions.append({
+            tx = {
                 "date": date_formatted,
                 "description": clean_text(row[1]),
                 "ref_no": clean_text(row[2]),
@@ -465,52 +414,23 @@ def parse_transactions_cimb(pdf, source_filename=""):
                 "balance": parse_float(row[5]),
                 "page": page_num,
                 "source_file": source_filename,
-                "bank": bank_name,
-            })
+                "bank": bank_name
+            }
+            transactions.append(tx)
 
-    transactions = _dedupe_transactions(transactions)
+    # ---- If table extraction found nothing, use fallback text parser ----
+    if not transactions:
+        return _parse_transactions_cimb_text(
+            pdf,
+            source_filename=source_filename,
+            detected_year=detected_year,
+            bank_name=bank_name,
+            closing_balance=closing_balance
+        )
 
-    # ---- Text fallback parse ----
-    alt_transactions = _parse_transactions_cimb_text(
-        pdf,
-        source_filename=source_filename,
-        detected_year=detected_year,
-        bank_name=bank_name,
-        closing_balance=closing_balance,
-    )
-
-    def _sum_totals(txs):
-        td = tc = 0.0
-        for t in txs:
-            if t.get("is_statement_balance"):
-                continue
-            td += parse_float(t.get("debit"))
-            tc += parse_float(t.get("credit"))
-        return round(td, 2), round(tc, 2)
-
-    # ---- Choose parser output ----
-    if transactions and (stmt_total_debit is not None and stmt_total_credit is not None):
-        td_a, tc_a = _sum_totals(transactions)
-        td_b, tc_b = _sum_totals(alt_transactions)
-
-        diff_a = abs(td_a - stmt_total_debit) + abs(tc_a - stmt_total_credit)
-        diff_b = abs(td_b - stmt_total_debit) + abs(tc_b - stmt_total_credit)
-
-        chosen = transactions if diff_a <= diff_b else alt_transactions
-    elif transactions:
-        chosen = alt_transactions if _table_parse_quality_bad(transactions) else transactions
-    else:
-        chosen = alt_transactions
-
-    transactions = chosen
-
-    # Closing balance: full doc scan
-    if closing_balance is None:
-        closing_balance = extract_closing_balance_from_text(full_text)
-
-    # Append closing balance only if not already present
-    has_statement_balance = any(t.get("is_statement_balance") for t in transactions)
-    if closing_balance is not None and not has_statement_balance:
+    # ---- Append closing balance row with a REAL DATE so app.py won't drop it ----
+    # Always prefer the footer "CLOSING BALANCE / BAKI PENUTUP" over last transaction balance.
+    if closing_balance is not None:
         cb_date = latest_tx_date or f"{detected_year}-01-01"
         transactions.append({
             "date": cb_date,
@@ -522,7 +442,9 @@ def parse_transactions_cimb(pdf, source_filename=""):
             "page": None,
             "source_file": source_filename,
             "bank": bank_name,
-            "is_statement_balance": True
+            "is_statement_balance": True,
+            "statement_total_debit": float(statement_total_debit) if statement_total_debit is not None else None,
+            "statement_total_credit": float(statement_total_credit) if statement_total_credit is not None else None,
         })
 
     return transactions
