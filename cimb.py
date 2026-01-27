@@ -1,83 +1,60 @@
-# cimb.py - Standalone CIMB Bank Parser
+# cimb.py - CIMB Bank Parser (robust)
 #
-# Fixes:
-# 1) Extract and EMIT "Opening Balance" as a synthetic row (CIMB prints it without date).
-#    We anchor it to the 1st day of the statement month inferred from the latest tx date.
-# 2) CIMB-specific de-dupe that ignores description wrapping differences.
-# 3) Keeps existing closing-balance extraction behavior.
+# Key CIMB quirks handled:
+# - Statement table is usually reverse chronological (latest is #1).
+# - OPENING BALANCE is often printed without a date -> must capture and synthesize a dated row.
+# - CLOSING BALANCE / BAKI PENUTUP is printed near the END of PDF -> must scan full PDF text.
+# - PDF extraction can duplicate rows with slightly different wrapping -> dedupe without description.
+#
+# Output:
+# - Standard transaction rows
+# - One synthetic OPENING BALANCE row (if detected)
+# - One synthetic CLOSING BALANCE row (if detected), with optional statement_total_debit/credit metadata.
 
 import re
 from datetime import datetime
 
-# ---------------------------------------------------------
-# YEAR EXTRACTION
-# ---------------------------------------------------------
 
-def extract_year_from_text(text):
-    """
-    Extract year from CIMB statement.
-    Handles 4-digit and 2-digit year formats.
-    """
-    if not text:
-        return None
+# -----------------------------
+# Regex
+# -----------------------------
 
-    match = re.search(
-        r'(?:STATEMENT DATE|TARIKH PENYATA)\s*[:\s]+\d{1,2}/\d{1,2}/(\d{2,4})',
-        text,
-        re.IGNORECASE
-    )
-    if match:
-        y = match.group(1)
-        return y if len(y) == 4 else str(2000 + int(y))
+_MONEY_TOKEN_RE = re.compile(r"^-?\d{1,3}(?:,\d{3})*\.\d{2}$")
 
-    return None
+_STMT_DATE_RE = re.compile(
+    r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*[:\s]+(\d{1,2})/(\d{1,2})/(\d{2,4})",
+    re.IGNORECASE,
+)
+
+_CLOSING_RE = re.compile(
+    r"CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP\s+(-?[\d,]+\.\d{2})",
+    re.IGNORECASE,
+)
+
+_OPENING_LINE_RE = re.compile(r"^\s*OPENING\s+BALANCE\b", re.IGNORECASE)
 
 
-# ---------------------------------------------------------
-# CLOSING BALANCE EXTRACTION (layout regex)
-# ---------------------------------------------------------
-
-def extract_closing_balance_from_text(text):
-    """
-    Extract:
-    CLOSING BALANCE / BAKI PENUTUP -2,971,129.25
-    Supports negative balances.
-    """
-    if not text:
-        return None
-
-    match = re.search(
-        r'CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP\s+(-?[\d,]+\.\d{2})',
-        text,
-        re.IGNORECASE
-    )
-    if match:
-        return float(match.group(1).replace(",", ""))
-
-    return None
-
-
-# ---------------------------------------------------------
-# HELPERS
-# ---------------------------------------------------------
+# -----------------------------
+# Basic helpers
+# -----------------------------
 
 def parse_float(value):
-    """Converts string '1,234.56' or '-1,234.56' to float. Returns 0.0 if invalid."""
+    """Convert string like '1,234.56' or '-1,234.56' to float. Return 0.0 if invalid."""
     if value is None:
         return 0.0
-    clean = str(value).replace("\n", "").replace(" ", "").replace(",", "")
-    if clean == "":
+    s = str(value).replace("\n", " ").strip()
+    s = s.replace(" ", "").replace(",", "")
+    if not s:
         return 0.0
-    if not re.match(r'^-?\d+(\.\d+)?$', clean):
+    if not re.match(r"^-?\d+(\.\d+)?$", s):
         return 0.0
     try:
-        return float(clean)
+        return float(s)
     except Exception:
         return 0.0
 
 
 def clean_text(text):
-    """Removes excess newlines from descriptions."""
     if not text:
         return ""
     return str(text).replace("\n", " ").strip()
@@ -85,43 +62,140 @@ def clean_text(text):
 
 def format_date(date_str, year):
     """
-    Format date string to YYYY-MM-DD.
-    Handles DD/MM/YYYY and DD/MM.
+    Convert 'DD/MM/YYYY' or 'DD/MM' into 'YYYY-MM-DD'.
     """
     if not date_str:
         return None
+    s = clean_text(date_str)
 
-    date_str = clean_text(date_str)
-
-    # DD/MM/YYYY
-    m = re.match(r'(\d{2})/(\d{2})/(\d{4})$', date_str)
+    m = re.match(r"(\d{2})/(\d{2})/(\d{4})$", s)
     if m:
         dd, mm, yyyy = m.groups()
         return f"{yyyy}-{mm}-{dd}"
 
-    # DD/MM
-    m = re.match(r'(\d{2})/(\d{2})$', date_str)
+    m = re.match(r"(\d{2})/(\d{2})$", s)
     if m:
         dd, mm = m.groups()
         return f"{year}-{mm}-{dd}"
 
-    # Already YYYY-MM-DD
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return date_str
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return s
 
     return None
 
 
-# ---------------------------------------------------------
-# FALLBACK TEXT PARSER (only used if table parsing fails)
-# ---------------------------------------------------------
+def extract_year_from_text(text):
+    if not text:
+        return None
+    m = re.search(
+        r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*[:\s]+\d{1,2}/\d{1,2}/(\d{2,4})",
+        text,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    y = m.group(1)
+    return y if len(y) == 4 else str(2000 + int(y))
 
-_MONEY_TOKEN_RE = re.compile(r"^-?\d{1,3}(?:,\d{3})*\.\d{2}$")
+
+def extract_closing_balance_from_text(text):
+    if not text:
+        return None
+    m = _CLOSING_RE.search(text)
+    if m:
+        return float(m.group(1).replace(",", ""))
+    return None
+
+
+def _extract_statement_totals_from_text(full_text):
+    """
+    Extract TOTAL WITHDRAWAL (debit) and TOTAL DEPOSITS (credit) from footer block.
+    Layout often includes counts first, then two amounts:
+      <no_wd> <no_dep> <total_withdrawal> <total_deposits>
+    Returns (td, tc) or (None, None).
+    """
+    if not full_text:
+        return (None, None)
+
+    up = full_text.upper()
+    if "TOTAL WITHDRAWAL" not in up or "TOTAL DEPOSITS" not in up:
+        return (None, None)
+
+    idx = up.rfind("TOTAL WITHDRAWAL")
+    window = full_text[idx: idx + 900] if idx != -1 else full_text
+
+    m = re.search(r"\b\d{1,6}\s+\d{1,6}\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\b", window)
+    if m:
+        return (parse_float(m.group(1)), parse_float(m.group(2)))
+
+    money = re.findall(r"-?[\d,]+\.\d{2}", window)
+    if len(money) >= 2:
+        return (parse_float(money[-2]), parse_float(money[-1]))
+
+    return (None, None)
+
+
+def _prev_month(yyyy: int, mm: int):
+    if mm == 1:
+        return (yyyy - 1, 12)
+    return (yyyy, mm - 1)
+
+
+def _infer_statement_month_from_statement_date(full_text):
+    """
+    CIMB statement date is usually next month; statement month = previous month.
+    Returns 'YYYY-MM' or None.
+    """
+    m = _STMT_DATE_RE.search(full_text or "")
+    if not m:
+        return None
+    dd = int(m.group(1))
+    mm = int(m.group(2))
+    yy_raw = m.group(3)
+    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+    if not (1 <= mm <= 12 and 2000 <= yy <= 2100):
+        return None
+    py, pm = _prev_month(yy, mm)
+    return f"{py:04d}-{pm:02d}"
+
+
+def _dedupe_cimb(rows):
+    """
+    CIMB-specific dedupe:
+    ignore description differences (wrapping/spacing).
+    Key by (date, debit, credit, balance).
+    """
+    seen = set()
+    out = []
+    for r in rows:
+        key = (
+            str(r.get("date") or "").strip(),
+            round(parse_float(r.get("debit", 0.0)), 2),
+            round(parse_float(r.get("credit", 0.0)), 2),
+            None if r.get("balance") is None else round(parse_float(r.get("balance")), 2),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def _chronological_sort(rows):
+    """
+    CIMB table is reverse chronological (latest first).
+    Convert to chronological (oldest first):
+      sort by (date asc, extracted_index desc)
+    so within same date we also reverse the order.
+    """
+    def key(r):
+        return (r.get("date") or "9999-99-99", -int(r.get("__idx", 0)))
+    return sorted(rows, key=key)
+
 
 def _extract_last_balance_token(line):
     """
-    Finds the last money token on the line (e.g., balance), returns (balance_float, first_money_index).
-    Also returns first_money_index so we can strip trailing numeric columns from description.
+    Return (balance_float, first_money_index)
     """
     toks = line.split()
     last_idx = None
@@ -136,7 +210,6 @@ def _extract_last_balance_token(line):
 
     first_money_idx = None
     for i, t in enumerate(toks):
-        # treat "0" sometimes used for tax column; it is not money token but appears as numeric column
         if t == "0" or _MONEY_TOKEN_RE.match(t):
             first_money_idx = i
             break
@@ -144,18 +217,25 @@ def _extract_last_balance_token(line):
     return bal, first_money_idx
 
 
-def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name="CIMB Bank", closing_balance=None):
-    """
-    Robust text-mode parser for CIMB statements.
-    Uses balance delta to infer debit/credit.
-    """
-    transactions = []
+# -----------------------------
+# Text fallback parser (if tables fail)
+# -----------------------------
 
-    # Track opening/previous balance
-    opening_balance_value = None
-    opening_balance_page = None
+def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name, closing_balance):
+    """
+    Text parser:
+    - collect rows with date/desc/balance (raw order)
+    - reorder to chronological
+    - infer debit/credit by balance delta (only in fallback mode)
+    - capture opening balance line (no date) and emit synthetic opening row
+    """
+    raw = []
+    idx = 0
     prev_balance = None
     latest_tx_date = None
+
+    opening_balance_value = None
+    opening_balance_page = None
 
     cur = None  # {"date":..., "parts":[...], "page":...}
 
@@ -166,125 +246,119 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
         for ln in lines:
             up = ln.upper()
 
-            # detect opening balance (no date)
-            if up.startswith("OPENING BALANCE"):
+            # Opening balance line (no date)
+            if _OPENING_LINE_RE.match(ln):
                 bal, _ = _extract_last_balance_token(ln)
                 if bal is not None:
-                    prev_balance = bal
                     opening_balance_value = bal
                     opening_balance_page = page_num
+                    prev_balance = bal
                 continue
 
-            # ignore closing balance line here (we append it once at end)
+            # ignore closing balance line here
             if "CLOSING BALANCE" in up and "BAKI" in up:
                 continue
 
-            # Start of a transaction row
+            # Start of transaction
             m = re.match(r"^(\d{2}/\d{2}/\d{4})\s+(.*)$", ln)
             if m:
                 cur = {"date": m.group(1), "parts": [m.group(2)], "page": page_num}
 
-                # sometimes same line includes balance
+                # sometimes includes balance same line
                 bal, first_money_idx = _extract_last_balance_token(ln)
                 if bal is not None:
                     toks = ln.split()
-                    if first_money_idx is not None:
-                        desc = " ".join(toks[1:first_money_idx])
-                    else:
-                        desc = " ".join(toks[1:])
-
+                    desc = " ".join(toks[1:first_money_idx]) if first_money_idx is not None else " ".join(toks[1:])
                     date_iso = format_date(cur["date"], detected_year)
                     if date_iso:
-                        debit = credit = 0.0
-                        if prev_balance is not None:
-                            delta = round(bal - prev_balance, 2)
-                            if delta > 0:
-                                credit = delta
-                            elif delta < 0:
-                                debit = -delta
-
-                        transactions.append({
+                        idx += 1
+                        raw.append({
                             "date": date_iso,
                             "description": clean_text(desc),
-                            "debit": round(debit, 2),
-                            "credit": round(credit, 2),
                             "balance": round(bal, 2),
                             "page": page_num,
-                            "source_file": source_filename,
-                            "bank": bank_name
+                            "__idx": idx,
                         })
-
-                        prev_balance = bal
                         if latest_tx_date is None or date_iso > latest_tx_date:
                             latest_tx_date = date_iso
-
                     cur = None
-
                 continue
 
-            # Continuation lines until we find a balance line
+            # Continuation
             if cur is not None:
                 bal, first_money_idx = _extract_last_balance_token(ln)
                 if bal is not None:
                     toks = ln.split()
-                    if first_money_idx is not None:
-                        cur["parts"].append(" ".join(toks[:first_money_idx]))
-                    else:
-                        cur["parts"].append(ln)
-
+                    cur["parts"].append(" ".join(toks[:first_money_idx]) if first_money_idx is not None else ln)
                     date_iso = format_date(cur["date"], detected_year)
                     if date_iso:
-                        debit = credit = 0.0
-                        if prev_balance is not None:
-                            delta = round(bal - prev_balance, 2)
-                            if delta > 0:
-                                credit = delta
-                            elif delta < 0:
-                                debit = -delta
-
-                        transactions.append({
+                        idx += 1
+                        raw.append({
                             "date": date_iso,
                             "description": clean_text(" ".join(cur["parts"])),
-                            "debit": round(debit, 2),
-                            "credit": round(credit, 2),
                             "balance": round(bal, 2),
                             "page": cur["page"],
-                            "source_file": source_filename,
-                            "bank": bank_name
+                            "__idx": idx,
                         })
-
-                        prev_balance = bal
                         if latest_tx_date is None or date_iso > latest_tx_date:
                             latest_tx_date = date_iso
-
                     cur = None
                 else:
                     cur["parts"].append(ln)
 
-    # Emit explicit opening balance row (anchor to 1st day of month)
+    # Full-doc closing fallback if needed
+    if closing_balance is None:
+        full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+        closing_balance = extract_closing_balance_from_text(full_text)
+
+    # reorder before delta inference
+    raw = _chronological_sort(raw)
+
+    txs = []
+    for r in raw:
+        bal = parse_float(r.get("balance"))
+        debit = credit = 0.0
+        if prev_balance is not None:
+            delta = round(bal - prev_balance, 2)
+            if delta > 0:
+                credit = delta
+            elif delta < 0:
+                debit = -delta
+
+        txs.append({
+            "date": r.get("date"),
+            "description": r.get("description"),
+            "debit": round(debit, 2),
+            "credit": round(credit, 2),
+            "balance": round(bal, 2),
+            "page": r.get("page"),
+            "source_file": source_filename,
+            "bank": bank_name,
+            "__idx": r.get("__idx", 0),
+        })
+        prev_balance = bal
+
+    # Emit synthetic opening row (anchor to first day of inferred month)
     if opening_balance_value is not None:
-        anchor = latest_tx_date or f"{detected_year}-01-01"
+        anchor = latest_tx_date or (txs[0]["date"] if txs else f"{detected_year}-01-01")
         opening_date = f"{anchor[:8]}01" if re.match(r"^\d{4}-\d{2}-\d{2}$", anchor) else f"{detected_year}-01-01"
-        transactions.insert(0, {
+        txs.insert(0, {
             "date": opening_date,
-            "description": "OPENING BALANCE / BAKI AWAL",
+            "description": "OPENING BALANCE",
             "debit": 0.0,
             "credit": 0.0,
             "balance": round(float(opening_balance_value), 2),
             "page": opening_balance_page,
             "source_file": source_filename,
             "bank": bank_name,
-            "is_opening_balance": True
+            "is_opening_balance": True,
+            "__idx": -1,
         })
 
-    # If caller didn't provide closing balance, try to find it from whole document text
-    if closing_balance is None:
-        all_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
-        closing_balance = extract_closing_balance_from_text(all_text)
-
+    # Emit synthetic closing row
     if closing_balance is not None:
-        cb_date = latest_tx_date or f"{detected_year}-01-01"
-        transactions.append({
+        cb_date = latest_tx_date or (txs[-1]["date"] if txs else f"{detected_year}-01-01")
+        txs.append({
             "date": cb_date,
             "description": "CLOSING BALANCE / BAKI PENUTUP",
             "debit": 0.0,
@@ -293,145 +367,134 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
             "page": None,
             "source_file": source_filename,
             "bank": bank_name,
-            "is_statement_balance": True
+            "is_statement_balance": True,
+            "__idx": 10**12,
         })
 
-    # CIMB-specific de-dupe (text-mode can repeat rows)
-    seen = set()
-    deduped = []
-    for tx in transactions:
-        key = (
-            str(tx.get("date") or "").strip(),
-            round(parse_float(tx.get("debit", 0.0)), 2),
-            round(parse_float(tx.get("credit", 0.0)), 2),
-            None if tx.get("balance") is None else round(parse_float(tx.get("balance")), 2),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(tx)
-    transactions = deduped
-
-    return transactions
+    txs = _dedupe_cimb(txs)
+    # remove internal fields
+    for t in txs:
+        t.pop("__idx", None)
+    return txs
 
 
-# ---------------------------------------------------------
-# MAIN PARSER
-# ---------------------------------------------------------
+# -----------------------------
+# Main parser
+# -----------------------------
 
 def parse_transactions_cimb(pdf, source_filename=""):
     """
-    CIMB parser:
-    - First: attempt extract_table().
-    - Fallback: text parsing for multi-line table layouts.
+    Parse CIMB statement using pdfplumber.
+    Prefer extract_table; fallback to text parsing if tables missing.
     """
-    transactions = []
-    detected_year = None
-    closing_balance = None
-    opening_balance_value = None
-    opening_balance_page = None
-
     bank_name = "CIMB Bank"
+    detected_year = None
 
-    # ---- Pass 1: detect year + closing balance + bank branding ----
+    # quick branding + year
     for page in pdf.pages[:2]:
         text = page.extract_text() or ""
-
         if "CIMB ISLAMIC BANK" in text.upper():
             bank_name = "CIMB Islamic Bank"
-
         if not detected_year:
             detected_year = extract_year_from_text(text)
-
-        if closing_balance is None:
-            closing_balance = extract_closing_balance_from_text(text)
-
-        if detected_year and closing_balance is not None:
-            break
 
     if not detected_year:
         detected_year = str(datetime.now().year)
 
-    latest_tx_date = None  # YYYY-MM-DD string
+    # Full PDF text (critical for closing + totals + statement month)
+    full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    closing_balance = extract_closing_balance_from_text(full_text)
+    stmt_total_debit, stmt_total_credit = _extract_statement_totals_from_text(full_text)
+    stmt_month = _infer_statement_month_from_statement_date(full_text)
 
-    # ---- Pass 2: primary parse via table extraction ----
+    # Extract opening balance if present in table rows (often no date)
+    opening_balance_value = None
+    opening_balance_page = None
+
+    rows = []
+    idx = 0
+    latest_tx_date = None
+
     for page_num, page in enumerate(pdf.pages, start=1):
         table = page.extract_table()
         if not table:
             continue
 
         for row in table:
-            # CIMB Structure: [Date, Desc, Ref, Withdrawal, Deposit, Balance]
+            # Expected: [Date, Desc, Ref, Withdrawal, Deposit, Balance]
             if not row or len(row) < 6:
                 continue
 
-            # Skip headers
             first_col = str(row[0]).lower() if row[0] else ""
             if "date" in first_col or "tarikh" in first_col:
                 continue
 
-            desc_text = str(row[1]).lower() if row[1] else ""
-            if "opening balance" in desc_text:
-                # Opening balance row is printed without a date; keep it for monthly opening balance.
+            desc = clean_text(row[1])
+            desc_l = desc.lower()
+
+            # opening balance row may appear here; capture balance but do not treat as tx
+            if "opening balance" in desc_l:
                 ob = parse_float(row[5])
                 if ob != 0.0:
                     opening_balance_value = ob
                     opening_balance_page = page_num
                 continue
 
-            if not row[5]:
+            # require balance
+            if row[5] is None:
                 continue
 
-            debit_val = parse_float(row[3])   # Withdrawal
-            credit_val = parse_float(row[4])  # Deposit
+            date_iso = format_date(row[0], detected_year)
+            if not date_iso:
+                continue
 
-            # skip spill rows without amounts
+            debit_val = parse_float(row[3])
+            credit_val = parse_float(row[4])
+
+            # skip rows without amounts (continuations)
             if debit_val == 0.0 and credit_val == 0.0:
                 continue
 
-            date_formatted = format_date(row[0], detected_year)
-            if not date_formatted:
-                continue
+            bal = parse_float(row[5])
 
-            # track latest transaction date
-            if latest_tx_date is None or date_formatted > latest_tx_date:
-                latest_tx_date = date_formatted
+            if latest_tx_date is None or date_iso > latest_tx_date:
+                latest_tx_date = date_iso
 
-            tx = {
-                "date": date_formatted,
-                "description": clean_text(row[1]),
+            idx += 1
+            rows.append({
+                "date": date_iso,
+                "description": desc,
                 "ref_no": clean_text(row[2]),
-                "debit": debit_val,
-                "credit": credit_val,
-                "balance": parse_float(row[5]),
+                "debit": round(debit_val, 2),
+                "credit": round(credit_val, 2),
+                "balance": round(bal, 2),
                 "page": page_num,
                 "source_file": source_filename,
-                "bank": bank_name
-            }
-            transactions.append(tx)
+                "bank": bank_name,
+                "__idx": idx,  # extraction order
+            })
 
-    # ---- If table extraction found nothing, use fallback text parser ----
-    if not transactions:
+    # If table mode failed, fallback to text mode (which also adds opening/closing if found)
+    if not rows:
         return _parse_transactions_cimb_text(
             pdf,
             source_filename=source_filename,
             detected_year=detected_year,
             bank_name=bank_name,
-            closing_balance=closing_balance
+            closing_balance=closing_balance,
         )
 
-    # ---- Emit explicit opening balance row ----
-    if opening_balance_value is not None:
-        anchor = latest_tx_date
-        if anchor is None and transactions:
-            anchor = max(t.get("date") for t in transactions if t.get("date"))
-        if anchor is None:
-            anchor = f"{detected_year}-01-01"
+    # Deduplicate then reorder to chronological
+    rows = _dedupe_cimb(rows)
+    rows = _chronological_sort(rows)
 
+    # Emit synthetic opening row if we captured it
+    if opening_balance_value is not None:
+        anchor = latest_tx_date or (rows[0]["date"] if rows else f"{detected_year}-01-01")
         opening_date = f"{anchor[:8]}01" if re.match(r"^\d{4}-\d{2}-\d{2}$", anchor) else f"{detected_year}-01-01"
-        transactions.insert(0, {
+        rows.insert(0, {
             "date": opening_date,
-            "description": "OPENING BALANCE / BAKI AWAL",
+            "description": "OPENING BALANCE",
             "ref_no": "",
             "debit": 0.0,
             "credit": 0.0,
@@ -439,39 +502,36 @@ def parse_transactions_cimb(pdf, source_filename=""):
             "page": opening_balance_page,
             "source_file": source_filename,
             "bank": bank_name,
-            "is_opening_balance": True
+            "is_opening_balance": True,
+            "__idx": -1,
         })
 
-    # ---- CIMB-specific de-dupe (OCR repeats rows with different wrapping) ----
-    seen = set()
-    deduped = []
-    for tx in transactions:
-        key = (
-            str(tx.get("date") or "").strip(),
-            round(parse_float(tx.get("debit", 0.0)), 2),
-            round(parse_float(tx.get("credit", 0.0)), 2),
-            None if tx.get("balance") is None else round(parse_float(tx.get("balance")), 2),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(tx)
-    transactions = deduped
-
-    # ---- Append closing balance row with a REAL DATE so app.py won't drop it ----
+    # Emit synthetic closing row from footer
     if closing_balance is not None:
-        cb_date = latest_tx_date or f"{detected_year}-01-01"
-        transactions.append({
+        cb_date = latest_tx_date or (rows[-1]["date"] if rows else f"{detected_year}-01-01")
+        rows.append({
             "date": cb_date,
             "description": "CLOSING BALANCE / BAKI PENUTUP",
             "ref_no": "",
             "debit": 0.0,
             "credit": 0.0,
-            "balance": float(closing_balance),
+            "balance": round(float(closing_balance), 2),
             "page": None,
             "source_file": source_filename,
             "bank": bank_name,
-            "is_statement_balance": True
+            "is_statement_balance": True,
+            # optional metadata (your app can ignore or use)
+            "statement_month": stmt_month,
+            "statement_total_debit": None if stmt_total_debit is None else round(float(stmt_total_debit), 2),
+            "statement_total_credit": None if stmt_total_credit is None else round(float(stmt_total_credit), 2),
+            "__idx": 10**12,
         })
 
-    return transactions
+    # Final dedupe after adding synthetic rows
+    rows = _dedupe_cimb(rows)
+
+    # Remove internal field
+    for r in rows:
+        r.pop("__idx", None)
+
+    return rows
