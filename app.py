@@ -45,14 +45,21 @@ if "affin_statement_totals" not in st.session_state:
 if "affin_file_transactions" not in st.session_state:
     st.session_state.affin_file_transactions = {}
 
-# NEW: AmBank statement totals + per-file tx
+# AmBank statement totals + per-file tx
 if "ambank_statement_totals" not in st.session_state:
     st.session_state.ambank_statement_totals = []
 
 if "ambank_file_transactions" not in st.session_state:
     st.session_state.ambank_file_transactions = {}
 
-# NEW: Bank Islam per-file statement month (for zero-transaction months)
+# NEW: CIMB statement totals + per-file tx (statement-truth totals & closing balance)
+if "cimb_statement_totals" not in st.session_state:
+    st.session_state.cimb_statement_totals = []
+
+if "cimb_file_transactions" not in st.session_state:
+    st.session_state.cimb_file_transactions = {}
+
+# Bank Islam per-file statement month (for zero-transaction months)
 if "bank_islam_file_month" not in st.session_state:
     st.session_state.bank_islam_file_month = {}
 
@@ -76,10 +83,11 @@ def _parse_with_pdfplumber(parser_func: Callable, pdf_bytes: bytes, filename: st
         return parser_func(pdf, filename)
 
 
+# -----------------------------
 # Bank Islam: extract statement month for files that contain no transactions
+# -----------------------------
 _BANK_ISLAM_STMT_DATE_RE = re.compile(
-    r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\
-s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
+    r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
     re.IGNORECASE,
 )
 
@@ -102,6 +110,87 @@ def extract_bank_islam_statement_month(pdf) -> Optional[str]:
     if 1 <= mm <= 12 and 2000 <= yy <= 2100:
         return f"{yy:04d}-{mm:02d}"
     return None
+
+
+# -----------------------------
+# CIMB: extract statement month (previous month), totals, closing balance from FULL PDF text
+# -----------------------------
+_CIMB_STMT_DATE_RE = re.compile(
+    r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
+    re.IGNORECASE,
+)
+
+_CIMB_CLOSING_RE = re.compile(
+    r"CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP\s+(-?[\d,]+\.\d{2})",
+    re.IGNORECASE,
+)
+
+
+def _prev_month(yyyy: int, mm: int) -> Tuple[int, int]:
+    if mm == 1:
+        return (yyyy - 1, 12)
+    return (yyyy, mm - 1)
+
+
+def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
+    """
+    CIMB statements typically show:
+      - STATEMENT DATE (often next month)
+      - TOTAL WITHDRAWAL (total debit)
+      - TOTAL DEPOSITS (total credit)
+      - CLOSING BALANCE / BAKI PENUTUP
+    We scan the FULL document text (footer is often near the end).
+    """
+    full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    up = full_text.upper()
+
+    # Statement month from statement date (then shift to previous month)
+    stmt_month = None
+    m = _CIMB_STMT_DATE_RE.search(full_text)
+    if m:
+        dd = int(m.group(1))
+        mm = int(m.group(2))
+        yy_raw = m.group(3)
+        yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+        if 1 <= mm <= 12 and 2000 <= yy <= 2100:
+            py, pm = _prev_month(yy, mm)
+            stmt_month = f"{py:04d}-{pm:02d}"
+
+    # Closing balance
+    closing_balance = None
+    m = _CIMB_CLOSING_RE.search(full_text)
+    if m:
+        closing_balance = float(m.group(1).replace(",", ""))
+
+    # Totals (Total Withdrawal / Total Deposits)
+    total_debit = None
+    total_credit = None
+    if "TOTAL WITHDRAWAL" in up and "TOTAL DEPOSITS" in up:
+        idx = up.rfind("TOTAL WITHDRAWAL")
+        window = full_text[idx : idx + 900] if idx != -1 else full_text
+
+        # common layout: <count> <count> <amount> <amount>
+        mm2 = re.search(r"\b\d{1,6}\s+\d{1,6}\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\b", window)
+        if mm2:
+            total_debit = float(mm2.group(1).replace(",", ""))
+            total_credit = float(mm2.group(2).replace(",", ""))
+        else:
+            # fallback: last two monetary tokens in window
+            money = re.findall(r"-?[\d,]+\.\d{2}", window)
+            if len(money) >= 2:
+                total_debit = float(money[-2].replace(",", ""))
+                total_credit = float(money[-1].replace(",", ""))
+
+    return {
+        "bank": "CIMB Bank",
+        "source_file": source_file,
+        "statement_month": stmt_month,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "ending_balance": closing_balance,
+        # opening often not printed as a single number in CIMB footer; we derive later if needed
+        "opening_balance": None,
+    }
 
 
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
@@ -135,6 +224,8 @@ with col1:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
+        st.session_state.cimb_statement_totals = []
+        st.session_state.cimb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
 
 with col2:
@@ -149,6 +240,8 @@ with col3:
         st.session_state.affin_file_transactions = {}
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
+        st.session_state.cimb_statement_totals = []
+        st.session_state.cimb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
         st.rerun()
 
@@ -187,6 +280,12 @@ if uploaded_files and st.session_state.status == "running":
                     st.session_state.ambank_statement_totals.append(totals)
                     tx_raw = parse_ambank(pdf, uploaded_file.name) or []
 
+            elif bank_choice == "CIMB Bank":
+                with bytes_to_pdfplumber(pdf_bytes) as pdf:
+                    totals = extract_cimb_statement_totals(pdf, uploaded_file.name)
+                    st.session_state.cimb_statement_totals.append(totals)
+                    tx_raw = parse_transactions_cimb(pdf, uploaded_file.name) or []
+
             elif bank_choice == "Bank Islam":
                 with bytes_to_pdfplumber(pdf_bytes) as pdf:
                     tx_raw = parse_bank_islam(pdf, uploaded_file.name) or []
@@ -208,6 +307,9 @@ if uploaded_files and st.session_state.status == "running":
 
             if bank_choice == "Ambank":
                 st.session_state.ambank_file_transactions[uploaded_file.name] = tx_norm
+
+            if bank_choice == "CIMB Bank":
+                st.session_state.cimb_file_transactions[uploaded_file.name] = tx_norm
 
             if tx_norm:
                 st.success(f"✅ Extracted {len(tx_norm)} transactions from {uploaded_file.name}")
@@ -330,7 +432,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # Ambank-only: statement totals (FIX)
+    # Ambank-only: statement totals
     # -------------------------
     if bank_choice == "Ambank" and st.session_state.ambank_statement_totals:
         rows: List[dict] = []
@@ -370,9 +472,74 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
-            # safety derive opening if missing
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
+
+            rows.append(
+                {
+                    "month": month,
+                    "transaction_count": tx_count,
+                    "opening_balance": opening_balance,
+                    "total_debit": td,
+                    "total_credit": tc,
+                    "net_change": net_change,
+                    "ending_balance": ending_balance,
+                    "lowest_balance": lowest_balance,
+                    "lowest_balance_raw": lowest_balance,
+                    "highest_balance": highest_balance,
+                    "od_flag": bool(lowest_balance is not None and float(lowest_balance) < 0),
+                    "source_files": fname,
+                }
+            )
+
+        rows = sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
+        return rows
+
+    # -------------------------
+    # CIMB-only: statement totals + closing balance (FIX)
+    # -------------------------
+    if bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals:
+        rows: List[dict] = []
+
+        for t in st.session_state.cimb_statement_totals:
+            month = t.get("statement_month") or "UNKNOWN"
+            fname = t.get("source_file", "") or ""
+
+            ending = t.get("ending_balance")
+            total_debit = t.get("total_debit")
+            total_credit = t.get("total_credit")
+
+            td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
+            tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
+            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
+
+            # derive opening if possible
+            opening_balance = None
+            net_change = None
+            if td is not None and tc is not None:
+                net_change = round(float(tc - td), 2)
+                if ending_balance is not None:
+                    opening_balance = round(float(ending_balance - (tc - td)), 2)
+
+            txs = st.session_state.cimb_file_transactions.get(fname, []) if fname else []
+            tx_count = int(len(txs)) if txs else None
+
+            balances: List[float] = []
+            for x in txs:
+                # exclude the footer row if your parser inserts it as a “transaction-like” line
+                desc = str(x.get("description") or "")
+                if re.search(r"CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP", desc, flags=re.IGNORECASE):
+                    continue
+                b = x.get("balance")
+                if b is None:
+                    continue
+                try:
+                    balances.append(float(safe_float(b)))
+                except Exception:
+                    pass
+
+            lowest_balance = round(min(balances), 2) if balances else None
+            highest_balance = round(max(balances), 2) if balances else None
 
             rows.append(
                 {
@@ -514,7 +681,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 # ---------------------------------------------------
 if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals) or (
     bank_choice == "Ambank" and st.session_state.ambank_statement_totals
-):
+) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals):
     st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
@@ -557,6 +724,8 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 total_files_processed = len(st.session_state.affin_statement_totals)
             elif bank_choice == "Ambank":
                 total_files_processed = len(st.session_state.ambank_statement_totals)
+            elif bank_choice == "CIMB Bank":
+                total_files_processed = len(st.session_state.cimb_statement_totals)
 
         full_report = {
             "summary": {
