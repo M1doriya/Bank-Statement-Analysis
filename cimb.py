@@ -1,15 +1,16 @@
 # cimb.py - CIMB Bank Parser (robust)
 #
-# Key CIMB quirks handled:
+# CIMB quirks handled:
 # - Statement table is usually reverse chronological (latest is #1).
-# - OPENING BALANCE is often printed without a date -> must capture and synthesize a dated row.
-# - CLOSING BALANCE / BAKI PENUTUP is printed near the END of PDF -> must scan full PDF text.
-# - PDF extraction can duplicate rows with slightly different wrapping -> dedupe without description.
+# - "Opening Balance" often appears without a date and is printed on page 1.
+# - "Closing Balance / Baki Penutup" appears near end of PDF -> scan full doc text.
+# - Extraction can duplicate rows with wrapped descriptions -> dedupe ignoring description.
 #
 # Output:
 # - Standard transaction rows
-# - One synthetic OPENING BALANCE row (if detected)
-# - One synthetic CLOSING BALANCE row (if detected), with optional statement_total_debit/credit metadata.
+# - Synthetic OPENING BALANCE (PAGE 1) row if detected
+# - Synthetic CLOSING BALANCE / BAKI PENUTUP row if detected
+#   (plus optional statement totals metadata on the closing row)
 
 import re
 from datetime import datetime
@@ -149,7 +150,6 @@ def _infer_statement_month_from_statement_date(full_text):
     m = _STMT_DATE_RE.search(full_text or "")
     if not m:
         return None
-    dd = int(m.group(1))
     mm = int(m.group(2))
     yy_raw = m.group(3)
     yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
@@ -226,7 +226,7 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
     Text parser:
     - collect rows with date/desc/balance (raw order)
     - reorder to chronological
-    - infer debit/credit by balance delta (only in fallback mode)
+    - infer debit/credit by balance delta (fallback only)
     - capture opening balance line (no date) and emit synthetic opening row
     """
     raw = []
@@ -338,13 +338,13 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
         })
         prev_balance = bal
 
-    # Emit synthetic opening row (anchor to first day of inferred month)
+    # Emit synthetic opening row (labeled clearly)
     if opening_balance_value is not None:
         anchor = latest_tx_date or (txs[0]["date"] if txs else f"{detected_year}-01-01")
         opening_date = f"{anchor[:8]}01" if re.match(r"^\d{4}-\d{2}-\d{2}$", anchor) else f"{detected_year}-01-01"
         txs.insert(0, {
             "date": opening_date,
-            "description": "OPENING BALANCE",
+            "description": "OPENING BALANCE (PAGE 1)",
             "debit": 0.0,
             "credit": 0.0,
             "balance": round(float(opening_balance_value), 2),
@@ -352,6 +352,7 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
             "source_file": source_filename,
             "bank": bank_name,
             "is_opening_balance": True,
+            "opening_balance_source": "page_1",
             "__idx": -1,
         })
 
@@ -372,7 +373,6 @@ def _parse_transactions_cimb_text(pdf, source_filename, detected_year, bank_name
         })
 
     txs = _dedupe_cimb(txs)
-    # remove internal fields
     for t in txs:
         t.pop("__idx", None)
     return txs
@@ -474,7 +474,7 @@ def parse_transactions_cimb(pdf, source_filename=""):
                 "__idx": idx,  # extraction order
             })
 
-    # If table mode failed, fallback to text mode (which also adds opening/closing if found)
+    # If table mode failed, fallback to text mode (also labels opening row)
     if not rows:
         return _parse_transactions_cimb_text(
             pdf,
@@ -488,13 +488,13 @@ def parse_transactions_cimb(pdf, source_filename=""):
     rows = _dedupe_cimb(rows)
     rows = _chronological_sort(rows)
 
-    # Emit synthetic opening row if we captured it
+    # Emit synthetic opening row if we captured it (labeled clearly)
     if opening_balance_value is not None:
         anchor = latest_tx_date or (rows[0]["date"] if rows else f"{detected_year}-01-01")
         opening_date = f"{anchor[:8]}01" if re.match(r"^\d{4}-\d{2}-\d{2}$", anchor) else f"{detected_year}-01-01"
         rows.insert(0, {
             "date": opening_date,
-            "description": "OPENING BALANCE",
+            "description": "OPENING BALANCE (PAGE 1)",
             "ref_no": "",
             "debit": 0.0,
             "credit": 0.0,
@@ -503,6 +503,7 @@ def parse_transactions_cimb(pdf, source_filename=""):
             "source_file": source_filename,
             "bank": bank_name,
             "is_opening_balance": True,
+            "opening_balance_source": "page_1",
             "__idx": -1,
         })
 
@@ -520,7 +521,7 @@ def parse_transactions_cimb(pdf, source_filename=""):
             "source_file": source_filename,
             "bank": bank_name,
             "is_statement_balance": True,
-            # optional metadata (your app can ignore or use)
+            # optional metadata
             "statement_month": stmt_month,
             "statement_total_debit": None if stmt_total_debit is None else round(float(stmt_total_debit), 2),
             "statement_total_credit": None if stmt_total_credit is None else round(float(stmt_total_credit), 2),
