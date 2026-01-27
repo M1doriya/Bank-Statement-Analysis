@@ -114,6 +114,7 @@ def extract_bank_islam_statement_month(pdf) -> Optional[str]:
 
 # -----------------------------
 # CIMB: extract statement month (previous month), totals, closing balance from FULL PDF text
+# + NEW: extract page-1 "Opening Balance" as page_opening_balance
 # -----------------------------
 _CIMB_STMT_DATE_RE = re.compile(
     r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
@@ -139,10 +140,21 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
       - TOTAL WITHDRAWAL (total debit)
       - TOTAL DEPOSITS (total credit)
       - CLOSING BALANCE / BAKI PENUTUP
+      - (On page 1) Opening Balance (but this is NOT always the monthly-period opening concept)
     We scan the FULL document text (footer is often near the end).
     """
     full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
     up = full_text.upper()
+
+    # NEW: Opening Balance printed on page 1 (as shown in CIMB table header area)
+    page_opening_balance = None
+    try:
+        first_text = pdf.pages[0].extract_text() or ""
+        mo = re.search(r"Opening\s+Balance\s+(-?[\d,]+\.\d{2})", first_text, re.IGNORECASE)
+        if mo:
+            page_opening_balance = float(mo.group(1).replace(",", ""))
+    except Exception:
+        page_opening_balance = None
 
     # Statement month from statement date (then shift to previous month)
     stmt_month = None
@@ -188,7 +200,11 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
         "total_debit": total_debit,
         "total_credit": total_credit,
         "ending_balance": closing_balance,
-        # opening often not printed as a single number in CIMB footer; we derive later if needed
+
+        # NEW: capture printed page-1 opening balance
+        "page_opening_balance": page_opening_balance,
+
+        # opening often not printed as a single footer number; we derive later if needed
         "opening_balance": None,
     }
 
@@ -496,7 +512,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # CIMB-only: statement totals + closing balance (FIX)
+    # CIMB-only: statement totals + closing balance + NEW page_opening_balance
     # -------------------------
     if bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals:
         rows: List[dict] = []
@@ -513,7 +529,11 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
-            # derive opening if possible
+            # NEW: page-1 opening balance (printed)
+            pob = t.get("page_opening_balance")
+            page_opening_balance = round(float(safe_float(pob)), 2) if pob is not None else None
+
+            # derive monthly-period opening if possible
             opening_balance = None
             net_change = None
             if td is not None and tc is not None:
@@ -545,7 +565,13 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 {
                     "month": month,
                     "transaction_count": tx_count,
+
+                    # monthly-period opening (derived from totals + closing)
                     "opening_balance": opening_balance,
+
+                    # NEW: printed opening balance on page 1
+                    "page_opening_balance": page_opening_balance,
+
                     "total_debit": td,
                     "total_credit": tc,
                     "net_change": net_change,
