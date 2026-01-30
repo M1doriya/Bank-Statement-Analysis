@@ -30,7 +30,7 @@ from ocbc import parse_transactions_ocbc
 # ✅ Alliance Bank parser
 from alliance import parse_transactions_alliance
 
-# ✅ PDF encryption helpers (your draft file)
+# ✅ PDF password support (your draft file)
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
@@ -202,7 +202,10 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Affin Bank": lambda b, f: _parse_with_pdfplumber(parse_affin_bank, b, f),
     "Agro Bank": lambda b, f: _parse_with_pdfplumber(parse_agro_bank, b, f),
+
+    # ✅ Alliance option
     "Alliance Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_alliance, b, f),
+
     "Ambank": lambda b, f: _parse_with_pdfplumber(parse_ambank, b, f),
     "Bank Islam": lambda b, f: _parse_with_pdfplumber(parse_bank_islam, b, f),
     "Bank Muamalat": lambda b, f: _parse_with_pdfplumber(parse_transactions_bank_muamalat, b, f),
@@ -223,7 +226,7 @@ if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
 
 # -----------------------------
-# ✅ Detect encrypted PDFs + password input (presentation-only step)
+# ✅ Detect encrypted PDFs and show password box once
 # -----------------------------
 encrypted_files: List[str] = []
 if uploaded_files:
@@ -295,7 +298,7 @@ if uploaded_files and st.session_state.status == "running":
         try:
             pdf_bytes = uploaded_file.getvalue()
 
-            # ✅ decrypt if encrypted (no effect on downstream logic other than enabling reading)
+            # ✅ decrypt if encrypted
             if is_pdf_encrypted(pdf_bytes):
                 pdf_bytes = decrypt_pdf_bytes(pdf_bytes, st.session_state.pdf_password)
 
@@ -395,8 +398,7 @@ if uploaded_files and st.session_state.status == "running":
 
 
 # =========================================================
-# ✅ YOUR EXISTING MONTHLY SUMMARY LOGIC (UNCHANGED)
-# (Keep bank-specific calculations the same)
+# Monthly Summary Calculation (YOUR ORIGINAL LOGIC)
 # =========================================================
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # -------------------------
@@ -602,6 +604,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # Default for other banks
     # -------------------------
     if not transactions:
+        # Bank Islam: show months from uploaded statements even if there are no transactions
         if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
             rows: List[dict] = []
             for fname, month in sorted(st.session_state.bank_islam_file_month.items(), key=lambda x: x[1]):
@@ -687,6 +690,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             }
         )
 
+    # Bank Islam: ensure statement months with zero transactions still appear
     if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
         existing_months = {r.get("month") for r in monthly_summary}
         for fname, month in st.session_state.bank_islam_file_month.items():
@@ -712,21 +716,14 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
 
 # =========================================================
-# ✅ PRESENTATION-ONLY STANDARDIZATION (NO CALC CHANGES)
+# ✅ Presentation-only Standardization (does NOT change totals)
 # =========================================================
 def present_monthly_summary_standard(rows: List[dict]) -> List[dict]:
-    """
-    Convert your existing monthly summary output into a standardized display/export schema:
-
-      opening_balance, total_debit, total_credit, highest_balance, lowest_balance,
-      swing, ending_balance, source_files
-
-    This function does NOT re-calculate totals; it only maps fields and derives swing.
-    """
-    out: List[dict] = []
+    out = []
     for r in rows or []:
         highest = r.get("highest_balance")
         lowest = r.get("lowest_balance")
+
         swing = None
         try:
             if highest is not None and lowest is not None:
@@ -767,13 +764,27 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
     else:
         st.info("No line-item transactions extracted.")
 
-    # ✅ compute bank-specific (unchanged), then standardize presentation
+    # ✅ Bank-specific calc (unchanged) -> then standardize presentation
     monthly_summary_raw = calculate_monthly_summary(st.session_state.results)
     monthly_summary = present_monthly_summary_standard(monthly_summary_raw)
 
     if monthly_summary:
-        st.subheader("📅 Monthly Summary (Standardized View)")
+        st.subheader("📅 Monthly Summary (Standardized)")
         summary_df = pd.DataFrame(monthly_summary)
+
+        # Force consistent order
+        desired_cols = [
+            "month",
+            "opening_balance",
+            "total_debit",
+            "total_credit",
+            "highest_balance",
+            "lowest_balance",
+            "swing",
+            "ending_balance",
+            "source_files",
+        ]
+        summary_df = summary_df[[c for c in desired_cols if c in summary_df.columns]]
         st.dataframe(summary_df, use_container_width=True)
 
     st.subheader("⬇️ Download Options")
@@ -811,8 +822,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 "total_files_processed": total_files_processed,
                 "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
-            # ✅ export standardized monthly summary (presentation only)
-            "monthly_summary": monthly_summary,
+            "monthly_summary": monthly_summary,  # ✅ standardized export
             "transactions": df_download.to_dict(orient="records"),
         }
 
