@@ -30,7 +30,7 @@ from ocbc import parse_transactions_ocbc
 # ✅ Alliance Bank parser
 from alliance import parse_transactions_alliance
 
-# ✅ NEW: PDF encryption helpers (from your draft file)
+# ✅ PDF encryption helpers (your draft file)
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
@@ -69,7 +69,7 @@ if "cimb_file_transactions" not in st.session_state:
 if "bank_islam_file_month" not in st.session_state:
     st.session_state.bank_islam_file_month = {}
 
-# ✅ NEW: persist password input across reruns
+# ✅ persist password across reruns
 if "pdf_password" not in st.session_state:
     st.session_state.pdf_password = ""
 
@@ -202,9 +202,7 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Affin Bank": lambda b, f: _parse_with_pdfplumber(parse_affin_bank, b, f),
     "Agro Bank": lambda b, f: _parse_with_pdfplumber(parse_agro_bank, b, f),
-
     "Alliance Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_alliance, b, f),
-
     "Ambank": lambda b, f: _parse_with_pdfplumber(parse_ambank, b, f),
     "Bank Islam": lambda b, f: _parse_with_pdfplumber(parse_bank_islam, b, f),
     "Bank Muamalat": lambda b, f: _parse_with_pdfplumber(parse_transactions_bank_muamalat, b, f),
@@ -225,7 +223,7 @@ if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
 
 # -----------------------------
-# ✅ NEW: Detect encrypted PDFs and ask for password once
+# ✅ Detect encrypted PDFs + password input (presentation-only step)
 # -----------------------------
 encrypted_files: List[str] = []
 if uploaded_files:
@@ -234,7 +232,6 @@ if uploaded_files:
             if is_pdf_encrypted(uf.getvalue()):
                 encrypted_files.append(uf.name)
         except Exception:
-            # If check fails, assume it may be encrypted
             encrypted_files.append(uf.name)
 
     if encrypted_files:
@@ -298,7 +295,7 @@ if uploaded_files and st.session_state.status == "running":
         try:
             pdf_bytes = uploaded_file.getvalue()
 
-            # ✅ NEW: decrypt if encrypted (in-memory)
+            # ✅ decrypt if encrypted (no effect on downstream logic other than enabling reading)
             if is_pdf_encrypted(pdf_bytes):
                 pdf_bytes = decrypt_pdf_bytes(pdf_bytes, st.session_state.pdf_password)
 
@@ -397,6 +394,10 @@ if uploaded_files and st.session_state.status == "running":
     st.session_state.results = all_tx
 
 
+# =========================================================
+# ✅ YOUR EXISTING MONTHLY SUMMARY LOGIC (UNCHANGED)
+# (Keep bank-specific calculations the same)
+# =========================================================
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # -------------------------
     # Affin-only: statement totals
@@ -710,6 +711,45 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     return sorted(monthly_summary, key=lambda x: x["month"])
 
 
+# =========================================================
+# ✅ PRESENTATION-ONLY STANDARDIZATION (NO CALC CHANGES)
+# =========================================================
+def present_monthly_summary_standard(rows: List[dict]) -> List[dict]:
+    """
+    Convert your existing monthly summary output into a standardized display/export schema:
+
+      opening_balance, total_debit, total_credit, highest_balance, lowest_balance,
+      swing, ending_balance, source_files
+
+    This function does NOT re-calculate totals; it only maps fields and derives swing.
+    """
+    out: List[dict] = []
+    for r in rows or []:
+        highest = r.get("highest_balance")
+        lowest = r.get("lowest_balance")
+        swing = None
+        try:
+            if highest is not None and lowest is not None:
+                swing = round(float(safe_float(highest) - safe_float(lowest)), 2)
+        except Exception:
+            swing = None
+
+        out.append(
+            {
+                "month": r.get("month"),
+                "opening_balance": r.get("opening_balance"),
+                "total_debit": r.get("total_debit"),
+                "total_credit": r.get("total_credit"),
+                "highest_balance": highest,
+                "lowest_balance": lowest,
+                "swing": swing,
+                "ending_balance": r.get("ending_balance"),
+                "source_files": r.get("source_files"),
+            }
+        )
+    return out
+
+
 # ---------------------------------------------------
 # DISPLAY
 # ---------------------------------------------------
@@ -727,32 +767,35 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
     else:
         st.info("No line-item transactions extracted.")
 
-    monthly_summary = calculate_monthly_summary(st.session_state.results)
+    # ✅ compute bank-specific (unchanged), then standardize presentation
+    monthly_summary_raw = calculate_monthly_summary(st.session_state.results)
+    monthly_summary = present_monthly_summary_standard(monthly_summary_raw)
+
     if monthly_summary:
-        st.subheader("📅 Monthly Summary")
+        st.subheader("📅 Monthly Summary (Standardized View)")
         summary_df = pd.DataFrame(monthly_summary)
         st.dataframe(summary_df, use_container_width=True)
 
     st.subheader("⬇️ Download Options")
     col1, col2, col3 = st.columns(3)
 
-    df_display = df.copy() if not df.empty else pd.DataFrame([])
+    df_download = df.copy() if not df.empty else pd.DataFrame([])
 
     with col1:
         st.download_button(
             "📄 Download Transactions (JSON)",
-            json.dumps(df_display.to_dict(orient="records"), indent=4),
+            json.dumps(df_download.to_dict(orient="records"), indent=4),
             "transactions.json",
             "application/json",
         )
 
     with col2:
-        date_min = df_display["date"].min() if "date" in df_display.columns and not df_display.empty else None
-        date_max = df_display["date"].max() if "date" in df_display.columns and not df_display.empty else None
+        date_min = df_download["date"].min() if "date" in df_download.columns and not df_download.empty else None
+        date_max = df_download["date"].max() if "date" in df_download.columns and not df_download.empty else None
 
         total_files_processed = None
-        if "source_file" in df_display.columns and not df_display.empty:
-            total_files_processed = int(df_display["source_file"].nunique())
+        if "source_file" in df_download.columns and not df_download.empty:
+            total_files_processed = int(df_download["source_file"].nunique())
         else:
             if bank_choice == "Affin Bank":
                 total_files_processed = len(st.session_state.affin_statement_totals)
@@ -763,13 +806,14 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 
         full_report = {
             "summary": {
-                "total_transactions": int(len(df_display)),
+                "total_transactions": int(len(df_download)),
                 "date_range": f"{date_min} to {date_max}" if date_min and date_max else None,
                 "total_files_processed": total_files_processed,
                 "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
+            # ✅ export standardized monthly summary (presentation only)
             "monthly_summary": monthly_summary,
-            "transactions": df_display.to_dict(orient="records"),
+            "transactions": df_download.to_dict(orient="records"),
         }
 
         st.download_button(
@@ -782,7 +826,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
     with col3:
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_display.to_excel(writer, sheet_name="Transactions", index=False)
+            df_download.to_excel(writer, sheet_name="Transactions", index=False)
             if monthly_summary:
                 pd.DataFrame(monthly_summary).to_excel(writer, sheet_name="Monthly Summary", index=False)
 
