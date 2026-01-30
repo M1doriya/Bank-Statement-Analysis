@@ -1,39 +1,17 @@
-# alliance_bank.py
+# alliance.py
 # Alliance Bank Malaysia Berhad statement parser
 #
-# Key traits in the provided PDFs:
-# - Transaction rows start with 6-digit date: DDMMYY (e.g. 010625)
-# - "BEGINNING BALANCE" and "ENDING BALANCE" rows exist
-# - Debit/Credit amount is inferred from running balance delta (balance-driven)
-#
-# Output schema (matches common pattern across this project):
-# {
-#   "date": "YYYY-MM-DD",
-#   "description": "...",
-#   "debit": float,
-#   "credit": float,
-#   "balance": float,
-#   "bank": "Alliance Bank",
-#   "page": int,
-#   "source_file": str
-# }
-
-from __future__ import annotations
+# Interface matches project convention:
+#   parse_transactions_alliance(pdf, filename) -> List[dict]
+# where pdf is a pdfplumber.PDF instance (from bytes_to_pdfplumber)
 
 import re
-from io import BytesIO
-from typing import Any, Dict, List, Optional, Union
-
-import pdfplumber
+from typing import List, Dict, Any, Optional
 
 
-# -----------------------------
-# Regex
-# -----------------------------
 _TX_START_RE = re.compile(r"^(?P<d>\d{2})(?P<m>\d{2})(?P<y>\d{2})\s+(?P<rest>.+)$")
 _MONEY_RE = re.compile(r"-?\d{1,3}(?:,\d{3})*\.\d{2}|\-?\d+\.\d{2}")
 
-# Lines that should be ignored (headers/boilerplate)
 _HEADER_SUBSTRS = (
     "STATEMENT OF ACCOUNT",
     "PENYATA AKAUN",
@@ -49,7 +27,6 @@ _HEADER_SUBSTRS = (
     "CIF NO",
 )
 
-# Footer/stop markers: once we hit these, we stop appending to the current txn description
 _STOP_MARKERS = (
     "THE ITEMS AND BALANCES SHOWN ABOVE WILL BE DEEMED CORRECT",
     "SEGALA BUTIRAN DAN BAKI AKAUN PENYATA DI ATAS DIANGGAP BETUL",
@@ -65,11 +42,9 @@ def _is_noise(line: str) -> bool:
     up = _norm(line).upper()
     if not up:
         return True
-
     if any(k in up for k in _HEADER_SUBSTRS):
         return True
-
-    # Column header line (varies slightly across pages)
+    # common table header
     if (
         "TRANSACTION DETAILS" in up
         and "CHEQUE" in up
@@ -78,11 +53,8 @@ def _is_noise(line: str) -> bool:
         and "BALANCE" in up
     ):
         return True
-
-    # Another common header line
     if up.startswith("DATE TRANSACTION DETAILS") or up.startswith("TARIKH KETERANGAN"):
         return True
-
     return False
 
 
@@ -102,16 +74,11 @@ def _parse_money_tokens(text: str) -> List[float]:
 
 
 def _iso_from_ddmmyy(dd: str, mm: str, yy: str) -> str:
-    # In your PDFs, YY is 25 for 2025
     y = 2000 + int(yy)
     return f"{y:04d}-{int(mm):02d}-{int(dd):02d}"
 
 
 def _strip_trailing_amounts(s: str) -> str:
-    """
-    Remove trailing "... <amt> <bal> CR" from the *first line* of a txn
-    so description doesn't permanently contain money tokens.
-    """
     t = _norm(s)
     t = re.sub(r"\s+\b(CR|DR)\b\s*$", "", t, flags=re.I)
     t = re.sub(r"\s+-?\d[\d,]*\.\d{2}\s+-?\d[\d,]*\.\d{2}\s*$", "", t)
@@ -119,37 +86,11 @@ def _strip_trailing_amounts(s: str) -> str:
     return _norm(t)
 
 
-def parse_transactions_alliance(
-    pdf_input: Union[bytes, bytearray, str, Any],
-    source_file: str = "",
-) -> List[Dict[str, Any]]:
+def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
     """
-    pdf_input can be:
-      - bytes / bytearray
-      - file path (str)
-      - file-like object (e.g. Streamlit UploadedFile)
+    Parse Alliance Bank statement into transaction dicts.
+    Uses balance-delta to infer debit/credit (robust vs layout variations).
     """
-
-    # -----------------------------
-    # Load PDF
-    # -----------------------------
-    pdf: pdfplumber.PDF
-    if isinstance(pdf_input, (bytes, bytearray)):
-        pdf = pdfplumber.open(BytesIO(pdf_input))
-    elif isinstance(pdf_input, str):
-        pdf = pdfplumber.open(pdf_input)
-        if not source_file:
-            source_file = pdf_input
-    else:
-        # file-like (Streamlit UploadedFile etc.)
-        data = pdf_input.read()
-        pdf = pdfplumber.open(BytesIO(data))
-        if not source_file:
-            source_file = getattr(pdf_input, "name", "") or ""
-
-    # -----------------------------
-    # Extract raw grouped rows
-    # -----------------------------
     raw_rows: List[Dict[str, Any]] = []
     current: Optional[Dict[str, Any]] = None
 
@@ -160,7 +101,6 @@ def parse_transactions_alliance(
             if _is_noise(line):
                 continue
 
-            # Stop markers: finalize current txn and stop appending boilerplate
             if _is_stop(line):
                 if current:
                     raw_rows.append(current)
@@ -169,7 +109,6 @@ def parse_transactions_alliance(
 
             m = _TX_START_RE.match(line)
             if m:
-                # finalize previous txn
                 if current:
                     raw_rows.append(current)
 
@@ -181,32 +120,30 @@ def parse_transactions_alliance(
                 current = {
                     "date": date_iso,
                     "description_parts": [_strip_trailing_amounts(rest)],
-                    "amount": None,   # transaction amount (unknown sign)
-                    "balance": None,  # printed balance on row
+                    "amount": None,
+                    "balance": None,
                     "page": page_no,
                 }
 
+                # typical: ... <amount> <balance>
                 if len(vals) >= 2:
                     current["amount"] = vals[-2]
                     current["balance"] = vals[-1]
                 elif len(vals) == 1:
-                    # BEGINNING/ENDING balance lines often only have one amount (balance)
                     current["balance"] = vals[-1]
-
                 continue
 
-            # Continuation line (belongs to current transaction)
+            # continuation line
             if not current:
                 continue
 
-            # Ignore a mid-table header fragment if it slips through
             up = line.upper()
             if "DATE" in up and "TRANSACTION" in up and "DETAILS" in up:
                 continue
 
             current["description_parts"].append(line)
 
-            # Sometimes the amount/balance tokens may appear on a subsequent line
+            # sometimes numeric tokens appear on continuation line
             if current.get("balance") is None:
                 vals = _parse_money_tokens(line)
                 if len(vals) >= 2:
@@ -218,21 +155,15 @@ def parse_transactions_alliance(
     if current:
         raw_rows.append(current)
 
-    pdf.close()
-
-    # -----------------------------
-    # Convert to final transactions (balance-driven debit/credit)
-    # -----------------------------
     out: List[Dict[str, Any]] = []
     prev_balance: Optional[float] = None
+    seq = 0
 
     for r in raw_rows:
+        seq += 1
         desc = _norm(" ".join(r.get("description_parts") or []))
         desc_up = desc.upper()
-
         bal = r.get("balance")
-        amt = r.get("amount")
-        page_no = int(r.get("page") or 0)
 
         # BEGINNING BALANCE row
         if "BEGINNING BALANCE" in desc_up and isinstance(bal, (int, float)):
@@ -244,40 +175,16 @@ def parse_transactions_alliance(
                     "debit": 0.0,
                     "credit": 0.0,
                     "balance": float(bal),
+                    "page": int(r.get("page") or 0),
+                    "seq": seq,
                     "bank": "Alliance Bank",
-                    "page": page_no,
-                    "source_file": source_file,
+                    "source_file": filename,
                 }
             )
             continue
 
-        # ENDING BALANCE row
-        if "ENDING BALANCE" in desc_up and isinstance(bal, (int, float)):
-            debit = credit = 0.0
-            if isinstance(prev_balance, (int, float)):
-                delta = round(float(bal) - float(prev_balance), 2)
-                if delta >= 0:
-                    credit = abs(delta)
-                else:
-                    debit = abs(delta)
-            prev_balance = float(bal)
-
-            out.append(
-                {
-                    "date": r["date"],
-                    "description": "ENDING BALANCE",
-                    "debit": float(debit),
-                    "credit": float(credit),
-                    "balance": float(bal),
-                    "bank": "Alliance Bank",
-                    "page": page_no,
-                    "source_file": source_file,
-                }
-            )
-            continue
-
-        # Normal transactions
-        debit = credit = 0.0
+        debit = 0.0
+        credit = 0.0
 
         if isinstance(prev_balance, (int, float)) and isinstance(bal, (int, float)):
             delta = round(float(bal) - float(prev_balance), 2)
@@ -285,16 +192,16 @@ def parse_transactions_alliance(
                 credit = abs(delta)
             else:
                 debit = abs(delta)
-        else:
-            # Fallback if no beginning balance was found
-            # (should rarely happen in your provided PDFs)
-            if any(k in desc_up for k in ("CR ADVICE", "DUITNOW CR", "TRANSFER FROM", "LOCAL CHQ DEP", "CREDIT")):
-                credit = float(amt or 0.0)
-            else:
-                debit = float(amt or 0.0)
-
-        if isinstance(bal, (int, float)):
             prev_balance = float(bal)
+        else:
+            # fallback if beginning balance wasn't parsed
+            amt = r.get("amount")
+            if amt is None:
+                amt = 0.0
+            debit = float(amt)
+
+        if "ENDING BALANCE" in desc_up and isinstance(bal, (int, float)):
+            desc = "ENDING BALANCE"
 
         out.append(
             {
@@ -303,9 +210,10 @@ def parse_transactions_alliance(
                 "debit": float(debit),
                 "credit": float(credit),
                 "balance": float(bal) if isinstance(bal, (int, float)) else None,
+                "page": int(r.get("page") or 0),
+                "seq": seq,
                 "bank": "Alliance Bank",
-                "page": page_no,
-                "source_file": source_file,
+                "source_file": filename,
             }
         )
 
