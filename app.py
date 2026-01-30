@@ -27,6 +27,9 @@ from affin_bank import parse_affin_bank, extract_affin_statement_totals
 from agro_bank import parse_agro_bank
 from ocbc import parse_transactions_ocbc
 
+# ✅ NEW: Alliance Bank parser
+from alliance import parse_transactions_alliance
+
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
 st.title("📄 Bank Statement Parser (Multi-File Support)")
@@ -212,6 +215,10 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
 PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Affin Bank": lambda b, f: _parse_with_pdfplumber(parse_affin_bank, b, f),
     "Agro Bank": lambda b, f: _parse_with_pdfplumber(parse_agro_bank, b, f),
+
+    # ✅ NEW: Alliance Bank option
+    "Alliance Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_alliance, b, f),
+
     "Ambank": lambda b, f: _parse_with_pdfplumber(parse_ambank, b, f),
     "Bank Islam": lambda b, f: _parse_with_pdfplumber(parse_bank_islam, b, f),
     "Bank Muamalat": lambda b, f: _parse_with_pdfplumber(parse_transactions_bank_muamalat, b, f),
