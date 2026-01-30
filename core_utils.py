@@ -1,4 +1,5 @@
-"""core_utils.py
+"""
+core_utils.py
 
 Project-wide utilities used by Streamlit apps and bank parsers.
 
@@ -348,4 +349,48 @@ def filter_affin_balance_outliers(transactions: List[Dict[str, Any]]) -> List[Di
         if lo <= bf <= hi:
             out.append(t)
 
+    return out
+
+
+# =========================================================
+# Monthly Summary - PRESENTATION STANDARDIZATION ONLY
+# =========================================================
+def compute_swing(highest_balance: Any, lowest_balance: Any) -> Optional[float]:
+    """Compute swing = highest - lowest safely."""
+    if highest_balance is None or lowest_balance is None:
+        return None
+    try:
+        return round(float(safe_float(highest_balance) - safe_float(lowest_balance)), 2)
+    except Exception:
+        return None
+
+
+def present_monthly_summary_standard(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Convert an existing monthly summary (any bank-specific schema) into the standard schema:
+
+      opening_balance, total_debit, total_credit, highest_balance, lowest_balance,
+      swing, ending_balance, source_files
+
+    This is intentionally "presentation-only":
+    - It does NOT recalculate debit/credit/opening/ending.
+    - It only maps fields and computes swing from existing high/low.
+    """
+    out: List[Dict[str, Any]] = []
+    for r in rows or []:
+        highest = r.get("highest_balance")
+        lowest = r.get("lowest_balance")
+        out.append(
+            {
+                "month": r.get("month"),
+                "opening_balance": r.get("opening_balance"),
+                "total_debit": r.get("total_debit"),
+                "total_credit": r.get("total_credit"),
+                "highest_balance": highest,
+                "lowest_balance": lowest,
+                "swing": compute_swing(highest, lowest),
+                "ending_balance": r.get("ending_balance"),
+                "source_files": r.get("source_files"),
+            }
+        )
     return out
