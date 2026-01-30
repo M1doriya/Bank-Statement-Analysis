@@ -27,8 +27,11 @@ from affin_bank import parse_affin_bank, extract_affin_statement_totals
 from agro_bank import parse_agro_bank
 from ocbc import parse_transactions_ocbc
 
-# ✅ NEW: Alliance Bank parser
+# ✅ Alliance Bank parser
 from alliance import parse_transactions_alliance
+
+# ✅ NEW: PDF encryption helpers (from your draft file)
+from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
@@ -55,7 +58,7 @@ if "ambank_statement_totals" not in st.session_state:
 if "ambank_file_transactions" not in st.session_state:
     st.session_state.ambank_file_transactions = {}
 
-# NEW: CIMB statement totals + per-file tx (statement-truth totals & closing balance)
+# CIMB statement totals + per-file tx
 if "cimb_statement_totals" not in st.session_state:
     st.session_state.cimb_statement_totals = []
 
@@ -65,6 +68,10 @@ if "cimb_file_transactions" not in st.session_state:
 # Bank Islam per-file statement month (for zero-transaction months)
 if "bank_islam_file_month" not in st.session_state:
     st.session_state.bank_islam_file_month = {}
+
+# ✅ NEW: persist password input across reruns
+if "pdf_password" not in st.session_state:
+    st.session_state.pdf_password = ""
 
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -117,7 +124,7 @@ def extract_bank_islam_statement_month(pdf) -> Optional[str]:
 
 # -----------------------------
 # CIMB: extract statement month (previous month), totals, closing balance from FULL PDF text
-# + NEW: extract page-1 "Opening Balance" as page_opening_balance
+# + extract page-1 "Opening Balance" as page_opening_balance
 # -----------------------------
 _CIMB_STMT_DATE_RE = re.compile(
     r"(?:STATEMENT\s+DATE|TARIKH\s+PENYATA)\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{2,4})",
@@ -137,19 +144,9 @@ def _prev_month(yyyy: int, mm: int) -> Tuple[int, int]:
 
 
 def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
-    """
-    CIMB statements typically show:
-      - STATEMENT DATE (often next month)
-      - TOTAL WITHDRAWAL (total debit)
-      - TOTAL DEPOSITS (total credit)
-      - CLOSING BALANCE / BAKI PENUTUP
-      - (On page 1) Opening Balance (but this is NOT always the monthly-period opening concept)
-    We scan the FULL document text (footer is often near the end).
-    """
     full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
     up = full_text.upper()
 
-    # NEW: Opening Balance printed on page 1 (as shown in CIMB table header area)
     page_opening_balance = None
     try:
         first_text = pdf.pages[0].extract_text() or ""
@@ -159,11 +156,9 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
     except Exception:
         page_opening_balance = None
 
-    # Statement month from statement date (then shift to previous month)
     stmt_month = None
     m = _CIMB_STMT_DATE_RE.search(full_text)
     if m:
-        dd = int(m.group(1))
         mm = int(m.group(2))
         yy_raw = m.group(3)
         yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
@@ -171,26 +166,22 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
             py, pm = _prev_month(yy, mm)
             stmt_month = f"{py:04d}-{pm:02d}"
 
-    # Closing balance
     closing_balance = None
     m = _CIMB_CLOSING_RE.search(full_text)
     if m:
         closing_balance = float(m.group(1).replace(",", ""))
 
-    # Totals (Total Withdrawal / Total Deposits)
     total_debit = None
     total_credit = None
     if "TOTAL WITHDRAWAL" in up and "TOTAL DEPOSITS" in up:
         idx = up.rfind("TOTAL WITHDRAWAL")
         window = full_text[idx : idx + 900] if idx != -1 else full_text
 
-        # common layout: <count> <count> <amount> <amount>
         mm2 = re.search(r"\b\d{1,6}\s+\d{1,6}\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\b", window)
         if mm2:
             total_debit = float(mm2.group(1).replace(",", ""))
             total_credit = float(mm2.group(2).replace(",", ""))
         else:
-            # fallback: last two monetary tokens in window
             money = re.findall(r"-?[\d,]+\.\d{2}", window)
             if len(money) >= 2:
                 total_debit = float(money[-2].replace(",", ""))
@@ -203,11 +194,7 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
         "total_debit": total_debit,
         "total_credit": total_credit,
         "ending_balance": closing_balance,
-
-        # NEW: capture printed page-1 opening balance
         "page_opening_balance": page_opening_balance,
-
-        # opening often not printed as a single footer number; we derive later if needed
         "opening_balance": None,
     }
 
@@ -216,7 +203,6 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Affin Bank": lambda b, f: _parse_with_pdfplumber(parse_affin_bank, b, f),
     "Agro Bank": lambda b, f: _parse_with_pdfplumber(parse_agro_bank, b, f),
 
-    # ✅ NEW: Alliance Bank option
     "Alliance Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_alliance, b, f),
 
     "Ambank": lambda b, f: _parse_with_pdfplumber(parse_ambank, b, f),
@@ -237,6 +223,26 @@ bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
+
+# -----------------------------
+# ✅ NEW: Detect encrypted PDFs and ask for password once
+# -----------------------------
+encrypted_files: List[str] = []
+if uploaded_files:
+    for uf in uploaded_files:
+        try:
+            if is_pdf_encrypted(uf.getvalue()):
+                encrypted_files.append(uf.name)
+        except Exception:
+            # If check fails, assume it may be encrypted
+            encrypted_files.append(uf.name)
+
+    if encrypted_files:
+        st.warning(
+            "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
+            + "\n".join([f"- {n}" for n in encrypted_files])
+        )
+        st.text_input("PDF Password", type="password", key="pdf_password")
 
 
 col1, col2, col3 = st.columns(3)
@@ -266,6 +272,7 @@ with col3:
         st.session_state.cimb_statement_totals = []
         st.session_state.cimb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
+        st.session_state.pdf_password = ""
         st.rerun()
 
 st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
@@ -290,6 +297,10 @@ if uploaded_files and st.session_state.status == "running":
 
         try:
             pdf_bytes = uploaded_file.getvalue()
+
+            # ✅ NEW: decrypt if encrypted (in-memory)
+            if is_pdf_encrypted(pdf_bytes):
+                pdf_bytes = decrypt_pdf_bytes(pdf_bytes, st.session_state.pdf_password)
 
             if bank_choice == "Affin Bank":
                 with bytes_to_pdfplumber(pdf_bytes) as pdf:
@@ -519,7 +530,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         return rows
 
     # -------------------------
-    # CIMB-only: statement totals + closing balance + NEW page_opening_balance
+    # CIMB-only: statement totals + closing balance + page_opening_balance
     # -------------------------
     if bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals:
         rows: List[dict] = []
@@ -536,11 +547,9 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
-            # NEW: page-1 opening balance (printed)
             pob = t.get("page_opening_balance")
             page_opening_balance = round(float(safe_float(pob)), 2) if pob is not None else None
 
-            # derive monthly-period opening if possible
             opening_balance = None
             net_change = None
             if td is not None and tc is not None:
@@ -553,7 +562,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
             balances: List[float] = []
             for x in txs:
-                # exclude the footer row if your parser inserts it as a “transaction-like” line
                 desc = str(x.get("description") or "")
                 if re.search(r"CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP", desc, flags=re.IGNORECASE):
                     continue
@@ -572,13 +580,8 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 {
                     "month": month,
                     "transaction_count": tx_count,
-
-                    # monthly-period opening (derived from totals + closing)
                     "opening_balance": opening_balance,
-
-                    # NEW: printed opening balance on page 1
                     "page_opening_balance": page_opening_balance,
-
                     "total_debit": td,
                     "total_credit": tc,
                     "net_change": net_change,
@@ -598,7 +601,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
     # Default for other banks
     # -------------------------
     if not transactions:
-        # Bank Islam: show months from uploaded statements even if there are no transactions
         if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
             rows: List[dict] = []
             for fname, month in sorted(st.session_state.bank_islam_file_month.items(), key=lambda x: x[1]):
@@ -684,7 +686,6 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             }
         )
 
-    # Bank Islam: ensure statement months with zero transactions still appear
     if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
         existing_months = {r.get("month") for r in monthly_summary}
         for fname, month in st.session_state.bank_islam_file_month.items():
