@@ -86,26 +86,46 @@ def _money_to_float(token: str) -> Optional[float]:
 
 
 def _extract_year_from_statement_period(text: str) -> Optional[int]:
-    """Extract year from common RHB 'Statement Period / Tempoh Penyata' header lines."""
+    """Extract statement year from common RHB header lines.
+
+    Supports:
+      - "Statement Period ... : 1 Jan 25 – 31 Jan 25"
+      - "Statement Period" + "01 May 2025 31 May 2025" (sometimes without a dash, often across lines)
+      - Any "DD Mon YYYY" occurrence near statement-period headers as fallback
+
+    Returns the *ending* year where available.
+    """
     if not text:
         return None
 
-    # e.g. "Statement Period / Tempoh Penyata : 1 Jan 25 – 31 Jan 25"
+    # Normalize spacing so cross-line patterns work.
+    t = re.sub(r"\s+", " ", text).strip()
+
+    # Case 1: explicit range with dash
     m = re.search(
-        r"Statement\s+Period.*?:\s*\d{1,2}\s+[A-Za-z]{3}\s+(?P<y1>\d{2,4})\s*[-–—]\s*"
-        r"\d{1,2}\s+[A-Za-z]{3}\s+(?P<y2>\d{2,4})",
-        text,
+        r"Statement\s+Period.*?:\s*\d{1,2}\s+[A-Za-z]{3,9}\s+(?P<y1>\d{2,4})\s*[-–—]\s*"
+        r"\d{1,2}\s+[A-Za-z]{3,9}\s+(?P<y2>\d{2,4})",
+        t,
         re.IGNORECASE,
     )
     if m:
         y = m.group("y2") or m.group("y1")
         return int(y) if len(y) == 4 else 2000 + int(y)
 
-    # weaker fallback: first "DD Mon YY/ YYYY" near Statement Period
+    # Case 2: "01 May 2025 31 May 2025" (no dash)
     m = re.search(
-        r"Statement\s+Period.*?:.*?\b\d{1,2}\s+[A-Za-z]{3}\s+(?P<y>\d{2,4})\b",
-        text,
-        re.IGNORECASE | re.DOTALL,
+        r"\b\d{1,2}\s+[A-Za-z]{3,9}\s+(?P<y1>\d{4})\s+\d{1,2}\s+[A-Za-z]{3,9}\s+(?P<y2>\d{4})\b",
+        t,
+        re.IGNORECASE,
+    )
+    if m:
+        return int(m.group("y2"))
+
+    # Case 3: weaker fallback: first year-like token near Statement Period
+    m = re.search(
+        r"Statement\s+Period.*?\b\d{1,2}\s+[A-Za-z]{3,9}\s+(?P<y>\d{2,4})\b",
+        t,
+        re.IGNORECASE,
     )
     if m:
         y = m.group("y")
@@ -114,17 +134,14 @@ def _extract_year_from_statement_period(text: str) -> Optional[int]:
     return None
 
 
-def _guess_bank_name(header_text_upper: str) -> str:
-    if "RHB ISLAMIC" in header_text_upper:
+def _guess_bank_name(header_upper: str) -> str:
+    if "ISLAMIC" in header_upper:
         return "RHB Islamic Bank"
     return "RHB Bank"
 
 
 # ======================================================
-# 1) RHB "ACCOUNT STATEMENT / PENYATA AKAUN" (Jan/Feb/etc with space)
-#    - This is the format in your uploaded file
-#    - Negative balances are shown with trailing '-' (e.g., 746,858.49-)
-#    - Multi-line descriptions continue on the following lines without a date
+# 1) RHB ACCOUNT STATEMENT — text based (older layout)
 # ======================================================
 def _parse_rhb_account_statement_text(pdf_bytes: bytes, source_filename: str) -> List[Dict]:
     transactions: List[Dict] = []
@@ -204,52 +221,43 @@ def _parse_rhb_account_statement_text(pdf_bytes: bytes, source_filename: str) ->
                         last_tx = None
                         continue
                     if "C/F" in up_desc:
-                        prev_balance = balance
                         last_tx = None
                         continue
 
-                    # If we still don't have an anchor balance, we cannot infer debit/credit reliably
-                    if prev_balance is None:
-                        prev_balance = balance
-                        last_tx = None
-                        continue
-
-                    delta = round(balance - prev_balance, 2)
-                    debit = round(abs(delta), 2) if delta < 0 else 0.0
-                    credit = round(delta, 2) if delta > 0 else 0.0
+                    # Debit/credit from delta if possible
+                    debit = credit = 0.0
+                    if prev_balance is not None:
+                        delta = round(balance - prev_balance, 2)
+                        if delta < 0:
+                            debit = abs(delta)
+                        elif delta > 0:
+                            credit = delta
 
                     tx = {
                         "date": date_iso,
-                        "description": description,
-                        "debit": debit,
-                        "credit": credit,
-                        "balance": round(float(balance), 2),
+                        "description": description[:200],
+                        "debit": round(debit, 2),
+                        "credit": round(credit, 2),
+                        "balance": round(balance, 2),
                         "page": page_num,
                         "bank": bank_name,
                         "source_file": source_filename,
                     }
                     transactions.append(tx)
-
                     prev_balance = balance
                     last_tx = tx
-                    continue
-
-                # Continuation line (multi-line description)
-                if last_tx is not None:
-                    # Avoid appending lines that are just numbers
-                    compact = line.replace(" ", "")
-                    if _MONEY_TOKEN_RE.match(compact):
-                        continue
-                    if len(line) >= 300:
-                        # likely a disclaimer paragraph; don't pollute descriptions
-                        continue
-                    last_tx["description"] = re.sub(r"\s+", " ", (last_tx["description"] + " " + line)).strip()
+                else:
+                    # Continuation line
+                    if last_tx is not None:
+                        extra = line.strip()
+                        if extra and not NOISE_LINE_RE.match(extra):
+                            last_tx["description"] = (last_tx["description"] + " " + extra).strip()[:200]
 
     return transactions
 
 
 # ======================================================
-# 2) RHB ISLAMIC — legacy text-based format (kept, but fixed)
+# 2) RHB ISLAMIC — older text-based format (kept, but guarded)
 # ======================================================
 def _parse_rhb_islamic_text(pdf_bytes: bytes, source_filename: str) -> List[Dict]:
     transactions: List[Dict] = []
@@ -261,6 +269,11 @@ def _parse_rhb_islamic_text(pdf_bytes: bytes, source_filename: str) -> List[Dict
     with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
         header = pdf.pages[0].extract_text(x_tolerance=1) or ""
         year = _extract_year_from_statement_period(header) or datetime.now().year
+
+        header_up = header.upper()
+        # Reflex Cash Management / Transaction Statement PDFs are handled by the layout-based parser.
+        if ("REFLEX" in header_up) or ("CASH MANAGEMENT" in header_up) or ("DEPOSIT ACCOUNT SUMMARY" in header_up) or ("TRANSACTION STATEMENT" in header_up):
+            return []
 
         for page_index, page in enumerate(pdf.pages, start=1):
             text = page.extract_text() or ""
@@ -316,7 +329,7 @@ def _parse_rhb_islamic_text(pdf_bytes: bytes, source_filename: str) -> List[Dict
 
 
 # ======================================================
-# 3) RHB CONVENTIONAL — older text-based format (kept, but fixed)
+# 3) RHB CONVENTIONAL — older text-based format (kept, but guarded)
 # ======================================================
 def _parse_rhb_conventional_text(pdf_bytes: bytes, source_filename: str) -> List[Dict]:
     transactions: List[Dict] = []
@@ -329,6 +342,11 @@ def _parse_rhb_conventional_text(pdf_bytes: bytes, source_filename: str) -> List
     with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
         header = pdf.pages[0].extract_text(x_tolerance=1) or ""
         year = _extract_year_from_statement_period(header) or datetime.now().year
+
+        header_up = header.upper()
+        # Reflex Cash Management / Transaction Statement PDFs are handled by the layout-based parser.
+        if ("REFLEX" in header_up) or ("CASH MANAGEMENT" in header_up) or ("DEPOSIT ACCOUNT SUMMARY" in header_up) or ("TRANSACTION STATEMENT" in header_up):
+            return []
 
         for page_index, page in enumerate(pdf.pages, start=1):
             text = page.extract_text() or ""
@@ -478,10 +496,39 @@ def _parse_rhb_reflex_layout(pdf_bytes: bytes, source_filename: str) -> List[Dic
 
 
 def parse_transactions_rhb(pdf_input: Any, source_filename: str) -> List[Dict]:
-    """Main entry used by app.py: returns list of canonical tx dicts."""
+    """Main entry used by app.py: returns list of canonical tx dicts.
+
+    RHB has multiple PDF layouts. Some Reflex Cash Management PDFs contain month names in header
+    summary lines (e.g., "31 May 2025") which can cause the older text-based parsers to emit
+    bogus rows. For Reflex PDFs we therefore prefer the layout-based parser.
+    """
     pdf_bytes = _read_pdf_bytes(pdf_input)
 
-    # Order matters: try the Account Statement format FIRST (covers your uploaded PDF)
+    header_up = ""
+    try:
+        with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+            header = pdf.pages[0].extract_text(x_tolerance=1) or ""
+            header_up = header.upper()
+    except Exception:
+        header_up = ""
+
+    looks_like_reflex = (
+        ("REFLEX" in header_up)
+        or ("CASH MANAGEMENT" in header_up)
+        or ("DEPOSIT ACCOUNT SUMMARY" in header_up)
+        or ("TRANSACTION STATEMENT" in header_up)
+    )
+
+    # If it's a Reflex-style statement, try the layout-based parser first.
+    if looks_like_reflex:
+        try:
+            tx = _parse_rhb_reflex_layout(pdf_bytes, source_filename)
+            if tx:
+                return tx
+        except Exception:
+            pass
+
+    # Fallback order for other layouts
     for parser in (
         _parse_rhb_account_statement_text,
         _parse_rhb_islamic_text,
