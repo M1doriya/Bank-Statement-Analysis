@@ -4,25 +4,21 @@ UOB Malaysia - "Account Activities" PDF export parser.
 
 Observed layout (from provided samples):
   - Header contains:
-      Company / Account Account Balance
-      Company Available Balance
-      <company name> MYR <balance>
-      Account Ledger Balance
-      <account_no> <company_name> MYR <account_no> MYR <ledger balance>
+      Company
+      Account <account_no> <company_name> MYR <account_no>
+      Statement Date <dd/mm/yyyy> - <dd/mm/yyyy>
   - Transaction table columns:
       Statement Date | Transaction Date | Description | Deposit(MYR) | Withdrawal(MYR) | Ledger Balance(MYR)
 
 Notes:
   - Descriptions are frequently multi-line.
-  - Rows are split over multiple lines:
-      Line 1: StatementDate + time (+ optional desc)
-      Line 2: TransactionDate + desc + deposit + withdrawal + balance
-      Sometimes AM/PM appears on a separate line after line 2.
+  - Amount columns are consistently present as numeric tokens (e.g. 0.00, 1,090.00, -644,255.96).
+  - This parser is resilient to line wraps by "row stitching": we detect a new row when a line
+    starts with TWO dates (dd/mm/yyyy dd/mm/yyyy).
 
 Output:
-  List of dicts containing:
-    date, transaction_date, time, description, debit, credit, balance, page, bank, source_file,
-    plus company_name, account_no.
+  A list of dicts with canonical keys: date, description, debit, credit, balance, page, bank, source_file.
+  Extra metadata (company_name/account_no) may also be included and will be preserved by core_utils.
 """
 
 from __future__ import annotations
@@ -37,9 +33,8 @@ from core_utils import normalize_date, normalize_text, safe_float
 
 BANK_NAME = "UOB Bank"
 
-_STMT_TIME_RE = re.compile(
-    r"^(?P<stmt>\d{2}/\d{2}/\d{4})\s+(?P<time>\d{2}:\d{2}:\d{2})(?:\s+(?P<rest>.*))?$"
-)
+
+_STMT_TIME_RE = re.compile(r"^(?P<stmt>\d{2}/\d{2}/\d{4})\s+(?P<time>\d{2}:\d{2}:\d{2})(?:\s+(?P<rest>.*))?$")
 _TRX_LINE_RE = re.compile(r"^(?P<trx>\d{2}/\d{2}/\d{4})\s+(?P<body>.*)$")
 _MONEY_RE = re.compile(r"^-?(\d{1,3}(?:,\d{3})*|\d+)\.\d{2}$")
 
@@ -54,7 +49,7 @@ def _extract_header_meta(first_page_text: str) -> Tuple[Optional[str], Optional[
     statement_end_iso: Optional[str] = None
     ledger_balance_header: Optional[float] = None
 
-    # Company name line: Company Available Balance \n <NAME> MYR <balance>
+    # Company name: UOB export sometimes shows "Company Available Balance" followed by the name.
     m = re.search(
         r"Company\s+Available\s+Balance\s*\n\s*([A-Z0-9 &().,'\/-]{3,})\b",
         first_page_text,
@@ -62,9 +57,10 @@ def _extract_header_meta(first_page_text: str) -> Tuple[Optional[str], Optional[
     )
     if m:
         company_name = normalize_text(m.group(1))
+        # sometimes the export appends currency + balance after the company name
         company_name = re.split(r"\bMYR\b", company_name, maxsplit=1, flags=re.IGNORECASE)[0].strip() or company_name
 
-    # Fallback: standalone Company label
+    # Fallback: the line after a standalone "Company" label.
     if not company_name:
         m = re.search(r"\bCompany\b\s*\n\s*([A-Z0-9 &().,'\/-]{3,})\s*(?:\n|$)", first_page_text, re.IGNORECASE)
         if m:
@@ -72,17 +68,18 @@ def _extract_header_meta(first_page_text: str) -> Tuple[Optional[str], Optional[
             if cand and cand.upper() not in {"ACCOUNT", "COMPANY / ACCOUNT"}:
                 company_name = cand
 
-    # Account number under Account Ledger Balance
+    # Account number: commonly shown beneath "Account Ledger Balance".
     m = re.search(r"Account\s+Ledger\s+Balance\s*\n\s*(\d{6,20})\b", first_page_text, re.IGNORECASE)
     if m:
         account_no = m.group(1)
 
+    # Fallback: first long digit group after "Account" label.
     if not account_no:
         m = re.search(r"\bAccount\b\s*(?:\n\s*)?(\d{6,20})\b", first_page_text, re.IGNORECASE)
         if m:
             account_no = m.group(1)
 
-    # Statement Date period: "01/02/2025 - 28/02/2025"
+    # Statement period end date.
     m = re.search(
         r"Statement\s+Date\s*(\d{2}/\d{2}/\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})",
         first_page_text,
@@ -91,12 +88,9 @@ def _extract_header_meta(first_page_text: str) -> Tuple[Optional[str], Optional[
     if m:
         statement_end_iso = normalize_date(m.group(2))
 
-    # Ledger balance header
-    m = re.search(
-        r"Account\s+Ledger\s+Balance.*?\bMYR\b\s*([-()\d,]+\.\d{2})",
-        first_page_text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    # Ledger balance header (used for no-transaction fallback)
+    # Example: "... MYR -644,255.96" on the same line as the account number.
+    m = re.search(r"Account\s+Ledger\s+Balance.*?\bMYR\b\s*([-()\d,]+\.\d{2})", first_page_text, re.IGNORECASE | re.DOTALL)
     if m:
         ledger_balance_header = safe_float(m.group(1))
 
@@ -146,23 +140,25 @@ def parse_transactions_uob(pdf: pdfplumber.PDF, source_file: str = "") -> List[D
         for line in lines:
             up = line.upper().strip()
 
+            # stop at footer/summary sections
             if up.startswith("TOTAL DEPOSITS") or up.startswith("NOTE"):
                 break
+
             if "DATE OF EXPORT" in up:
                 continue
-            if up == "ACCOUNT ACTIVITIES":
+            if up in {"ACCOUNT ACTIVITIES"}:
                 continue
             if up.startswith("STATEMENT DATE TRANSACTION DATE"):
                 continue
             if up.startswith("STATEMENT DATE") and "TRANSACTION" in up and "DESCRIPTION" in up:
                 continue
 
-            # AM/PM line belongs to the pending time
+            # AM/PM line wrap (belongs to the pending statement time)
             if up in {"AM", "PM"} and pending_stmt_date and pending_time and not pending_ampm:
                 pending_ampm = up
                 continue
 
-            # Statement date + time line
+            # 1) Statement date + time line (sometimes also contains the start of description)
             m1 = _STMT_TIME_RE.match(line)
             if m1:
                 pending_stmt_date = normalize_date(m1.group("stmt")) or m1.group("stmt")
@@ -171,7 +167,7 @@ def parse_transactions_uob(pdf: pdfplumber.PDF, source_file: str = "") -> List[D
                 pending_desc_head = normalize_text(m1.group("rest") or "")
                 continue
 
-            # Transaction line with amounts
+            # 2) Transaction date line (contains amounts/balance)
             m2 = _TRX_LINE_RE.match(line)
             if m2:
                 trx_date = m2.group("trx")
@@ -179,22 +175,34 @@ def parse_transactions_uob(pdf: pdfplumber.PDF, source_file: str = "") -> List[D
 
                 split = _split_amounts_from_tail(body)
                 if not split:
+                    # Some rows have transaction date + no amounts on that line; treat as description continuation
                     if prev_tx is not None and line and not _MONEY_RE.match(line):
                         prev_tx["description"] = normalize_text(prev_tx.get("description", "") + " " + line)
                     continue
 
                 desc_body, dep, wd, bal = split
                 desc = normalize_text(" ".join([pending_desc_head, desc_body]).strip()) if pending_desc_head or desc_body else ""
+
+                # If still empty, keep a placeholder
                 if not desc:
                     desc = "(NO DESCRIPTION)"
 
                 credit = abs(dep) if dep else 0.0
                 debit = abs(wd) if wd else 0.0
 
+                trx_iso = normalize_date(trx_date) or trx_date
+                post_iso = pending_stmt_date
+
                 tx = {
-                    "date": pending_stmt_date or (normalize_date(trx_date) or trx_date),
-                    "transaction_date": normalize_date(trx_date) or trx_date,
-                    "time": (f"{pending_time} {pending_ampm}".strip() if (pending_time and pending_ampm) else pending_time),
+                    # IMPORTANT:
+                    # "date" is the *transaction date* (value date) so monthly summaries align to the period users expect.
+                    # Posting/statement date is preserved separately as "posting_date".
+                    "date": trx_iso,
+                    "posting_date": post_iso,
+                    "transaction_date": trx_iso,
+                    "time": (
+                        f"{pending_time} {pending_ampm}".strip() if (pending_time and pending_ampm) else pending_time
+                    ),
                     "description": desc,
                     "debit": round(float(debit), 2),
                     "credit": round(float(credit), 2),
@@ -205,28 +213,30 @@ def parse_transactions_uob(pdf: pdfplumber.PDF, source_file: str = "") -> List[D
                     "company_name": company_name,
                     "account_no": account_no,
                 }
-
                 transactions.append(tx)
                 prev_tx = tx
 
+                # reset pending for next row
                 pending_stmt_date = None
                 pending_time = None
                 pending_ampm = None
                 pending_desc_head = ""
                 continue
 
-            # Continuation lines
+            # 3) Continuation lines for description
             if prev_tx is not None:
-                if up in {"AM", "PM"} and prev_tx.get("time"):
+                # If AM/PM wraps after the transaction line, attach it to the time field (not description)
+                if up in {"AM", "PM"} and prev_tx.get("time") and prev_tx.get("time") not in {"AM", "PM"}:
                     prev_tx["time"] = normalize_text(f"{prev_tx.get('time')} {up}")
                     continue
+                # Skip obvious noise like "AM Total 1 Cheque(s)"
                 if re.match(r"^(AM|PM)\s+TOTAL\b", up, flags=re.IGNORECASE):
                     continue
                 if up.startswith("ACCOUNT ACTIVITIES") or up.startswith("RECORD"):
                     continue
                 prev_tx["description"] = normalize_text(prev_tx.get("description", "") + " " + line)
 
-    # Fallback: balance-only row if no tx found
+    # Fallback: no transactions but we still want month to appear.
     if not transactions and ledger_balance_header is not None:
         transactions.append(
             {
