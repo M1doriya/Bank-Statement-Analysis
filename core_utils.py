@@ -383,6 +383,9 @@ def present_monthly_summary_standard(rows: List[Dict[str, Any]]) -> List[Dict[st
         out.append(
             {
                 "month": r.get("month"),
+                "company_name": r.get("company_name"),
+                "account_number": r.get("account_number"),
+                "transaction_count": r.get("transaction_count"),
                 "opening_balance": r.get("opening_balance"),
                 "total_debit": r.get("total_debit"),
                 "total_credit": r.get("total_credit"),
