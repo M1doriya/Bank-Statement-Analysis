@@ -242,6 +242,24 @@ def ensure_transaction_schema(
     if date_iso and normalize_text(raw_date) and normalize_text(raw_date) != date_iso:
         out["_raw_date"] = normalize_text(raw_date)
 
+    # Preserve additional parser-provided metadata (scalar JSON-friendly fields only).
+    # This prevents accidental loss of useful fields like: seq, account_no, company_name,
+    # is_statement_balance, transaction_date, time, etc.
+    for k, v in (tx or {}).items():
+        if k in out or k.startswith("_"):
+            continue
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            out[k] = v
+
+    # Harmonize common metadata keys without changing calculations.
+    # Many banks use account_no/account_number inconsistently; keep both when present.
+    if out.get("account_no") and not out.get("account_number"):
+        out["account_number"] = normalize_text(out.get("account_no"))
+    if out.get("account_number") and not out.get("account_no"):
+        out["account_no"] = normalize_text(out.get("account_number"))
+    if out.get("company_name"):
+        out["company_name"] = normalize_text(out.get("company_name"))
+
     return out
 
 
@@ -383,9 +401,6 @@ def present_monthly_summary_standard(rows: List[Dict[str, Any]]) -> List[Dict[st
         out.append(
             {
                 "month": r.get("month"),
-                "company_name": r.get("company_name"),
-                "account_number": r.get("account_number"),
-                "transaction_count": r.get("transaction_count"),
                 "opening_balance": r.get("opening_balance"),
                 "total_debit": r.get("total_debit"),
                 "total_credit": r.get("total_credit"),
