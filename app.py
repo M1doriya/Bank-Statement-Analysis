@@ -27,6 +27,9 @@ from affin_bank import parse_affin_bank, extract_affin_statement_totals
 from agro_bank import parse_agro_bank
 from ocbc import parse_transactions_ocbc
 
+# ✅ UOB Bank parser
+from uob import parse_transactions_uob
+
 # ✅ Alliance Bank parser
 from alliance import parse_transactions_alliance
 
@@ -79,8 +82,8 @@ if "company_name_override" not in st.session_state:
 if "file_company_name" not in st.session_state:
     st.session_state.file_company_name = {}
 
-if "file_account_number" not in st.session_state:
-    st.session_state.file_account_number = {}
+if "file_account_no" not in st.session_state:
+    st.session_state.file_account_no = {}
 
 
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -170,6 +173,23 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
 
     full = "\n".join(texts)
 
+    # 0) UOB "Account Activities" export style
+    # Example block:
+    #   Company / Account Account Balance
+    #   Company Available Balance
+    #   UPELL CORPORATION SDN. BHD. MYR 55,744.04
+    m_uob = re.search(
+        r"Company\s*/\s*Account.*?\bCompany\b.*?\n\s*([A-Z0-9 &().,'\/-]{3,})",
+        full,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if m_uob:
+        cand = _clean_candidate_name(m_uob.group(1))
+        # strip appended currency/balance if present
+        cand = re.split(r"\bMYR\b", cand, maxsplit=1, flags=re.IGNORECASE)[0].strip() or cand
+        if cand and not _looks_like_account_number_line(cand):
+            return cand
+
     # 1) label-based extraction
     for pat in _COMPANY_NAME_PATTERNS:
         m = re.search(pat, full, flags=re.IGNORECASE)
@@ -203,35 +223,16 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
 # -----------------------------
 # Account number extraction (NEW)
 # -----------------------------
-# Strong label patterns
 _ACCOUNT_NO_PATTERNS = [
-    r"(?:ACCOUNT\s*(?:NO\.?|NUMBER)|A\/?C\s*NO\.?|AC\s*NO\.?|NO\.?\s*AKAUN|NOMBOR\s+AKAUN)\s*[:\-]?\s*([0-9][0-9\s\-]{5,25})",
-    r"(?:NO\.\s*A\/C|A\/C\s*NUMBER)\s*[:\-]?\s*([0-9][0-9\s\-]{5,25})",
+    r"(?:A\/C\s*NO|AC\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NO\.?\s*AKAUN|NO\s+AKAUN)\s*[:\-]?\s*(\d{6,20})",
+    # UOB export: "Account Ledger Balance" then the account number on the next line
+    r"Account\s+Ledger\s+Balance\s*\n\s*(\d{6,20})",
+    # UOB export also includes a plain "Account" label sometimes
+    r"\bAccount\b\s*(?:\n\s*)?(\d{6,20})\b",
 ]
-
-# Fallback digit-run
-_ACCOUNT_NO_FALLBACK_RE = re.compile(r"\b(\d[\d\s\-]{8,24}\d)\b")
-
-
-def _clean_account_number(s: str) -> Optional[str]:
-    if not s:
-        return None
-    digits = re.sub(r"\D", "", s)
-    if len(digits) < 6:
-        return None
-    if len(digits) > 24:
-        return None
-    return digits
 
 
 def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
-    """
-    Extract bank account number from statement.
-    Strategy:
-      1) Search explicit labels (Account No / No Akaun / A/C No...) on first N pages
-      2) Fallback: take first plausible digit-run that is NOT a date/amount
-    Returns digits-only string (no spaces/dashes).
-    """
     texts: List[str] = []
     try:
         for i in range(min(max_pages, len(pdf.pages))):
@@ -244,42 +245,22 @@ def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
         return None
 
     full = "\n".join(texts)
-
-    # 1) label-based extraction
     for pat in _ACCOUNT_NO_PATTERNS:
-        m = re.search(pat, full, flags=re.IGNORECASE)
+        m = re.search(pat, full, flags=re.IGNORECASE | re.DOTALL)
         if m:
-            cand = _clean_account_number(m.group(1))
-            if cand:
+            num = (m.group(1) or "").strip()
+            if num and _LONG_DIGITS_RE.search(num):
+                return num
+
+    # fallback: first long digit run that is not obviously an amount
+    for ln in full.splitlines()[:80]:
+        if _EXCLUDE_LINE_REGEX.search(ln):
+            continue
+        m2 = _LONG_DIGITS_RE.search(ln)
+        if m2:
+            cand = m2.group(0)
+            if 6 <= len(cand) <= 20:
                 return cand
-
-    # 2) fallback: scan lines for a digit-run, prefer ones near 'ACCOUNT' keywords
-    lines: List[str] = []
-    for t in texts:
-        lines.extend([ln.strip() for ln in t.splitlines() if ln.strip()])
-
-    scored: List[Tuple[int, str]] = []
-    for ln in lines[:120]:
-        up = ln.upper()
-        weight = 0
-        if "ACCOUNT" in up or "A/C" in up or "AKAUN" in up:
-            weight += 5
-        if re.search(r"\b\d{2}/\d{2}/\d{2,4}\b", ln):
-            weight -= 3
-
-        m2 = _ACCOUNT_NO_FALLBACK_RE.search(ln)
-        if not m2:
-            continue
-        cand = _clean_account_number(m2.group(1))
-        if not cand:
-            continue
-        if 8 <= len(cand) <= 20:
-            weight += 2
-        scored.append((weight, cand))
-
-    if scored:
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return scored[0][1]
 
     return None
 
@@ -345,44 +326,45 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
         page_opening_balance = None
 
     stmt_month = None
-    mdate = _CIMB_STMT_DATE_RE.search(up)
-    if mdate:
-        dd = int(mdate.group(1))
-        mm = int(mdate.group(2))
-        yy_raw = mdate.group(3)
+    m = _CIMB_STMT_DATE_RE.search(full_text)
+    if m:
+        mm = int(m.group(2))
+        yy_raw = m.group(3)
         yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
         if 1 <= mm <= 12 and 2000 <= yy <= 2100:
-            stmt_month = f"{yy:04d}-{mm:02d}"
+            py, pm = _prev_month(yy, mm)
+            stmt_month = f"{py:04d}-{pm:02d}"
 
     closing_balance = None
-    mclose = _CIMB_CLOSING_RE.search(full_text)
-    if mclose:
-        try:
-            closing_balance = float(mclose.group(1).replace(",", ""))
-        except Exception:
-            closing_balance = None
+    m = _CIMB_CLOSING_RE.search(full_text)
+    if m:
+        closing_balance = float(m.group(1).replace(",", ""))
 
-    total_debit = 0.0
-    total_credit = 0.0
-    for p in pdf.pages:
-        t = p.extract_text() or ""
-        for line in t.splitlines():
-            if re.search(r"TOTAL\s+DEBIT", line, re.IGNORECASE):
-                md = re.search(r"(-?[\d,]+\.\d{2})", line)
-                if md:
-                    total_debit = float(md.group(1).replace(",", ""))
-            if re.search(r"TOTAL\s+CREDIT", line, re.IGNORECASE):
-                mc = re.search(r"(-?[\d,]+\.\d{2})", line)
-                if mc:
-                    total_credit = float(mc.group(1).replace(",", ""))
+    total_debit = None
+    total_credit = None
+    if "TOTAL WITHDRAWAL" in up and "TOTAL DEPOSITS" in up:
+        idx = up.rfind("TOTAL WITHDRAWAL")
+        window = full_text[idx : idx + 900] if idx != -1 else full_text
+
+        mm2 = re.search(r"\b\d{1,6}\s+\d{1,6}\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\b", window)
+        if mm2:
+            total_debit = float(mm2.group(1).replace(",", ""))
+            total_credit = float(mm2.group(2).replace(",", ""))
+        else:
+            money = re.findall(r"-?[\d,]+\.\d{2}", window)
+            if len(money) >= 2:
+                total_debit = float(money[-2].replace(",", ""))
+                total_credit = float(money[-1].replace(",", ""))
 
     return {
-        "statement_month": stmt_month or "UNKNOWN",
-        "opening_balance": page_opening_balance,
-        "ending_balance": closing_balance,
+        "bank": "CIMB Bank",
+        "source_file": source_file,
+        "statement_month": stmt_month,
         "total_debit": total_debit,
         "total_credit": total_credit,
-        "source_file": source_file,
+        "ending_balance": closing_balance,
+        "page_opening_balance": page_opening_balance,
+        "opening_balance": None,
     }
 
 
@@ -403,6 +385,7 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "Public Bank (PBB)": lambda b, f: _parse_with_pdfplumber(parse_transactions_pbb, b, f),
     "RHB Bank": lambda b, f: parse_transactions_rhb(b, f),
     "OCBC Bank": lambda b, f: parse_transactions_ocbc(b, f),
+    "UOB Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_uob, b, f),
 }
 
 
@@ -445,7 +428,7 @@ with col1:
         st.session_state.cimb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
         st.session_state.file_company_name = {}
-        st.session_state.file_account_number = {}
+        st.session_state.file_account_no = {}
 
 with col2:
     if st.button("⏹️ Stop"):
@@ -463,7 +446,7 @@ with col3:
         st.session_state.cimb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
         st.session_state.file_company_name = {}
-        st.session_state.file_account_number = {}
+        st.session_state.file_account_no = {}
         st.session_state.pdf_password = ""
         st.session_state.company_name_override = ""
         st.rerun()
@@ -503,20 +486,20 @@ if uploaded_files and st.session_state.status == "running":
             except Exception:
                 company_name = None
 
+            # extract account number (NEW)
+            account_no = None
+            try:
+                with bytes_to_pdfplumber(pdf_bytes) as meta_pdf:
+                    account_no = extract_account_number(meta_pdf, max_pages=2)
+            except Exception:
+                account_no = None
+
             # manual override wins
             if (st.session_state.company_name_override or "").strip():
                 company_name = st.session_state.company_name_override.strip()
 
             st.session_state.file_company_name[uploaded_file.name] = company_name
-
-            # extract account number (NEW)
-            account_number = None
-            try:
-                with bytes_to_pdfplumber(pdf_bytes) as meta_pdf:
-                    account_number = extract_account_number(meta_pdf, max_pages=2)
-            except Exception:
-                account_number = None
-            st.session_state.file_account_number[uploaded_file.name] = account_number
+            st.session_state.file_account_no[uploaded_file.name] = account_no
 
             # Parse transactions (existing logic)
             if bank_choice == "Affin Bank":
@@ -547,23 +530,15 @@ if uploaded_files and st.session_state.status == "running":
             else:
                 tx_raw = parser(pdf_bytes, uploaded_file.name) or []
 
-            # Normalize then attach metadata
+            # Normalize then attach company_name
             tx_norm = normalize_transactions(
                 tx_raw,
                 default_bank=bank_choice,
                 source_file=uploaded_file.name,
             )
             for t in tx_norm:
-                # Attach metadata (prefer extracted/override when present)
-                if (company_name or "").strip():
-                    t["company_name"] = company_name
-                elif not (str(t.get("company_name") or "").strip()):
-                    t["company_name"] = None
-
-                if (account_number or "").strip():
-                    t["account_number"] = account_number
-                elif not (str(t.get("account_number") or "").strip()):
-                    t["account_number"] = None
+                t["company_name"] = company_name
+                t["account_no"] = account_no
 
             if bank_choice == "Affin Bank":
                 st.session_state.affin_file_transactions[uploaded_file.name] = tx_norm
@@ -625,54 +600,17 @@ if uploaded_files and st.session_state.status == "running":
 
 
 # =========================================================
-# Monthly Summary Calculation
-# - Ensures monthly rows exist even when opening balance isn't explicitly provided
-# - Includes account_number in monthly summary and JSON outputs
-# - Groups by (month, account_number) to avoid mixing multiple accounts
+# Monthly Summary Calculation (same logic, adds company_name)
 # =========================================================
-def _infer_opening_from_first_balance(group_sorted: pd.DataFrame) -> Optional[float]:
-    """
-    If we have transaction balances, infer opening balance as:
-      opening = first_balance + first_debit - first_credit
-    (Assumes the statement's "balance" is the post-transaction running balance.)
-    """
-    try:
-        gb = group_sorted.dropna(subset=["balance"])
-        if gb.empty:
-            return None
-        first = gb.iloc[0]
-        first_balance = float(first.get("balance"))
-        first_debit = float(first.get("debit", 0.0))
-        first_credit = float(first.get("credit", 0.0))
-        return round(first_balance + first_debit - first_credit, 2)
-    except Exception:
-        return None
-
-
-def _coalesce_account_number(fname: str, txs: List[dict]) -> Optional[str]:
-    # Prefer metadata extracted from header; fallback to parser-provided per-tx
-    acc = st.session_state.file_account_number.get(fname)
-    if (acc or "").strip():
-        return acc
-    for t in (txs or []):
-        a = str(t.get("account_number") or "").strip()
-        if a:
-            return a
-    return None
-
-
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
-    # -------------------------
-    # Affin-only totals (bank-provided)
-    # -------------------------
+    # Affin-only
     if bank_choice == "Affin Bank" and st.session_state.affin_statement_totals:
         rows: List[dict] = []
         for t in st.session_state.affin_statement_totals:
             month = t.get("statement_month") or "UNKNOWN"
             fname = t.get("source_file", "") or ""
-
             company_name = st.session_state.file_company_name.get(fname)
-            account_number = _coalesce_account_number(fname, st.session_state.affin_file_transactions.get(fname, []))
+            account_no = st.session_state.file_account_no.get(fname)
 
             opening = t.get("opening_balance")
             ending = t.get("ending_balance")
@@ -686,7 +624,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
             txs = st.session_state.affin_file_transactions.get(fname, []) if fname else []
-            tx_count = int(len(txs)) if txs else 0
+            tx_count = int(len(txs)) if txs else None
 
             balances: List[float] = []
             for x in txs:
@@ -708,21 +646,14 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             if td is not None and tc is not None:
                 net_change = round(float(tc - td), 2)
 
-            # If opening is missing, infer from ending + net_change, otherwise from first balance row
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
-            if opening_balance is None and balances and txs:
-                df_tmp = pd.DataFrame(txs)
-                df_tmp["debit"] = df_tmp.get("debit", 0).apply(safe_float)
-                df_tmp["credit"] = df_tmp.get("credit", 0).apply(safe_float)
-                df_tmp["balance"] = df_tmp.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
-                opening_balance = _infer_opening_from_first_balance(df_tmp) or opening_balance
 
             rows.append(
                 {
                     "month": month,
                     "company_name": company_name,
-                    "account_number": account_number,
+                    "account_no": account_no,
                     "transaction_count": tx_count,
                     "opening_balance": opening_balance,
                     "total_debit": td,
@@ -736,19 +667,16 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                     "source_files": fname,
                 }
             )
-        return sorted(rows, key=lambda r: (str(r.get("month", "9999-99")), str(r.get("account_number") or "")))
+        return sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
 
-    # -------------------------
-    # Ambank-only totals (bank-provided)
-    # -------------------------
+    # Ambank-only
     if bank_choice == "Ambank" and st.session_state.ambank_statement_totals:
         rows: List[dict] = []
         for t in st.session_state.ambank_statement_totals:
             month = t.get("statement_month") or "UNKNOWN"
             fname = t.get("source_file", "") or ""
-
             company_name = st.session_state.file_company_name.get(fname)
-            account_number = _coalesce_account_number(fname, st.session_state.ambank_file_transactions.get(fname, []))
+            account_no = st.session_state.file_account_no.get(fname)
 
             opening = t.get("opening_balance")
             ending = t.get("ending_balance")
@@ -762,7 +690,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
 
             txs = st.session_state.ambank_file_transactions.get(fname, []) if fname else []
-            tx_count = int(len(txs)) if txs else 0
+            tx_count = int(len(txs)) if txs else None
 
             balances: List[float] = []
             for x in txs:
@@ -783,18 +711,12 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
             if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
                 opening_balance = round(float(ending_balance - (tc - td)), 2)
-            if opening_balance is None and balances and txs:
-                df_tmp = pd.DataFrame(txs)
-                df_tmp["debit"] = df_tmp.get("debit", 0).apply(safe_float)
-                df_tmp["credit"] = df_tmp.get("credit", 0).apply(safe_float)
-                df_tmp["balance"] = df_tmp.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
-                opening_balance = _infer_opening_from_first_balance(df_tmp) or opening_balance
 
             rows.append(
                 {
                     "month": month,
                     "company_name": company_name,
-                    "account_number": account_number,
+                    "account_no": account_no,
                     "transaction_count": tx_count,
                     "opening_balance": opening_balance,
                     "total_debit": td,
@@ -808,19 +730,16 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                     "source_files": fname,
                 }
             )
-        return sorted(rows, key=lambda r: (str(r.get("month", "9999-99")), str(r.get("account_number") or "")))
+        return sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
 
-    # -------------------------
-    # CIMB-only totals (bank-provided closing; opening inferred from net)
-    # -------------------------
+    # CIMB-only
     if bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals:
         rows: List[dict] = []
         for t in st.session_state.cimb_statement_totals:
             month = t.get("statement_month") or "UNKNOWN"
             fname = t.get("source_file", "") or ""
-
             company_name = st.session_state.file_company_name.get(fname)
-            account_number = _coalesce_account_number(fname, st.session_state.cimb_file_transactions.get(fname, []))
+            account_no = st.session_state.file_account_no.get(fname)
 
             ending = t.get("ending_balance")
             total_debit = t.get("total_debit")
@@ -838,7 +757,7 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                     opening_balance = round(float(ending_balance - (tc - td)), 2)
 
             txs = st.session_state.cimb_file_transactions.get(fname, []) if fname else []
-            tx_count = int(len(txs)) if txs else 0
+            tx_count = int(len(txs)) if txs else None
 
             balances: List[float] = []
             for x in txs:
@@ -856,19 +775,11 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             lowest_balance = round(min(balances), 2) if balances else None
             highest_balance = round(max(balances), 2) if balances else None
 
-            # If still missing, infer opening from first balance row
-            if opening_balance is None and balances and txs:
-                df_tmp = pd.DataFrame(txs)
-                df_tmp["debit"] = df_tmp.get("debit", 0).apply(safe_float)
-                df_tmp["credit"] = df_tmp.get("credit", 0).apply(safe_float)
-                df_tmp["balance"] = df_tmp.get("balance", None).apply(lambda x: safe_float(x) if x is not None else None)
-                opening_balance = _infer_opening_from_first_balance(df_tmp) or opening_balance
-
             rows.append(
                 {
                     "month": month,
                     "company_name": company_name,
-                    "account_number": account_number,
+                    "account_no": account_no,
                     "transaction_count": tx_count,
                     "opening_balance": opening_balance,
                     "total_debit": td,
@@ -882,23 +793,20 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                     "source_files": fname,
                 }
             )
-        return sorted(rows, key=lambda r: (str(r.get("month", "9999-99")), str(r.get("account_number") or "")))
+        return sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
 
-    # -------------------------
-    # Default banks: derive from transactions
-    # -------------------------
+    # Default banks
     if not transactions:
-        # Bank Islam ensure statement months with zero tx still appear
         if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
             rows: List[dict] = []
             for fname, month in sorted(st.session_state.bank_islam_file_month.items(), key=lambda x: x[1]):
                 company_name = st.session_state.file_company_name.get(fname)
-                account_number = st.session_state.file_account_number.get(fname)
+                account_no = st.session_state.file_account_no.get(fname)
                 rows.append(
                     {
                         "month": month,
                         "company_name": company_name,
-                        "account_number": account_number,
+                        "account_no": account_no,
                         "transaction_count": 0,
                         "opening_balance": None,
                         "total_debit": 0.0,
@@ -945,13 +853,8 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
     df["__row_order"] = pd.to_numeric(df["__row_order"], errors="coerce").fillna(0).astype(int)
 
-    if "account_number" not in df.columns:
-        df["account_number"] = None
-
     monthly_summary: List[dict] = []
-
-    group_keys = ["month_period", "account_number"]
-    for (period, acc), group in df.groupby(group_keys, sort=True, dropna=False):
+    for period, group in df.groupby("month_period", sort=True):
         sort_cols = ["date_parsed", "page"]
         if has_seq:
             sort_cols.append("seq")
@@ -959,52 +862,34 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
 
         group_sorted = group.sort_values(sort_cols, na_position="last")
 
-        total_debit = round(float(group_sorted["debit"].sum()), 2)
-        total_credit = round(float(group_sorted["credit"].sum()), 2)
-        net_change = round(float(total_credit - total_debit), 2)
-
         balances = group_sorted["balance"].dropna()
         ending_balance = round(float(balances.iloc[-1]), 2) if not balances.empty else None
         highest_balance = round(float(balances.max()), 2) if not balances.empty else None
         lowest_balance_raw = round(float(balances.min()), 2) if not balances.empty else None
-
-        opening_balance = _infer_opening_from_first_balance(group_sorted)
-
-        if opening_balance is None and ending_balance is not None:
-            opening_balance = round(float(ending_balance - net_change), 2)
-        if ending_balance is None and opening_balance is not None:
-            ending_balance = round(float(opening_balance + net_change), 2)
-
-        if highest_balance is None and opening_balance is not None and ending_balance is not None:
-            highest_balance = round(max(opening_balance, ending_balance), 2)
-        if lowest_balance_raw is None and opening_balance is not None and ending_balance is not None:
-            lowest_balance_raw = round(min(opening_balance, ending_balance), 2)
-
         lowest_balance = lowest_balance_raw
         od_flag = bool(lowest_balance is not None and float(lowest_balance) < 0)
 
         company_vals = [
-            x
-            for x in group_sorted.get("company_name", pd.Series([], dtype=object)).dropna().astype(str).unique().tolist()
+            x for x in group_sorted.get("company_name", pd.Series([], dtype=object)).dropna().astype(str).unique().tolist()
             if x.strip()
         ]
         company_name = company_vals[0] if company_vals else None
 
-        account_vals = [
-            x for x in group_sorted.get("account_number", pd.Series([], dtype=object)).dropna().astype(str).unique().tolist() if x.strip()
+        acct_vals = [
+            x for x in group_sorted.get("account_no", pd.Series([], dtype=object)).dropna().astype(str).unique().tolist() if x.strip()
         ]
-        account_number = account_vals[0] if account_vals else (str(acc) if acc not in (None, "nan") else None)
+        account_no = acct_vals[0] if len(acct_vals) == 1 else (", ".join(acct_vals) if acct_vals else None)
 
         monthly_summary.append(
             {
                 "month": period,
                 "company_name": company_name,
-                "account_number": account_number,
+                "account_no": account_no,
                 "transaction_count": int(len(group_sorted)),
-                "opening_balance": opening_balance,
-                "total_debit": total_debit,
-                "total_credit": total_credit,
-                "net_change": net_change,
+                "opening_balance": None,
+                "total_debit": round(float(group_sorted["debit"].sum()), 2),
+                "total_credit": round(float(group_sorted["credit"].sum()), 2),
+                "net_change": round(float(group_sorted["credit"].sum() - group_sorted["debit"].sum()), 2),
                 "ending_balance": ending_balance,
                 "lowest_balance": lowest_balance,
                 "lowest_balance_raw": lowest_balance_raw,
@@ -1016,19 +901,19 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             }
         )
 
+    # Bank Islam ensure statement months with zero tx still appear
     if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
-        existing = {(r.get("month"), str(r.get("account_number") or "")) for r in monthly_summary}
+        existing_months = {r.get("month") for r in monthly_summary}
         for fname, month in st.session_state.bank_islam_file_month.items():
-            company_name = st.session_state.file_company_name.get(fname)
-            account_number = st.session_state.file_account_number.get(fname)
-            key = (month, str(account_number or ""))
-            if key in existing:
+            if month in existing_months:
                 continue
+            company_name = st.session_state.file_company_name.get(fname)
+            account_no = st.session_state.file_account_no.get(fname)
             monthly_summary.append(
                 {
                     "month": month,
                     "company_name": company_name,
-                    "account_number": account_number,
+                    "account_no": account_no,
                     "transaction_count": 0,
                     "opening_balance": None,
                     "total_debit": 0.0,
@@ -1043,7 +928,28 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 }
             )
 
-    return sorted(monthly_summary, key=lambda x: (x.get("month") or "9999-99", str(x.get("account_number") or "")))
+    # Fill opening_balance for default banks using prior month's ending_balance when possible.
+    monthly_summary_sorted = sorted(monthly_summary, key=lambda x: x["month"])
+    prev_end = None
+    for r in monthly_summary_sorted:
+        if r.get("opening_balance") is None:
+            if prev_end is not None:
+                r["opening_balance"] = round(float(prev_end), 2)
+            else:
+                # best-effort fallback: opening = ending - net_change
+                eb = r.get("ending_balance")
+                nc = r.get("net_change")
+                if eb is not None and nc is not None:
+                    try:
+                        r["opening_balance"] = round(float(safe_float(eb) - safe_float(nc)), 2)
+                    except Exception:
+                        r["opening_balance"] = None
+
+        # update prev_end for next month
+        if r.get("ending_balance") is not None:
+            prev_end = safe_float(r.get("ending_balance"))
+
+    return monthly_summary_sorted
 
 
 # =========================================================
@@ -1066,7 +972,7 @@ def present_monthly_summary_standard(rows: List[dict]) -> List[dict]:
             {
                 "month": r.get("month"),
                 "company_name": r.get("company_name"),
-                "account_number": r.get("account_number"),
+                "account_no": r.get("account_no"),
                 "opening_balance": r.get("opening_balance"),
                 "total_debit": r.get("total_debit"),
                 "total_credit": r.get("total_credit"),
@@ -1097,7 +1003,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "credit",
             "balance",
             "company_name",
-            "account_number",
+            "account_no",
             "page",
             "seq",
             "bank",
@@ -1117,7 +1023,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         desired_cols = [
             "month",
             "company_name",
-            "account_number",
+            "account_no",
             "opening_balance",
             "total_debit",
             "total_credit",
@@ -1162,8 +1068,8 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             {x for x in df_download.get("company_name", pd.Series([], dtype=object)).dropna().astype(str).tolist() if x.strip()}
         )
 
-        account_numbers = sorted(
-            {x for x in df_download.get("account_number", pd.Series([], dtype=object)).dropna().astype(str).tolist() if x.strip()}
+        account_nos = sorted(
+            {x for x in df_download.get("account_no", pd.Series([], dtype=object)).dropna().astype(str).tolist() if x.strip()}
         )
 
         full_report = {
@@ -1172,7 +1078,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 "date_range": f"{date_min} to {date_max}" if date_min and date_max else None,
                 "total_files_processed": total_files_processed,
                 "company_names": company_names,
-                "account_numbers": account_numbers,
+                "account_nos": account_nos,
                 "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
             "monthly_summary": monthly_summary,
