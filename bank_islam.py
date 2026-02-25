@@ -15,6 +15,25 @@ except Exception:  # pragma: no cover
 from PIL import ImageEnhance, ImageOps
 
 
+_TESSERACT_READY: Optional[bool] = None
+
+
+def _has_tesseract_binary() -> bool:
+    """Return True only when pytesseract is importable and the tesseract binary is callable."""
+    global _TESSERACT_READY
+    if pytesseract is None:
+        _TESSERACT_READY = False
+        return False
+    if _TESSERACT_READY is not None:
+        return _TESSERACT_READY
+    try:
+        pytesseract.get_tesseract_version()
+        _TESSERACT_READY = True
+    except Exception:
+        _TESSERACT_READY = False
+    return _TESSERACT_READY
+
+
 # =========================================================
 # BANK ISLAM – FORMAT 1 (TABLE-BASED)
 # =========================================================
@@ -339,12 +358,16 @@ def _ocr_image(page, resolution: int = 400):
 
 
 def _ocr_text_page_multi(page) -> str:
-    if pytesseract is None:
+    if not _has_tesseract_binary():
         return ""
-    img = _ocr_image(page, resolution=400)
-    t4 = pytesseract.image_to_string(img, config="--psm 4") or ""
-    t6 = pytesseract.image_to_string(img, config="--psm 6") or ""
-    return t4 + "\n" + t6
+    try:
+        img = _ocr_image(page, resolution=400)
+        t4 = pytesseract.image_to_string(img, config="--psm 4") or ""
+        t6 = pytesseract.image_to_string(img, config="--psm 6") or ""
+        return t4 + "\n" + t6
+    except Exception:
+        # OCR is optional; gracefully degrade to non-OCR flow when binary/runtime is unavailable.
+        return ""
 
 
 def _extract_statement_month_year_via_ocr(pdf) -> Optional[Tuple[int, int]]:
