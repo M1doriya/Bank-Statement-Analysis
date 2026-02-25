@@ -123,18 +123,27 @@ _EXCLUDE_LINE_REGEX = re.compile(
 
 # If a candidate contains a long digit run, it’s usually not a company name.
 _LONG_DIGITS_RE = re.compile(r"\d{6,}")
+_COMPANY_SUFFIX_RE = re.compile(
+    r"\b(SDN\.?\s*BHD\.?|BHD\.?|ENTERPRISE|RESOURCES|HOLDINGS|TRADING|SERVICES|TECHNOLOGY|VENTURES|INDUSTRIES|GLOBAL|GROUP|CORPORATION|PLT)\b",
+    re.IGNORECASE,
+)
+_COMPANY_BAD_WORDS_RE = re.compile(
+    r"\b(STATEMENT|ACCOUNT\s+STATEMENT|CURRENT\s+ACCOUNT|PAGE\b|BALANCE\b|SUMMARY\b|TRANSACTION|ENQUIRIES|BRANCH|PIDM|DATE\b|MUKA\b|HALAMAN\b)\b",
+    re.IGNORECASE,
+)
 
 
 def _clean_candidate_name(s: str) -> str:
     s = (s or "").strip()
     # stop at common trailing fields
     s = re.split(
-        r"\s{2,}|ACCOUNT\s+NO|A\/C\s+NO|NO\.\s*AKAUN|NO\s+AKAUN|STATEMENT|DATE|CURRENCY|BRANCH",
+        r"\s{2,}|ACCOUNT\s+NO|A\/C\s+NO|NO\.\s*AKAUN|NO\s+AKAUN|STATEMENT|PENYATA|DATE|TARIKH|CURRENCY|BRANCH|PAGE|HALAMAN",
         s,
         flags=re.IGNORECASE,
     )[0].strip()
     # remove weird leading bullets/colons
     s = s.lstrip(":;-• ").strip()
+    s = re.sub(r"\s+", " ", s)
     return s
 
 
@@ -151,6 +160,26 @@ def _looks_like_account_number_line(s: str) -> bool:
     if len(s.strip()) < 3:
         return True
     return False
+
+
+def _looks_like_company_name(s: str) -> bool:
+    if not s:
+        return False
+
+    cand = _clean_candidate_name(s)
+    if not cand:
+        return False
+    if _looks_like_account_number_line(cand):
+        return False
+    if _COMPANY_BAD_WORDS_RE.search(cand):
+        return False
+    if re.search(r"https?://|www\.", cand, flags=re.IGNORECASE):
+        return False
+    if len(cand) < 6:
+        return False
+    if re.match(r"^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", cand):
+        return False
+    return bool(_COMPANY_SUFFIX_RE.search(cand))
 
 
 def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
@@ -203,19 +232,35 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
     for t in texts:
         lines.extend([ln.strip() for ln in t.splitlines() if ln.strip()])
 
-    for ln in lines[:60]:
+    # 2) context-aware: line before account label often contains company name
+    for i, ln in enumerate(lines[:80]):
+        if re.search(r"A\/C|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN", ln, flags=re.IGNORECASE):
+            if i > 0:
+                prev = _clean_candidate_name(lines[i - 1])
+                if _looks_like_company_name(prev):
+                    return prev
+
+    # 3) suffix-aware scan (most reliable for Malaysian company names)
+    for i, ln in enumerate(lines[:80]):
         cand = _clean_candidate_name(ln)
-        if not cand:
-            continue
-        if _looks_like_account_number_line(cand):
-            continue
-        # avoid generic bank headers
-        up = cand.upper()
-        if "BANK" in up and len(cand) < 25:
-            continue
-        # prefer longer names
-        if len(cand) >= 6:
+        if _looks_like_company_name(cand):
             return cand
+
+        # handle split names e.g. "CLEAR WATER SERVICES" + "SDN. BHD."
+        if i + 1 < len(lines):
+            merged = _clean_candidate_name(f"{ln} {lines[i + 1]}")
+            if _looks_like_company_name(merged) and len(merged) <= 120:
+                return merged
+
+    # 4) conservative fallback: only return if still company-like
+    for i, ln in enumerate(lines[:80]):
+        cand = _clean_candidate_name(ln)
+        if _looks_like_company_name(cand):
+            return cand
+        if i + 1 < len(lines):
+            merged = _clean_candidate_name(f"{ln} {lines[i + 1]}")
+            if _looks_like_company_name(merged) and len(merged) <= 120:
+                return merged
 
     return None
 
@@ -224,12 +269,22 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
 # Account number extraction (NEW)
 # -----------------------------
 _ACCOUNT_NO_PATTERNS = [
-    r"(?:A\/C\s*NO|AC\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NO\.?\s*AKAUN|NO\s+AKAUN)\s*[:\-]?\s*(\d{6,20})",
+    r"(?:A\/C\s*NO|AC\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN|NO\s+AKAUN)\s*[:\-]?\s*([\d][\d\- ]{4,28}\d)",
     # UOB export: "Account Ledger Balance" then the account number on the next line
-    r"Account\s+Ledger\s+Balance\s*\n\s*(\d{6,20})",
+    r"Account\s+Ledger\s+Balance\s*\n\s*([\d][\d\- ]{4,28}\d)",
     # UOB export also includes a plain "Account" label sometimes
-    r"\bAccount\b\s*(?:\n\s*)?(\d{6,20})\b",
+    r"\bAccount\b\s*(?:\n\s*)?([\d][\d\- ]{4,28}\d)\b",
 ]
+
+
+def _normalize_account_no(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    cleaned = re.sub(r"\s+", "", str(raw).strip())
+    digits_only = re.sub(r"\D", "", cleaned)
+    if 6 <= len(digits_only) <= 20:
+        return cleaned
+    return None
 
 
 def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
@@ -248,22 +303,34 @@ def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
     for pat in _ACCOUNT_NO_PATTERNS:
         m = re.search(pat, full, flags=re.IGNORECASE | re.DOTALL)
         if m:
-            num = (m.group(1) or "").strip()
-            if num and _LONG_DIGITS_RE.search(num):
+            num = _normalize_account_no(m.group(1) or "")
+            if num:
                 return num
 
-    # fallback: first long digit run that is not obviously an amount
-    for ln in full.splitlines()[:80]:
-        if _EXCLUDE_LINE_REGEX.search(ln):
+    # fallback: labelled lines first (including following lines)
+    lines = full.splitlines()[:140]
+    for i, ln in enumerate(lines):
+        if not re.search(r"(A\/C\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN)", ln, flags=re.IGNORECASE):
             continue
-        m2 = _LONG_DIGITS_RE.search(ln)
-        if m2:
-            cand = m2.group(0)
-            if 6 <= len(cand) <= 20:
-                return cand
+
+        window = " ".join(lines[i : min(i + 3, len(lines))])
+        m2 = re.search(r"([\d][\d\- ]{4,28}\d)", window)
+        if not m2:
+            continue
+        raw = (m2.group(1) or "").strip()
+        if re.match(r"^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$", raw):
+            continue
+        num = _normalize_account_no(raw)
+        if num:
+            return num
+
+    # fallback: standalone account-number-like lines
+    for ln in full.splitlines()[:120]:
+        raw = (ln or "").strip()
+        if re.fullmatch(r"\d{8,20}", raw):
+            return raw
 
     return None
-
 
 # -----------------------------
 # Bank Islam: statement month for zero-transaction months
