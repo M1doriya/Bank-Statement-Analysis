@@ -13,6 +13,24 @@ except Exception:  # pragma: no cover
     pytesseract = None
 
 
+_TESSERACT_READY: Optional[bool] = None
+
+
+def _has_tesseract_binary() -> bool:
+    """Return True only when pytesseract is importable and the tesseract binary is callable."""
+    global _TESSERACT_READY
+    if pytesseract is None:
+        _TESSERACT_READY = False
+        return False
+    if _TESSERACT_READY is not None:
+        return _TESSERACT_READY
+    try:
+        pytesseract.get_tesseract_version()
+        _TESSERACT_READY = True
+    except Exception:
+        _TESSERACT_READY = False
+    return _TESSERACT_READY
+
 # =========================================================
 # Patterns / constants
 # =========================================================
@@ -157,7 +175,7 @@ def _page_text_pdf_or_ocr(page: pdfplumber.page.Page, *, crop_mode: str = "none"
     if len(txt) >= 120:
         return txt
 
-    if pytesseract is None:
+    if not _has_tesseract_binary():
         return txt
 
     try:
@@ -171,6 +189,7 @@ def _page_text_pdf_or_ocr(page: pdfplumber.page.Page, *, crop_mode: str = "none"
         img = p.to_image(resolution=160).original
         return pytesseract.image_to_string(img, config="--psm 6") or ""
     except Exception:
+        # OCR is optional; fallback to whatever pdf text was extracted.
         return txt
 
 
@@ -475,7 +494,7 @@ def _words_from_pdf(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
 
 
 def _words_from_ocr(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
-    if pytesseract is None:
+    if not _has_tesseract_binary():
         return []
     try:
         w, h = float(page.width), float(page.height)
@@ -484,7 +503,10 @@ def _words_from_ocr(page: pdfplumber.page.Page) -> List[Dict[str, Any]]:
     except Exception:
         img = page.to_image(resolution=240).original
 
-    data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT, config="--psm 6")
+    try:
+        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT, config="--psm 6")
+    except Exception:
+        return []
     n = len(data.get("text", []))
     out: List[Dict[str, Any]] = []
     for i in range(n):
