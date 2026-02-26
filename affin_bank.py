@@ -35,7 +35,7 @@ def _has_tesseract_binary() -> bool:
 # Patterns / constants
 # =========================================================
 
-DATE_IN_TOKEN_RE = re.compile(r"(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>\d{2,4})")
+DATE_IN_TOKEN_RE = re.compile(r"(?P<d>\d{1,2})\s*[/-]\s*(?P<m>\d{1,2})\s*[/-]\s*(?P<y>\d{2,4})")
 
 MONEY_TOKEN_RE = re.compile(
     r"^\(?\s*(?:RM\s*)?(?P<num>(?:\d{1,3}(?:,\d{3})*|\d+)?\.\d{2})\s*\)?(?P<trail_sign>[+-])?\s*[\.,;:|]*\s*$",

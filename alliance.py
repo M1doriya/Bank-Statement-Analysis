@@ -6,6 +6,7 @@
 # where pdf is a pdfplumber.PDF instance (from bytes_to_pdfplumber)
 
 import re
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 
@@ -73,9 +74,13 @@ def _parse_money_tokens(text: str) -> List[float]:
     return out
 
 
-def _iso_from_ddmmyy(dd: str, mm: str, yy: str) -> str:
+def _iso_from_ddmmyy(dd: str, mm: str, yy: str) -> Optional[str]:
     y = 2000 + int(yy)
-    return f"{y:04d}-{int(mm):02d}-{int(dd):02d}"
+    try:
+        dt = datetime(y, int(mm), int(dd))
+    except ValueError:
+        return None
+    return dt.strftime("%Y-%m-%d")
 
 
 def _strip_trailing_amounts(s: str) -> str:
@@ -113,6 +118,8 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
                     raw_rows.append(current)
 
                 date_iso = _iso_from_ddmmyy(m.group("d"), m.group("m"), m.group("y"))
+                if not date_iso:
+                    continue
                 rest = m.group("rest")
 
                 vals = _parse_money_tokens(line)
