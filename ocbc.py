@@ -116,10 +116,15 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
       input: pdf bytes (preferred) OR file-like
       output: list of tx dicts with canonical keys
     """
-    if isinstance(pdf_input, (bytes, bytearray)):
+    if hasattr(pdf_input, "pages") and hasattr(pdf_input, "close"):
+        pdf = pdf_input
+        should_close = False
+    elif isinstance(pdf_input, (bytes, bytearray)):
         pdf = pdfplumber.open(BytesIO(bytes(pdf_input)))
+        should_close = True
     else:
         pdf = pdfplumber.open(pdf_input)
+        should_close = True
 
     bank_name = "OCBC Bank"
     transactions: List[Dict] = []
@@ -230,7 +235,8 @@ def parse_transactions_ocbc(pdf_input: Any, source_file: str = "") -> List[Dict]
         return transactions
 
     finally:
-        try:
-            pdf.close()
-        except Exception:
-            pass
+        if should_close:
+            try:
+                pdf.close()
+            except Exception:
+                pass
