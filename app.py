@@ -69,6 +69,12 @@ if "cimb_statement_totals" not in st.session_state:
 if "cimb_file_transactions" not in st.session_state:
     st.session_state.cimb_file_transactions = {}
 
+if "rhb_statement_totals" not in st.session_state:
+    st.session_state.rhb_statement_totals = []
+
+if "rhb_file_transactions" not in st.session_state:
+    st.session_state.rhb_file_transactions = {}
+
 if "bank_islam_file_month" not in st.session_state:
     st.session_state.bank_islam_file_month = {}
 
@@ -435,6 +441,55 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
     }
 
 
+
+def extract_rhb_statement_totals(pdf, source_file: str) -> dict:
+    full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+
+    period_match = re.search(
+        r"Statement\s+Period.*?:\s*\d{1,2}\s+([A-Za-z]{3})\s+(\d{2,4})",
+        full_text,
+        re.IGNORECASE,
+    )
+    statement_month = None
+    if period_match:
+        month_map = {
+            "JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05", "JUN": "06",
+            "JUL": "07", "AUG": "08", "SEP": "09", "OCT": "10", "NOV": "11", "DEC": "12",
+        }
+        mon = period_match.group(1).upper()
+        yy = period_match.group(2)
+        if mon in month_map:
+            year = int(yy) if len(yy) == 4 else (2000 + int(yy))
+            statement_month = f"{year:04d}-{month_map[mon]}"
+
+    opening_balance = None
+    ending_balance = None
+    total_debit = None
+    total_credit = None
+
+    bfm = re.search(r"\b\d{1,2}\s+[A-Za-z]{3}\s+B/F\s+BALANCE\s+(-?[\d,]+\.\d{2})", full_text, re.IGNORECASE)
+    if bfm:
+        opening_balance = float(bfm.group(1).replace(",", ""))
+
+    cfm = re.search(r"\b\d{1,2}\s+[A-Za-z]{3}\s+C/F\s+BALANCE\s+(-?[\d,]+\.\d{2})", full_text, re.IGNORECASE)
+    if cfm:
+        ending_balance = float(cfm.group(1).replace(",", ""))
+
+    tm = re.search(r"\(RM\)\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})", full_text, re.IGNORECASE)
+    if tm:
+        total_debit = float(tm.group(1).replace(",", ""))
+        total_credit = float(tm.group(2).replace(",", ""))
+
+    return {
+        "bank": "RHB Bank",
+        "source_file": source_file,
+        "statement_month": statement_month,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "ending_balance": ending_balance,
+        "opening_balance": opening_balance,
+    }
+
 # -----------------------------
 # Bank parsers
 # -----------------------------
@@ -492,7 +547,9 @@ with col1:
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
         st.session_state.cimb_statement_totals = []
+        st.session_state.rhb_statement_totals = []
         st.session_state.cimb_file_transactions = {}
+        st.session_state.rhb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
         st.session_state.file_company_name = {}
         st.session_state.file_account_no = {}
@@ -510,7 +567,9 @@ with col3:
         st.session_state.ambank_statement_totals = []
         st.session_state.ambank_file_transactions = {}
         st.session_state.cimb_statement_totals = []
+        st.session_state.rhb_statement_totals = []
         st.session_state.cimb_file_transactions = {}
+        st.session_state.rhb_file_transactions = {}
         st.session_state.bank_islam_file_month = {}
         st.session_state.file_company_name = {}
         st.session_state.file_account_no = {}
@@ -587,6 +646,12 @@ if uploaded_files and st.session_state.status == "running":
                     st.session_state.cimb_statement_totals.append(totals)
                     tx_raw = parse_transactions_cimb(pdf, uploaded_file.name) or []
 
+            elif bank_choice == "RHB Bank":
+                with bytes_to_pdfplumber(pdf_bytes) as pdf:
+                    totals = extract_rhb_statement_totals(pdf, uploaded_file.name)
+                    st.session_state.rhb_statement_totals.append(totals)
+                tx_raw = parser(pdf_bytes, uploaded_file.name) or []
+
             elif bank_choice == "Bank Islam":
                 with bytes_to_pdfplumber(pdf_bytes) as pdf:
                     tx_raw = parse_bank_islam(pdf, uploaded_file.name) or []
@@ -613,6 +678,8 @@ if uploaded_files and st.session_state.status == "running":
                 st.session_state.ambank_file_transactions[uploaded_file.name] = tx_norm
             if bank_choice == "CIMB Bank":
                 st.session_state.cimb_file_transactions[uploaded_file.name] = tx_norm
+            if bank_choice == "RHB Bank":
+                st.session_state.rhb_file_transactions[uploaded_file.name] = tx_norm
 
             if tx_norm:
                 st.success(f"✅ Extracted {len(tx_norm)} transactions from {uploaded_file.name}")
@@ -862,6 +929,68 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
             )
         return sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
 
+    # RHB-only
+    if bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals:
+        rows: List[dict] = []
+        for t in st.session_state.rhb_statement_totals:
+            month = t.get("statement_month") or "UNKNOWN"
+            fname = t.get("source_file", "") or ""
+            company_name = st.session_state.file_company_name.get(fname)
+            account_no = st.session_state.file_account_no.get(fname)
+
+            opening = t.get("opening_balance")
+            ending = t.get("ending_balance")
+            total_debit = t.get("total_debit")
+            total_credit = t.get("total_credit")
+
+            td = None if total_debit is None else round(float(safe_float(total_debit)), 2)
+            tc = None if total_credit is None else round(float(safe_float(total_credit)), 2)
+            opening_balance = round(float(safe_float(opening)), 2) if opening is not None else None
+            ending_balance = round(float(safe_float(ending)), 2) if ending is not None else None
+
+            txs = st.session_state.rhb_file_transactions.get(fname, []) if fname else []
+            tx_count = int(len(txs)) if txs else None
+
+            balances: List[float] = []
+            for x in txs:
+                b = x.get("balance")
+                if b is None:
+                    continue
+                try:
+                    balances.append(float(safe_float(b)))
+                except Exception:
+                    pass
+
+            lowest_balance = round(min(balances), 2) if balances else None
+            highest_balance = round(max(balances), 2) if balances else None
+
+            net_change = None
+            if td is not None and tc is not None:
+                net_change = round(float(tc - td), 2)
+
+            if opening_balance is None and ending_balance is not None and td is not None and tc is not None:
+                opening_balance = round(float(ending_balance - (tc - td)), 2)
+
+            rows.append(
+                {
+                    "month": month,
+                    "company_name": company_name,
+                    "account_no": account_no,
+                    "transaction_count": tx_count,
+                    "opening_balance": opening_balance,
+                    "total_debit": td,
+                    "total_credit": tc,
+                    "net_change": net_change,
+                    "ending_balance": ending_balance,
+                    "lowest_balance": lowest_balance,
+                    "lowest_balance_raw": lowest_balance,
+                    "highest_balance": highest_balance,
+                    "od_flag": bool(lowest_balance is not None and float(lowest_balance) < 0),
+                    "source_files": fname,
+                }
+            )
+        return sorted(rows, key=lambda r: str(r.get("month", "9999-99")))
+
     # Default banks
     if not transactions:
         if bank_choice == "Bank Islam" and getattr(st.session_state, "bank_islam_file_month", {}):
@@ -1058,7 +1187,9 @@ def present_monthly_summary_standard(rows: List[dict]) -> List[dict]:
 # ---------------------------------------------------
 if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state.affin_statement_totals) or (
     bank_choice == "Ambank" and st.session_state.ambank_statement_totals
-) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals):
+) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals) or (
+    bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals
+):
     st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
@@ -1130,6 +1261,8 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
                 total_files_processed = len(st.session_state.ambank_statement_totals)
             elif bank_choice == "CIMB Bank":
                 total_files_processed = len(st.session_state.cimb_statement_totals)
+            elif bank_choice == "RHB Bank":
+                total_files_processed = len(st.session_state.rhb_statement_totals)
 
         company_names = sorted(
             {x for x in df_download.get("company_name", pd.Series([], dtype=object)).dropna().astype(str).tolist() if x.strip()}

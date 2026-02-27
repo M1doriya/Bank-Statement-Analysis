@@ -140,6 +140,18 @@ def _guess_bank_name(header_upper: str) -> str:
     return "RHB Bank"
 
 
+def _is_non_transaction_commodity_page(page_text: str) -> bool:
+    """Detect commodity-trading certificate pages that are not account transactions."""
+    if not page_text:
+        return False
+    t = page_text.upper()
+    return (
+        ("SELLER/PENJUAL" in t and "BUYER/PEMBELI" in t)
+        or ("CERTIFICATE NO" in t and "NET DEPOSIT" in t and "SELLING PRICE" in t)
+        or ("COMMODITY" in t and "TRADING" in t)
+    )
+
+
 # ======================================================
 # 1) RHB ACCOUNT STATEMENT — text based (older layout)
 # ======================================================
@@ -174,6 +186,8 @@ def _parse_rhb_account_statement_text(pdf_bytes: bytes, source_filename: str) ->
 
         for page_num, page in enumerate(pdf.pages, start=1):
             text = page.extract_text(x_tolerance=1) or ""
+            if _is_non_transaction_commodity_page(text):
+                continue
             lines = [re.sub(r"\s+", " ", ln).strip() for ln in text.splitlines() if ln.strip()]
 
             for line in lines:
@@ -279,6 +293,8 @@ def _parse_rhb_islamic_text(pdf_bytes: bytes, source_filename: str) -> List[Dict
             text = page.extract_text() or ""
             if not text:
                 continue
+            if _is_non_transaction_commodity_page(text):
+                continue
 
             for line in text.splitlines():
                 bal_match = balance_re.search(line.strip())
@@ -351,6 +367,8 @@ def _parse_rhb_conventional_text(pdf_bytes: bytes, source_filename: str) -> List
         for page_index, page in enumerate(pdf.pages, start=1):
             text = page.extract_text() or ""
             if not text:
+                continue
+            if _is_non_transaction_commodity_page(text):
                 continue
 
             for line in text.splitlines():
