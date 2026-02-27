@@ -275,12 +275,17 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
 # Account number extraction (NEW)
 # -----------------------------
 _ACCOUNT_NO_PATTERNS = [
-    r"(?:A\/C\s*NO|AC\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN|NO\s+AKAUN)\s*[:\-]?\s*([\d][\d\- ]{4,28}\d)",
+    r"(?:A\/C\s*NO|AC\s*NO|ACC(?:OUNT)?\s*NO\.?|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN|NO\s+AKAUN)\s*[:\-]?\s*([\d][\d\- ]{4,36}\d)",
     # UOB export: "Account Ledger Balance" then the account number on the next line
-    r"Account\s+Ledger\s+Balance\s*\n\s*([\d][\d\- ]{4,28}\d)",
-    # UOB export also includes a plain "Account" label sometimes
-    r"\bAccount\b\s*(?:\n\s*)?([\d][\d\- ]{4,28}\d)\b",
+    r"Account\s+Ledger\s+Balance\s*\n\s*([\d][\d\- ]{4,36}\d)",
 ]
+
+_ACCOUNT_LABEL_RE = re.compile(
+    r"(A\/C\s*NO|AC\s*NO|ACC(?:OUNT)?\s*NO\.?|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN|NO\s+AKAUN)",
+    re.IGNORECASE,
+)
+
+_ACCOUNT_NUM_RE = re.compile(r"\b\d(?:[\d\-]{4,28}\d)\b")
 
 
 def _normalize_account_no(raw: str) -> Optional[str]:
@@ -288,9 +293,29 @@ def _normalize_account_no(raw: str) -> Optional[str]:
         return None
     cleaned = re.sub(r"\s+", "", str(raw).strip())
     digits_only = re.sub(r"\D", "", cleaned)
-    if 6 <= len(digits_only) <= 20:
-        return cleaned
+    if 6 <= len(digits_only) <= 16:
+        return digits_only
     return None
+
+
+def _candidate_account_numbers(text: str) -> List[str]:
+    if not text:
+        return []
+
+    out: List[str] = []
+    for m in _ACCOUNT_NUM_RE.finditer(text):
+        num = _normalize_account_no(m.group(0) or "")
+        if not num:
+            continue
+        # avoid date-like fragments accidentally captured from labels/windows
+        if re.fullmatch(r"\d{8}", num):
+            yyyy = int(num[:4])
+            mm = int(num[4:6])
+            dd = int(num[6:8])
+            if 1900 <= yyyy <= 2100 and 1 <= mm <= 12 and 1 <= dd <= 31:
+                continue
+        out.append(num)
+    return out
 
 
 def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
@@ -306,34 +331,75 @@ def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
         return None
 
     full = "\n".join(texts)
+    lines = [ln.strip() for ln in full.splitlines() if ln.strip()]
+    full_upper = full.upper()
+
+    # Bank-specific hardening: RHB deposit-account summary pages often place the account number
+    # in compact rows such as "ORDINARYCURRENTACCOUNT21406200114180".
+    full_compact = re.sub(r"\s+", "", full_upper)
+    if "DEPOSITACCOUNTSUMMARY" in full_compact or "RINGKASANAKAUNDEPOSIT" in full_compact:
+        # Prefer summary rows: account number followed by balance columns.
+        for ln in lines[:140]:
+            m = re.search(
+                r"(?:CURRENT\s*ACCOUNT(?:-I)?|ACCOUNT(?:-I)?)\s*([0-9]{10,16})\s+\d{1,3}(?:,\d{3})*\.\d{2}\s+\d{1,3}(?:,\d{3})*\.\d{2}",
+                ln,
+                re.IGNORECASE,
+            )
+            if m:
+                num = _normalize_account_no(m.group(1) or "")
+                if num:
+                    return num
+
+        # Fallback for compact rows like "...CURRENTACCOUNT21406200114180".
+        for ln in lines[:140]:
+            if len(ln) > 60:
+                continue
+            m = re.search(r"(?:CURRENT\s*ACCOUNT(?:-I)?|ACCOUNT(?:-I)?)\s*([0-9]{10,16})\b", ln, re.IGNORECASE)
+            if m:
+                num = _normalize_account_no(m.group(1) or "")
+                if num:
+                    return num
+
+    scored: Dict[str, int] = {}
+
+    def _add(num: Optional[str], points: int) -> None:
+        if not num:
+            return
+        scored[num] = scored.get(num, 0) + points
+
+    # 1) Strong patterns with account labels.
     for pat in _ACCOUNT_NO_PATTERNS:
         m = re.search(pat, full, flags=re.IGNORECASE | re.DOTALL)
         if m:
             num = _normalize_account_no(m.group(1) or "")
             if num:
-                return num
+                _add(num, 120)
 
-    # fallback: labelled lines first (including following lines)
-    lines = full.splitlines()[:140]
-    for i, ln in enumerate(lines):
-        if not re.search(r"(A\/C\s*NO|ACCOUNT\s*NO|ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN|NO\.?\s*AKAUN)", ln, flags=re.IGNORECASE):
+    # Bonus for candidates that appear repeatedly in the document.
+    for cand in {c for c in _candidate_account_numbers(full)}:
+        repeats = len(re.findall(rf"\b{re.escape(cand)}\b", re.sub(r"\D", " ", full)))
+        if repeats >= 2:
+            _add(cand, repeats * 10)
+
+    # 2) Label-aware scan on individual lines and short windows.
+    for i, ln in enumerate(lines[:180]):
+        if not _ACCOUNT_LABEL_RE.search(ln):
             continue
+
+        for cand in _candidate_account_numbers(ln):
+            _add(cand, 100)
 
         window = " ".join(lines[i : min(i + 3, len(lines))])
-        m2 = re.search(r"([\d][\d\- ]{4,28}\d)", window)
-        if not m2:
-            continue
-        raw = (m2.group(1) or "").strip()
-        if re.match(r"^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$", raw):
-            continue
-        num = _normalize_account_no(raw)
-        if num:
-            return num
+        for cand in _candidate_account_numbers(window):
+            _add(cand, 60)
 
-    # fallback: standalone account-number-like lines
-    for ln in full.splitlines()[:120]:
+    if scored:
+        return sorted(scored.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0][0]
+
+    # 4) Fallback: standalone account-number-like lines.
+    for ln in lines[:120]:
         raw = (ln or "").strip()
-        if re.fullmatch(r"\d{8,20}", raw):
+        if re.fullmatch(r"\d{10,16}", raw):
             return raw
 
     return None
