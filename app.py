@@ -39,136 +39,6 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-def inject_base_styles() -> None:
-    st.markdown(
-        """
-        <style>
-          :root {
-            --bg: #f4f6f8;
-            --surface: #ffffff;
-            --surface-soft: #f8fafc;
-            --text: #17202f;
-            --muted: #667085;
-            --line: #e6ebf1;
-            --line-strong: #d7dee8;
-            --accent: #19b3a6;
-            --accent-strong: #129589;
-            --accent-soft: #e9f8f6;
-            --radius-lg: 18px;
-            --radius-md: 14px;
-            --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-          }
-
-          .stApp {
-            background:
-              linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-              var(--bg);
-            background-size: 64px 64px;
-            color: var(--text);
-          }
-
-          [data-testid="stHeader"] {
-            background: transparent;
-          }
-
-          .app-shell {
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(8px);
-            padding: 0;
-            overflow: hidden;
-            margin-bottom: 1rem;
-          }
-
-          .app-header {
-            padding: 2rem 2.2rem 1.15rem;
-            border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-          }
-
-          .app-header-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: .55rem;
-          }
-
-          .app-mark {
-            width: 3.2rem;
-            height: 3.2rem;
-            border-radius: 1rem;
-            display: grid;
-            place-items: center;
-            background: var(--accent-soft);
-            color: var(--accent-strong);
-            font-size: 1.45rem;
-            flex: none;
-          }
-
-          .app-title {
-            margin: 0;
-            font-size: clamp(1.8rem, 3.2vw, 2.8rem);
-            line-height: 1.06;
-            letter-spacing: -0.04em;
-            font-weight: 800;
-          }
-
-          .app-subtitle {
-            margin: 0;
-            color: var(--muted);
-            font-size: 0.98rem;
-            line-height: 1.7;
-          }
-
-          .section-card {
-            border: 1px solid var(--line);
-            border-radius: var(--radius-lg);
-            background: rgba(255, 255, 255, 0.84);
-            padding: 1rem 1.1rem;
-            margin-bottom: .85rem;
-          }
-
-          .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: .55rem;
-            border-radius: 999px;
-            border: 1px solid var(--line);
-            background: #fff;
-            padding: .5rem .9rem;
-            font-size: .9rem;
-            font-weight: 700;
-            color: var(--text);
-          }
-
-          .status-dot {
-            width: .58rem;
-            height: .58rem;
-            border-radius: 999px;
-            background: var(--accent);
-            box-shadow: 0 0 0 7px rgba(25, 179, 166, 0.12);
-          }
-
-          .stTextInput > div > div > input,
-          .stSelectbox > div > div > div,
-          .stFileUploader > div {
-            border-radius: 14px;
-          }
-
-          .stButton > button,
-          .stDownloadButton > button,
-          .stFormSubmitButton > button {
-            border-radius: 14px;
-            font-weight: 700;
-          }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -184,25 +54,12 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.markdown(
-        """
-        <section class="app-shell">
-          <div class="app-header">
-            <div class="app-header-row">
-              <div class="app-mark">🔐</div>
-              <h1 class="app-title">Login required</h1>
-            </div>
-            <p class="app-subtitle">Sign in with your credentials to access the bank statement parser workspace.</p>
-          </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("🔐 Login required")
 
     with st.form("basic_auth_form"):
         entered_user = st.text_input("Username")
         entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in", use_container_width=True)
+        submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -218,22 +75,9 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-inject_base_styles()
 require_basic_auth()
-st.markdown(
-    """
-    <section class="app-shell">
-      <div class="app-header">
-        <div class="app-header-row">
-          <div class="app-mark">📄</div>
-          <h1 class="app-title">Bank Statement Parser (Multi-File Support)</h1>
-        </div>
-        <p class="app-subtitle">Upload one or more bank statement PDFs to extract transactions.</p>
-      </div>
-    </section>
-    """,
-    unsafe_allow_html=True,
-)
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -843,20 +687,14 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-st.markdown('<div class="section-card">', unsafe_allow_html=True)
 bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
-st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown('<div class="section-card">', unsafe_allow_html=True)
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
-st.markdown("</div>", unsafe_allow_html=True)
 
 # Manual company name override
-st.markdown('<div class="section-card">', unsafe_allow_html=True)
 st.text_input("Company Name (optional override)", key="company_name_override")
-st.markdown("</div>", unsafe_allow_html=True)
 
 # Detect encrypted files
 encrypted_files: List[str] = []
@@ -878,7 +716,7 @@ if uploaded_files:
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing", use_container_width=True, type="primary"):
+    if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -893,11 +731,11 @@ with col1:
         st.session_state.file_account_no = {}
 
 with col2:
-    if st.button("⏹️ Stop", use_container_width=True):
+    if st.button("⏹️ Stop"):
         st.session_state.status = "stopped"
 
 with col3:
-    if st.button("🔄 Reset", use_container_width=True):
+    if st.button("🔄 Reset"):
         st.session_state.status = "idle"
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
@@ -915,15 +753,7 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.markdown(
-    f"""
-    <div class="status-pill">
-      <span class="status-dot"></span>
-      Status: {st.session_state.status.upper()}
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 all_tx: List[dict] = []
