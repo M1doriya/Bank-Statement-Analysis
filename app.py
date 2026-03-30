@@ -39,124 +39,6 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-def inject_theme() -> None:
-    st.markdown(
-        """
-        <style>
-        :root {
-          --bg: #f4f6f8;
-          --surface: #ffffff;
-          --surface-soft: #f8fafc;
-          --text: #17202f;
-          --muted: #667085;
-          --line: #e6ebf1;
-          --line-strong: #d7dee8;
-          --accent: #19b3a6;
-          --accent-strong: #129589;
-          --accent-soft: #e9f8f6;
-          --radius-lg: 18px;
-          --radius-md: 14px;
-          --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-        }
-
-        .stApp {
-          background:
-            linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-            var(--bg);
-          background-size: 64px 64px;
-        }
-
-        .block-container {
-          max-width: 1120px;
-          padding-top: 1.6rem;
-          padding-bottom: 2.8rem;
-        }
-
-        .card-shell {
-          background: rgba(255, 255, 255, 0.76);
-          border: 1px solid rgba(255, 255, 255, 0.8);
-          border-radius: 28px;
-          box-shadow: var(--shadow);
-          backdrop-filter: blur(8px);
-          padding: 1.2rem 1.35rem;
-          margin-bottom: 1rem;
-        }
-
-        .app-hero {
-          padding: 1.35rem 1.35rem 0.5rem;
-          border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-          margin: -1.2rem -1.35rem 1rem;
-        }
-
-        .app-title {
-          margin: 0;
-          letter-spacing: -0.04em;
-          color: var(--text);
-        }
-
-        .app-subtitle {
-          color: var(--muted);
-          margin: 0.4rem 0 0;
-        }
-
-        .status-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.45rem 0.8rem;
-          border-radius: 999px;
-          border: 1px solid var(--line);
-          font-weight: 700;
-          color: var(--text);
-          background: rgba(255,255,255,0.9);
-          margin: 0.2rem 0 1rem;
-        }
-
-        .status-chip::before {
-          content: '';
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          background: var(--accent);
-          box-shadow: 0 0 0 6px rgba(25, 179, 166, 0.12);
-        }
-
-        div[data-testid="stForm"] {
-          border: 1px solid var(--line);
-          border-radius: var(--radius-lg);
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
-          padding: 1rem 1rem 0.25rem;
-        }
-
-        div[data-testid="stFileUploaderDropzone"] {
-          border-radius: var(--radius-lg);
-          border: 1px solid var(--line);
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
-        }
-
-        .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
-          border-radius: 14px;
-          font-weight: 700;
-          border: 1px solid var(--line-strong);
-        }
-
-        .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
-          background: var(--accent);
-          border: none;
-          color: #fff;
-          box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
-        }
-
-        .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
-          background: var(--accent-strong);
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -172,21 +54,12 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.markdown('<div class="card-shell">', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="app-hero">
-          <h1 class="app-title">🔐 Secure Access</h1>
-          <p class="app-subtitle">Sign in to continue to the Bank Statement Parser dashboard.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("🔐 Login required")
 
     with st.form("basic_auth_form"):
         entered_user = st.text_input("Username")
         entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in", type="primary")
+        submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -198,23 +71,13 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-inject_theme()
 require_basic_auth()
-st.markdown('<div class="card-shell">', unsafe_allow_html=True)
-st.markdown(
-    """
-    <div class="app-hero">
-      <h1 class="app-title">📄 Bank Statement Parser</h1>
-      <p class="app-subtitle">Upload one or more bank statement PDFs to extract, standardize, and export transactions.</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -824,9 +687,9 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-bank_choice = st.selectbox("Bank format", list(PARSERS.keys()), help="Choose the parser that matches your bank statement layout.")
+bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 
-uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, help="You can upload multiple files for batch processing.")
+uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
 
@@ -853,7 +716,7 @@ if uploaded_files:
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing", type="primary"):
+    if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -890,10 +753,7 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.markdown(
-    f'<div class="status-chip">Status: {st.session_state.status.upper()}</div>',
-    unsafe_allow_html=True,
-)
+st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 all_tx: List[dict] = []
@@ -1625,5 +1485,3 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 else:
     if uploaded_files:
         st.warning("⚠️ No transactions found — click **Start Processing**.")
-
-st.markdown("</div>", unsafe_allow_html=True)
