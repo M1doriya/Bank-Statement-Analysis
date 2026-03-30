@@ -371,52 +371,6 @@ def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
     full = "\n".join(texts)
     lines = [ln.strip() for ln in full.splitlines() if ln.strip()]
     full_upper = full.upper()
-    first_page_upper = texts[0].upper() if texts else ""
-
-    # RHB-specific hardening:
-    # Newer RHB statements may include many long numeric transaction references
-    # that can be mistaken as account numbers by generic fallbacks. Prefer the
-    # first-page account-summary/activity headers for RHB before generic logic.
-    if "RHB" in first_page_upper:
-        rhb_candidates: List[str] = []
-        first_lines = [ln.strip() for ln in texts[0].splitlines() if ln.strip()]
-
-        for ln in first_lines[:220]:
-            m = re.search(
-                r"(?:CURRENT\s*ACCOUNT(?:-I)?|SAVINGS\s*ACCOUNT(?:-I)?|ACCOUNT(?:-I)?)\s*([0-9]{10,16})\b",
-                ln,
-                re.IGNORECASE,
-            )
-            if m:
-                num = _normalize_account_no(m.group(1) or "")
-                if num:
-                    rhb_candidates.append(num)
-
-            m = re.search(
-                r"(?:ACCOUNT\s*NUMBER|NOMBOR\s+AKAUN)\s*[:\-]?\s*([0-9]{10,16})\b",
-                ln,
-                re.IGNORECASE,
-            )
-            if m:
-                num = _normalize_account_no(m.group(1) or "")
-                if num:
-                    rhb_candidates.append(num)
-
-            m = re.search(
-                r"(?:COMMODITY\s+MURABAHAH\s+)?CURRENT\s*ACCOUNT(?:-I)?\s+([0-9]{10,16})\b",
-                ln,
-                re.IGNORECASE,
-            )
-            if m:
-                num = _normalize_account_no(m.group(1) or "")
-                if num:
-                    rhb_candidates.append(num)
-
-        if rhb_candidates:
-            counts: Dict[str, int] = {}
-            for c in rhb_candidates:
-                counts[c] = counts.get(c, 0) + 1
-            return sorted(counts.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0][0]
 
     # Bank-specific hardening: RHB deposit-account summary pages often place the account number
     # in compact rows such as "ORDINARYCURRENTACCOUNT21406200114180".
