@@ -45,7 +45,7 @@ def inject_theme() -> None:
         <style>
         :root {
           --bg: #f4f6f8;
-          --surface: #ffffff;
+          --surface: #f5f7f9;
           --surface-soft: #f8fafc;
           --text: #17202f;
           --muted: #667085;
@@ -75,8 +75,8 @@ def inject_theme() -> None:
         }
 
         .card-shell {
-          background: rgba(255, 255, 255, 0.76);
-          border: 1px solid rgba(255, 255, 255, 0.8);
+          background: rgba(245, 247, 249, 0.96);
+          border: 1px solid rgba(230, 235, 241, 0.95);
           border-radius: 28px;
           box-shadow: var(--shadow);
           backdrop-filter: blur(8px);
@@ -192,14 +192,18 @@ def inject_theme() -> None:
           transition: 160ms ease;
         }
 
-        .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
+        .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"],
+        .stFormSubmitButton > button[data-testid="stBaseButton-primary"],
+        .stButton > button[data-testid="stBaseButton-primary"] {
           background: var(--accent);
           border: none;
           color: #fff;
           box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
         }
 
-        .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
+        .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover,
+        .stFormSubmitButton > button[data-testid="stBaseButton-primary"]:hover,
+        .stButton > button[data-testid="stBaseButton-primary"]:hover {
           background: var(--accent-strong);
         }
 
@@ -207,6 +211,11 @@ def inject_theme() -> None:
         .stDownloadButton > button:hover {
           background: var(--surface-soft);
           border-color: var(--line-strong);
+        }
+
+        .stCheckbox label span {
+          color: var(--muted) !important;
+          font-weight: 600 !important;
         }
         </style>
         """,
@@ -233,8 +242,8 @@ def require_basic_auth() -> None:
     st.markdown(
         """
         <div class="app-hero">
-          <h1 class="app-title">🔐 Secure Access</h1>
-          <p class="app-subtitle">Sign in to continue to the Bank Statement Parser dashboard.</p>
+          <h1 class="app-title">🔒 Login required</h1>
+          <p class="app-subtitle">Sign in to continue to the bank statement parser workspace.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -266,8 +275,8 @@ st.markdown('<div class="card-shell">', unsafe_allow_html=True)
 st.markdown(
     """
     <div class="app-hero">
-      <h1 class="app-title">📄 Bank Statement Parser</h1>
-      <p class="app-subtitle">Upload one or more bank statement PDFs to extract, standardize, and export transactions.</p>
+      <h1 class="app-title">📄 Bank Statement Parser (Multi-File Support)</h1>
+      <p class="app-subtitle">Upload one or more bank statement PDFs to extract transactions.</p>
     </div>
     """,
     unsafe_allow_html=True,
