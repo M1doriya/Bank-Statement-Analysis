@@ -372,6 +372,19 @@ def extract_account_number(pdf, max_pages: int = 2) -> Optional[str]:
     lines = [ln.strip() for ln in full.splitlines() if ln.strip()]
     full_upper = full.upper()
 
+    # Bank-specific hardening: RHB Reflex headers usually print the account number directly
+    # after "Reflex Cash Management ...", often on the next line.
+    if ("REFLEX CASH MANAGEMENT" in full_upper) and ("DEPOSIT ACCOUNT SUMMARY" in full_upper):
+        reflex_candidates: List[str] = []
+        for m in re.finditer(r"REFLEX\s+CASH\s+MANAGEMENT[^\n\r]{0,120}[\n\r]+\s*([0-9][0-9\-\s]{9,20})\b", full, re.IGNORECASE):
+            num = _normalize_account_no(m.group(1) or "")
+            if num and len(num) >= 10:
+                reflex_candidates.append(num)
+        if reflex_candidates:
+            # pick the most repeated, then the longest (stable across pages/months)
+            uniq = sorted(set(reflex_candidates), key=lambda x: (-reflex_candidates.count(x), -len(x), x))
+            return uniq[0]
+
     # Bank-specific hardening: RHB deposit-account summary pages often place the account number
     # in compact rows such as "ORDINARYCURRENTACCOUNT21406200114180".
     full_compact = re.sub(r"\s+", "", full_upper)
@@ -548,6 +561,22 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
 
 def extract_rhb_statement_totals(pdf, source_file: str) -> dict:
     full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    full_text_norm = re.sub(r"\s+", " ", full_text).strip()
+
+    def _signed_money(token: str) -> Optional[float]:
+        if not token:
+            return None
+        s = token.strip().replace(",", "")
+        sign = 1.0
+        if s.endswith("-"):
+            sign = -1.0
+            s = s[:-1]
+        elif s.endswith("+"):
+            s = s[:-1]
+        try:
+            return round(sign * float(s), 2)
+        except Exception:
+            return None
 
     period_match = re.search(
         r"Statement\s+Period.*?:\s*\d{1,2}\s+([A-Za-z]{3})\s+(\d{2,4})",
@@ -565,6 +594,22 @@ def extract_rhb_statement_totals(pdf, source_file: str) -> dict:
         if mon in month_map:
             year = int(yy) if len(yy) == 4 else (2000 + int(yy))
             statement_month = f"{year:04d}-{month_map[mon]}"
+    else:
+        # Reflex-style: "Statement Period 01 August 2025 To 31 August 2025"
+        period_match2 = re.search(
+            r"Statement\s+Period\s+\d{1,2}\s+([A-Za-z]{3,9})\s+(\d{4})\s+To\s+\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}",
+            full_text_norm,
+            re.IGNORECASE,
+        )
+        if period_match2:
+            mon = period_match2.group(1).upper()[:3]
+            yy = int(period_match2.group(2))
+            month_map = {
+                "JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05", "JUN": "06",
+                "JUL": "07", "AUG": "08", "SEP": "09", "OCT": "10", "NOV": "11", "DEC": "12",
+            }
+            if mon in month_map:
+                statement_month = f"{yy:04d}-{month_map[mon]}"
 
     opening_balance = None
     ending_balance = None
@@ -583,6 +628,33 @@ def extract_rhb_statement_totals(pdf, source_file: str) -> dict:
     if tm:
         total_debit = float(tm.group(1).replace(",", ""))
         total_credit = float(tm.group(2).replace(",", ""))
+
+    # Reflex summary fallback
+    if opening_balance is None:
+        m = re.search(
+            r"Beginning\s+Balance\s+as\s+of\s+\d{1,2}\s+[A-Za-z]{3,9}(?:\s+\d{2,4})?\s+([\d,]+\.\d{2}[+-]?)",
+            full_text_norm,
+            re.IGNORECASE,
+        )
+        opening_balance = _signed_money(m.group(1)) if m else None
+
+    if ending_balance is None:
+        m = re.search(
+            r"Ending\s+Balance\s+as\s+of\s+\d{1,2}\s+[A-Za-z]{3,9}(?:\s+\d{2,4})?\s+([\d,]+\.\d{2}[+-]?)",
+            full_text_norm,
+            re.IGNORECASE,
+        )
+        ending_balance = _signed_money(m.group(1)) if m else None
+
+    if total_credit is None:
+        m = re.search(r"\b\d+\s+Deposits\s*\(Plus\)\s+([\d,]+\.\d{2})", full_text_norm, re.IGNORECASE)
+        if m:
+            total_credit = float(m.group(1).replace(",", ""))
+
+    if total_debit is None:
+        m = re.search(r"\b\d+\s+Withdraws\s*\(Minus\)\s+([\d,]+\.\d{2})", full_text_norm, re.IGNORECASE)
+        if m:
+            total_debit = float(m.group(1).replace(",", ""))
 
     return {
         "bank": "RHB Bank",
