@@ -39,6 +39,104 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
+def inject_kreditlab_theme() -> None:
+    st.markdown(
+        """
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+            :root {
+                --kl-bg: #060d1a;
+                --kl-surface: #0d1628;
+                --kl-surface-soft: #101b31;
+                --kl-primary: #16c6b7;
+                --kl-primary-dark: #0b8f84;
+                --kl-text: #e8eefb;
+                --kl-muted: #9fb0cc;
+                --kl-border: rgba(159, 176, 204, 0.25);
+            }
+
+            html, body, [class*="css"]  {
+                font-family: 'Inter', sans-serif;
+            }
+
+            .stApp {
+                background: radial-gradient(circle at top right, #12233f 0%, var(--kl-bg) 48%);
+                color: var(--kl-text);
+            }
+
+            .kreditlab-hero {
+                background: linear-gradient(130deg, rgba(13,22,40,0.97), rgba(11,143,132,0.25));
+                border: 1px solid var(--kl-border);
+                border-radius: 18px;
+                padding: 1.4rem 1.6rem;
+                margin-bottom: 1rem;
+            }
+
+            .kreditlab-kicker {
+                color: var(--kl-primary);
+                font-size: 0.82rem;
+                letter-spacing: 0.09em;
+                text-transform: uppercase;
+                font-weight: 700;
+                margin-bottom: 0.5rem;
+            }
+
+            .kreditlab-title {
+                font-size: 1.9rem;
+                font-weight: 800;
+                line-height: 1.2;
+                margin: 0;
+            }
+
+            .kreditlab-subtitle {
+                color: var(--kl-muted);
+                margin-top: 0.7rem;
+                margin-bottom: 0;
+            }
+
+            .kreditlab-section-card {
+                background: rgba(13, 22, 40, 0.95);
+                border: 1px solid var(--kl-border);
+                border-radius: 16px;
+                padding: 1.1rem 1.2rem 0.8rem;
+                margin-bottom: 1rem;
+            }
+
+            .stTextInput > div > div > input,
+            .stSelectbox > div > div,
+            .stFileUploader > div > div {
+                background: var(--kl-surface-soft);
+                color: var(--kl-text);
+                border: 1px solid var(--kl-border);
+                border-radius: 10px;
+            }
+
+            .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+                border-radius: 10px;
+                border: 1px solid transparent;
+                font-weight: 600;
+            }
+
+            .stButton > button[kind="primary"], .stFormSubmitButton > button {
+                background: linear-gradient(135deg, var(--kl-primary), var(--kl-primary-dark));
+                color: #ffffff;
+            }
+
+            .kreditlab-login-card {
+                max-width: 580px;
+                margin: 8vh auto 0;
+                background: rgba(13, 22, 40, 0.96);
+                border: 1px solid var(--kl-border);
+                border-radius: 18px;
+                padding: 1.4rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -54,12 +152,22 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.subheader("🔐 Login required")
+    st.markdown('<div class="kreditlab-login-card">', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="kreditlab-kicker">KreditLab-Inspired Access</div>
+        <h2 style="margin:0;">🔐 Secure Login</h2>
+        <p class="kreditlab-subtitle">Sign in to access statement parsing, summaries, and report downloads.</p>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.form("basic_auth_form"):
         entered_user = st.text_input("Username")
         entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
+        submitted = st.form_submit_button("Sign in", type="primary", use_container_width=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -75,9 +183,18 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
+inject_kreditlab_theme()
 require_basic_auth()
-st.title("📄 Bank Statement Parser (Multi-File Support)")
-st.write("Upload one or more bank statement PDFs to extract transactions.")
+st.markdown(
+    """
+    <div class="kreditlab-hero">
+        <div class="kreditlab-kicker">For Malaysian SMEs</div>
+        <h1 class="kreditlab-title">📄 Bank Statement Analysis Workspace</h1>
+        <p class="kreditlab-subtitle">Upload one or more statement PDFs and generate clean transactions, monthly summaries, and downloadable reports in minutes.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # -----------------------------
@@ -687,6 +804,9 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
+st.markdown('<div class="kreditlab-section-card">', unsafe_allow_html=True)
+st.markdown("### ⚙️ Workspace Setup")
+
 bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
@@ -716,7 +836,7 @@ if uploaded_files:
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing"):
+    if st.button("▶️ Start Processing", type="primary", use_container_width=True):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -731,11 +851,11 @@ with col1:
         st.session_state.file_account_no = {}
 
 with col2:
-    if st.button("⏹️ Stop"):
+    if st.button("⏹️ Stop", use_container_width=True):
         st.session_state.status = "stopped"
 
 with col3:
-    if st.button("🔄 Reset"):
+    if st.button("🔄 Reset", use_container_width=True):
         st.session_state.status = "idle"
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
@@ -753,7 +873,8 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
+st.info(f"Current status: {st.session_state.status.upper()}")
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 all_tx: List[dict] = []
@@ -1366,6 +1487,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 ) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals) or (
     bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals
 ):
+    st.markdown('<div class="kreditlab-section-card">', unsafe_allow_html=True)
     st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
@@ -1481,6 +1603,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "full_report.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 else:
     if uploaded_files:
