@@ -12,6 +12,7 @@ STATEMENT_DATE_RE = re.compile(r"STATEMENT\s+DATE\s*:?\s*(\d{2})/(\d{2})/(\d{2,4
 
 # Amount tokens usually look like: 1,630.00-  or  9,576.40+
 MONEY_RE = re.compile(r"^-?(?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2}[+-]?$")
+BALANCE_CENTS_ONLY_RE = re.compile(r"^\.\d{2}[+-]?$")
 
 FOOTER_KEYWORDS = (
     "ENDING BALANCE",
@@ -343,23 +344,31 @@ def parse_transactions_maybank(pdf_input: Any, source_filename: str = "") -> Lis
                 # Transaction row
                 if effective_date and money_left is not None:
                     money_tokens = [it["text"] for it in line_items if it["is_money"]]
-                    if len(money_tokens) >= 2:
-                        # balance is the last money token
-                        bal_val, _ = _money_token_value(money_tokens[-1])
+                    if len(money_tokens) >= 2 or (len(money_tokens) == 1 and prev_balance is not None):
+                        bal_val: Optional[float] = None
+
+                        # Normal case: balance is the last money token.
+                        if len(money_tokens) >= 2:
+                            bal_val, _ = _money_token_value(money_tokens[-1])
 
                         # Choose transaction amount: prefer last signed token before balance
                         amt_val: Optional[float] = None
                         amt_sign: Optional[str] = None
 
-                        for t in reversed(money_tokens[:-1]):
-                            v, sgn = _money_token_value(t)
-                            if sgn in ("+", "-"):
-                                amt_val, amt_sign = v, sgn
-                                break
+                        if len(money_tokens) >= 2:
+                            for t in reversed(money_tokens[:-1]):
+                                v, sgn = _money_token_value(t)
+                                if sgn in ("+", "-"):
+                                    amt_val, amt_sign = v, sgn
+                                    break
 
-                        if amt_val is None:
-                            v, sgn = _money_token_value(money_tokens[-2])
-                            amt_val, amt_sign = v, sgn
+                            if amt_val is None:
+                                v, sgn = _money_token_value(money_tokens[-2])
+                                amt_val, amt_sign = v, sgn
+                        else:
+                            # OCR fallback: some lines lose integer digits on the balance token
+                            # (e.g. ".02"), leaving only one parseable money token.
+                            amt_val, amt_sign = _money_token_value(money_tokens[0])
 
                         # Description tokens by x-range
                         desc_left = date_x_end if date_x_end is not None else pending_date_x_end
@@ -391,7 +400,7 @@ def parse_transactions_maybank(pdf_input: Any, source_filename: str = "") -> Lis
                             debit = float(amt_val)
                         else:
                             # Fallback: balance delta if sign missing
-                            if prev_balance is not None:
+                            if prev_balance is not None and bal_val is not None:
                                 delta = round(bal_val - prev_balance, 2)
                                 if delta > 0:
                                     credit = abs(delta)
@@ -399,6 +408,28 @@ def parse_transactions_maybank(pdf_input: Any, source_filename: str = "") -> Lis
                                     debit = abs(delta)
                             else:
                                 debit = float(amt_val)
+
+                        # Infer missing balance for one-money-token rows.
+                        if bal_val is None and prev_balance is not None:
+                            if amt_sign == "+":
+                                bal_val = round(prev_balance + float(amt_val), 2)
+                            elif amt_sign == "-":
+                                bal_val = round(prev_balance - float(amt_val), 2)
+
+                            # If a cents-only token exists in the balance column, enforce cents.
+                            for it in reversed(line_items):
+                                if it["is_money"]:
+                                    continue
+                                if it["x0"] <= money_left:
+                                    continue
+                                if BALANCE_CENTS_ONLY_RE.match(it["text"]):
+                                    cents = int(it["text"][-2:])
+                                    if bal_val is not None:
+                                        bal_val = round(int(bal_val) + (cents / 100.0), 2)
+                                    break
+
+                        if bal_val is None:
+                            continue
 
                         # Conservative OCR correction using balance delta
                         # (Fix digit swaps / missing decimals, without breaking correct values)
