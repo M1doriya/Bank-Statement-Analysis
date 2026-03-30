@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auth Layer</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #17202f;
+      --muted: #667085;
+      --line: #e6ebf1;
+      --line-strong: #d7dee8;
+      --accent: #19b3a6;
+      --accent-strong: #129589;
+      --accent-soft: #e9f8f6;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+        var(--bg);
+      background-size: 64px 64px;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      width: min(760px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      align-items: center;
+      padding: 40px 0;
+    }
+
+    .shell {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 32px 34px 18px;
+      border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .lock-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 1.4rem;
+      flex: none;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      line-height: 1.06;
+      letter-spacing: -0.05em;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.7;
+      max-width: 520px;
+    }
+
+    .content {
+      padding: 26px 34px 34px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .field-group {
+      display: grid;
+      gap: 10px;
+    }
+
+    label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input {
+      width: 100%;
+      height: 56px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.96);
+      padding: 0 18px;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .input.with-icon {
+      padding-right: 56px;
+    }
+
+    .input:focus {
+      border-color: rgba(25, 179, 166, 0.5);
+      box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11);
+      background: #fff;
+    }
+
+    .toggle-visibility {
+      position: absolute;
+      top: 50%;
+      right: 14px;
+      transform: translateY(-50%);
+      width: 34px;
+      height: 34px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 10px;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .toggle-visibility:hover {
+      background: var(--surface-soft);
+      color: var(--text);
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: -4px;
+    }
+
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .checkbox input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .link {
+      color: var(--accent-strong);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+      height: 50px;
+      padding: 0 18px;
+      border-radius: 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 160ms ease;
+    }
+
+    .primary-btn {
+      width: 100%;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+    }
+
+    .primary-btn:hover {
+      background: var(--accent-strong);
+    }
+
+    .secondary-btn {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .secondary-btn:hover {
+      background: var(--surface-soft);
+    }
+
+    .footer-note {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      padding-top: 4px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 2px 0;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(100% - 20px, 760px);
+      }
+
+      .page {
+        padding: 20px 0;
+      }
+
+      .header,
+      .content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .meta-row {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container page">
+    <section class="shell">
+      <div class="header">
+        <div class="header-row">
+          <div class="lock-mark">🔒</div>
+          <h1>Login required</h1>
+        </div>
+        <p class="subtitle">Sign in to continue to the bank statement parser workspace.</p>
+      </div>
+
+      <div class="content">
+        <div class="field-group">
+          <label for="username">Username</label>
+          <div class="input-wrap">
+            <input id="username" class="input" type="text" placeholder="Enter your username" />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input id="password" class="input with-icon" type="password" placeholder="Enter your password" />
+            <button class="toggle-visibility" type="button">◉</button>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <label class="checkbox"><input type="checkbox" /> <span>Remember me</span></label>
+          <a class="link" href="#">Forgot password?</a>
+        </div>
+
+        <button class="primary-btn">Sign in</button>
+
+        <div class="divider"></div>
+
+        <div class="footer-note">
+          <span>Need access?</span>
+          <a class="link" href="#">Contact administrator</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bank Statement Parser</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #17202f;
+      --muted: #667085;
+      --line: #e6ebf1;
+      --line-strong: #d7dee8;
+      --accent: #19b3a6;
+      --accent-strong: #129589;
+      --accent-soft: #e9f8f6;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+        var(--bg);
+      background-size: 64px 64px;
+      color: var(--text);
+    }
+
+    .container {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .page {
+      padding: 56px 0 72px;
+    }
+
+    .shell {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 34px 36px 18px;
+      border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 12px;
+    }
+
+    .file-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 1.5rem;
+      flex: none;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.3rem);
+      line-height: 1.05;
+      letter-spacing: -0.05em;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.7;
+      max-width: 720px;
+    }
+
+    .content {
+      padding: 28px 36px 36px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .field-group {
+      display: grid;
+      gap: 10px;
+    }
+
+    label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .select,
+    .input {
+      width: 100%;
+      height: 56px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.96);
+      padding: 0 18px;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .select:focus,
+    .input:focus {
+      border-color: rgba(25, 179, 166, 0.5);
+      box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11);
+      background: #fff;
+    }
+
+    .upload-box {
+      min-height: 104px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px 22px;
+    }
+
+    .upload-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .upload-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--accent-strong);
+      font-size: 1.1rem;
+      flex: none;
+    }
+
+    .upload-copy {
+      min-width: 0;
+    }
+
+    .upload-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .upload-meta {
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.55;
+    }
+
+    .secondary-btn,
+    .primary-btn {
+      height: 50px;
+      padding: 0 18px;
+      border-radius: 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 160ms ease;
+    }
+
+    .secondary-btn {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .secondary-btn:hover {
+      background: var(--surface-soft);
+    }
+
+    .primary-btn {
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+    }
+
+    .primary-btn:hover {
+      background: var(--accent-strong);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 14px;
+      align-items: center;
+      padding-top: 2px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 20px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid var(--line);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
+      flex: none;
+    }
+
+    .status-label {
+      color: var(--muted);
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    @media (max-width: 760px) {
+      .container {
+        width: min(100% - 20px, 1120px);
+      }
+
+      .page {
+        padding: 18px 0 28px;
+      }
+
+      .header,
+      .content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .header-row,
+      .upload-box,
+      .actions {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .upload-box {
+        align-items: flex-start;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .secondary-btn,
+      .primary-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container page">
+    <section class="shell">
+      <div class="header">
+        <div class="header-row">
+          <div class="file-mark">📄</div>
+          <h1>Bank Statement Parser (Multi-File Support)</h1>
+        </div>
+        <p class="subtitle">Upload one or more bank statement PDFs to extract transactions.</p>
+      </div>
+
+      <div class="content">
+        <div class="field-group">
+          <label for="bank">Select Bank Format</label>
+          <select id="bank" class="select">
+            <option>Affin Bank</option>
+            <option>Maybank</option>
+            <option>CIMB</option>
+            <option>Public Bank</option>
+            <option>RHB Bank</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label>Upload PDF files</label>
+          <div class="upload-box">
+            <div class="upload-left">
+              <div class="upload-icon">⤴</div>
+              <div class="upload-copy">
+                <div class="upload-title">Drag and drop files here</div>
+                <div class="upload-meta">Limit 200MB per file • PDF</div>
+              </div>
+            </div>
+            <button class="secondary-btn">Browse files</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="company">Company Name (optional override)</label>
+          <input id="company" class="input" type="text" />
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn">Start Processing</button>
+          <button class="secondary-btn">Stop</button>
+          <button class="secondary-btn">Reset</button>
+        </div>
+
+        <div class="status">
+          <span class="status-dot"></span>
+          <div><span class="status-label">Status:</span> IDLE</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
