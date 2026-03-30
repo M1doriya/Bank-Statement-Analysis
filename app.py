@@ -65,7 +65,6 @@ def inject_theme() -> None:
             linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
             var(--bg);
           background-size: 64px 64px;
-          color: var(--text);
         }
 
         .block-container {
@@ -130,66 +129,16 @@ def inject_theme() -> None:
           padding: 1rem 1rem 0.25rem;
         }
 
-        div[data-testid="stForm"] label,
-        .stSelectbox label,
-        .stTextInput label,
-        .stFileUploader label {
-          color: var(--text) !important;
-          font-weight: 700 !important;
-        }
-
-        div[data-baseweb="select"] > div,
-        div[data-baseweb="input"] > div {
-          background: rgba(255, 255, 255, 0.96) !important;
-          border: 1px solid var(--line) !important;
-          border-radius: var(--radius-md) !important;
-          color: var(--text) !important;
-          min-height: 56px;
-        }
-
-        div[data-baseweb="select"] * ,
-        div[data-baseweb="input"] * {
-          color: var(--text) !important;
-        }
-
-        div[data-baseweb="select"] > div:focus-within,
-        div[data-baseweb="input"] > div:focus-within {
-          border-color: rgba(25, 179, 166, 0.5) !important;
-          box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
-          background: #fff !important;
-        }
-
-        .stTextInput input {
-          color: var(--text) !important;
-          caret-color: var(--text) !important;
-        }
-
-        .stTextInput input::placeholder {
-          color: var(--muted) !important;
-          opacity: 1 !important;
-        }
-
         div[data-testid="stFileUploaderDropzone"] {
           border-radius: var(--radius-lg);
           border: 1px solid var(--line);
           background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
         }
 
-        div[data-testid="stFileUploaderDropzone"] * {
-          color: var(--text) !important;
-        }
-
-        div[data-testid="stFileUploaderDropzone"] small {
-          color: var(--muted) !important;
-        }
-
         .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
           border-radius: 14px;
           font-weight: 700;
           border: 1px solid var(--line-strong);
-          background: #fff;
-          color: var(--text);
-          transition: 160ms ease;
         }
 
         .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
@@ -201,12 +150,6 @@ def inject_theme() -> None:
 
         .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
           background: var(--accent-strong);
-        }
-
-        .stButton > button:not([kind="primary"]):hover,
-        .stDownloadButton > button:hover {
-          background: var(--surface-soft);
-          border-color: var(--line-strong);
         }
         </style>
         """,
