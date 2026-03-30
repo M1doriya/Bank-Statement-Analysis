@@ -54,12 +54,23 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.subheader("🔐 Login required")
+    st.markdown(
+        """
+        <div class="auth-shell">
+            <div class="auth-eyebrow">Secure workspace</div>
+            <h1>Sign in to continue</h1>
+            <p>Access the bank statement parser with your credentials.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with st.form("basic_auth_form"):
-        entered_user = st.text_input("Username")
-        entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
+    _, center, _ = st.columns([1.2, 2, 1.2])
+    with center:
+        with st.form("basic_auth_form"):
+            entered_user = st.text_input("Username", placeholder="Enter your username")
+            entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
+            submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -75,9 +86,136 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+
+    :root {
+        --bg: #f5f8fa;
+        --surface: rgba(255, 255, 255, 0.88);
+        --surface-strong: #ffffff;
+        --border: #dbe4ec;
+        --text: #1f2a44;
+        --muted: #51627b;
+        --primary: #20b7a6;
+        --primary-dark: #109385;
+    }
+
+    .stApp {
+        font-family: 'Manrope', sans-serif;
+        color: var(--text);
+        background:
+            linear-gradient(rgba(31, 42, 68, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(31, 42, 68, 0.05) 1px, transparent 1px),
+            var(--bg);
+        background-size: 56px 56px, 56px 56px, auto;
+    }
+
+    h1, h2, h3 {
+        color: var(--text);
+    }
+
+    .title-main {
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.25rem;
+    }
+
+    .subtitle-main {
+        color: var(--muted);
+        font-size: 1.05rem;
+        margin-bottom: 1rem;
+    }
+
+    .auth-shell,
+    .hero-shell {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 1.4rem 1.5rem;
+        backdrop-filter: blur(3px);
+        margin-bottom: 1rem;
+    }
+
+    .auth-shell h1,
+    .hero-shell h1 {
+        margin: 0.25rem 0 0.5rem 0;
+        font-family: 'Playfair Display', serif;
+        letter-spacing: -0.015em;
+    }
+
+    .auth-shell p,
+    .hero-shell p {
+        margin: 0;
+        color: var(--muted);
+    }
+
+    .auth-eyebrow,
+    .hero-eyebrow {
+        width: fit-content;
+        color: var(--primary-dark);
+        border: 1px solid rgba(32, 183, 166, 0.45);
+        background: rgba(32, 183, 166, 0.13);
+        padding: 0.28rem 0.72rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div,
+    .stFileUploader {
+        border-radius: 12px !important;
+    }
+
+    .stButton > button,
+    .stDownloadButton > button,
+    .stFormSubmitButton > button {
+        border-radius: 12px !important;
+        border: 1px solid transparent !important;
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+        transition: transform .15s ease, box-shadow .2s ease !important;
+        box-shadow: 0 10px 20px rgba(16, 147, 133, 0.18);
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover,
+    .stFormSubmitButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 24px rgba(16, 147, 133, 0.25);
+    }
+
+    .stDataFrame, .stAlert, .stExpander, .stMarkdown, .stTextInput, .stSelectbox, .stFileUploader {
+        color: var(--text);
+    }
+
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 require_basic_auth()
-st.title("📄 Bank Statement Parser (Multi-File Support)")
-st.write("Upload one or more bank statement PDFs to extract transactions.")
+st.markdown(
+    """
+    <div class="hero-shell">
+        <div class="hero-eyebrow">Multi-bank workflow</div>
+        <h1 class="title-main">Bank Statement Parser</h1>
+        <p class="subtitle-main">Upload one or more statement PDFs to extract transactions, standardize monthly summaries, and export reports.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # -----------------------------
@@ -687,6 +825,7 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
+st.markdown("### Setup")
 bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
@@ -714,6 +853,7 @@ if uploaded_files:
         st.text_input("PDF Password", type="password", key="pdf_password")
 
 
+st.markdown("### Controls")
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Processing"):
@@ -753,7 +893,17 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
+status_color = {"idle": "#51627b", "running": "#109385", "stopped": "#c05621"}.get(st.session_state.status, "#51627b")
+st.markdown(
+    f"""
+    <div style="margin-top:0.75rem;margin-bottom:0.75rem;padding:0.75rem 1rem;border-radius:12px;
+        border:1px solid rgba(31,42,68,0.14);background:rgba(255,255,255,0.8);">
+        <strong style="color:{status_color};">Status:</strong>
+        <span style="font-weight:700;color:{status_color};margin-left:4px;">{st.session_state.status.upper()}</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 all_tx: List[dict] = []
