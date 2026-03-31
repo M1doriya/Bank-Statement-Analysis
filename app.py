@@ -412,15 +412,31 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             [data-testid="stFileUploaderFile"],
             [data-testid="stFileUploaderFileData"],
-            [data-testid="stFileUploaderDeleteBtn"] {{
+            [data-testid="stFileUploaderFileName"],
+            [data-testid="stFileUploaderDeleteBtn"],
+            [data-testid^="stFileUploaderFile"] {{
                 display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                min-height: 0 !important;
+                max-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                overflow: hidden !important;
             }}
 
             [data-testid="stFileUploader"] ul,
-            [data-testid="stFileUploader"] li {{
+            [data-testid="stFileUploader"] li,
+            [data-testid="stFileUploader"] [role="list"],
+            [data-testid="stFileUploader"] [role="listitem"] {{
                 margin: 0 !important;
                 padding: 0 !important;
                 list-style: none !important;
+            }}
+
+            .action-row-anchor {{
+                margin-top: 8px;
             }}
 
             [data-testid="stFileUploaderFile"] *,
@@ -1254,8 +1270,11 @@ st.markdown('<div class="section-title">Upload PDF files</div>', unsafe_allow_ht
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, label_visibility="collapsed")
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
+    selected_names = ", ".join(f.name for f in uploaded_files[:3])
+    if len(uploaded_files) > 3:
+        selected_names += f" +{len(uploaded_files)-3} more"
     st.markdown(
-        f'<div style="margin:-6px 0 16px; color:#667085; font-size:0.94rem;">{len(uploaded_files)} file(s) selected</div>',
+        f'<div style="margin:-6px 0 16px; color:#667085; font-size:0.94rem;"><strong>{len(uploaded_files)} file(s) selected</strong> — {selected_names}</div>',
         unsafe_allow_html=True,
     )
 
@@ -1280,6 +1299,7 @@ if uploaded_files:
         st.markdown('<div class="section-title">PDF Password</div>', unsafe_allow_html=True)
         st.text_input("PDF Password", type="password", key="pdf_password", label_visibility="collapsed", placeholder="Enter your password")
 
+st.markdown('<div class="action-row-anchor"></div>', unsafe_allow_html=True)
 col1, col2, col3 = st.columns([1.25, 1, 1])
 with col1:
     start_clicked = st.button("Start Processing", use_container_width=True, key="start_processing_btn")
