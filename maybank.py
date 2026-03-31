@@ -478,11 +478,22 @@ def parse_transactions_maybank(pdf_input: Any, source_filename: str = "") -> Lis
     finally:
         doc.close()
 
-    # Dedupe (ignore description differences; keep unique by numeric signature)
+    # Dedupe exact duplicates only.
+    # Important: some statements legitimately contain multiple transactions
+    # with the same date/debit/credit/balance on the same page, so we must
+    # keep rows when descriptions differ.
     seen = set()
     out: List[Dict] = []
     for t in txs:
-        key = (t["date"], t["debit"], t["credit"], t["balance"], t["page"], t["source_file"])
+        key = (
+            t["date"],
+            t["description"],
+            t["debit"],
+            t["credit"],
+            t["balance"],
+            t["page"],
+            t["source_file"],
+        )
         if key in seen:
             continue
         seen.add(key)
