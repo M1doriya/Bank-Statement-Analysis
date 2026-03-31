@@ -40,11 +40,13 @@ from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
 
-def inject_custom_theme() -> None:
+def inject_custom_theme(authenticated: bool = True) -> None:
+    page_mode = "app" if authenticated else "login"
+    max_width = "1120px" if authenticated else "760px"
     st.markdown(
-        """
+        f"""
         <style>
-            :root {
+            :root {{
                 --bg: #f4f6f8;
                 --surface: #ffffff;
                 --surface-soft: #f8fafc;
@@ -58,55 +60,50 @@ def inject_custom_theme() -> None:
                 --radius-lg: 18px;
                 --radius-md: 14px;
                 --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-            }
+            }}
 
-            .stApp {
+            .stApp {{
                 background:
                     linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
                     linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
                     var(--bg);
                 background-size: 64px 64px;
                 color: var(--text);
-            }
+            }}
 
-            [data-testid="stHeader"], #MainMenu, footer {
+            [data-testid="stHeader"], #MainMenu, footer {{
                 display: none !important;
-            }
+            }}
 
-            .block-container {
-                max-width: 1120px;
-                padding-top: 2rem;
+            .block-container {{
+                max-width: {max_width};
+                padding-top: 2.6rem;
                 padding-bottom: 3rem;
-            }
+            }}
 
-            .ui-shell {
+            .page-card {{
                 background: rgba(255, 255, 255, 0.72);
                 border: 1px solid rgba(255, 255, 255, 0.7);
                 border-radius: 28px;
                 box-shadow: var(--shadow);
                 backdrop-filter: blur(8px);
                 overflow: hidden;
-                margin-bottom: 1.25rem;
-            }
+                margin-bottom: 1.5rem;
+            }}
 
-            .ui-shell.login-shell {
-                max-width: 760px;
-                margin: 4rem auto 0;
-            }
-
-            .ui-header {
-                padding: 34px 36px 18px;
+            .page-card .ui-header {{
+                padding: 34px 36px 26px;
                 border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-            }
+            }}
 
-            .ui-header-row {
+            .ui-header-row {{
                 display: flex;
                 align-items: center;
                 gap: 18px;
                 margin-bottom: 12px;
-            }
+            }}
 
-            .ui-mark {
+            .ui-mark {{
                 width: 54px;
                 height: 54px;
                 border-radius: 16px;
@@ -116,44 +113,102 @@ def inject_custom_theme() -> None:
                 color: var(--accent-strong);
                 font-size: 1.5rem;
                 flex: none;
-            }
+            }}
 
-            .ui-shell h1, .ui-shell h2, .ui-shell h3, .ui-shell p {
+            .page-card h1, .page-card h2, .page-card h3, .page-card p {{
                 margin: 0;
-            }
+            }}
 
-            .ui-title {
-                font-size: clamp(2rem, 4vw, 3.2rem);
+            .ui-title {{
+                font-size: clamp(2rem, 4vw, 3.3rem);
                 line-height: 1.05;
                 letter-spacing: -0.05em;
                 font-weight: 800;
                 color: var(--text);
-            }
+            }}
 
-            .login-shell .ui-title {
-                font-size: clamp(1.8rem, 4vw, 2.8rem);
-            }
-
-            .ui-subtitle {
+            .ui-subtitle {{
                 color: var(--muted);
                 font-size: 1rem;
                 line-height: 1.7;
                 max-width: 720px;
-            }
+            }}
 
-            .ui-content {
-                padding: 28px 36px 36px;
-            }
-
-            .section-title {
-                font-size: 1rem;
+            .section-title {{
+                font-size: 0.95rem;
                 font-weight: 700;
                 letter-spacing: -0.01em;
-                margin-bottom: 0.45rem;
+                margin: 0 0 0.5rem 0;
                 color: var(--text);
-            }
+            }}
 
-            .status-card {
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="input"] > div,
+            .stTextInput input,
+            .stSelectbox div[data-baseweb="select"] > div,
+            .stFileUploader section {{
+                border-radius: 14px !important;
+                border: 1px solid var(--line) !important;
+                background: rgba(255, 255, 255, 0.96) !important;
+                box-shadow: none !important;
+            }}
+
+            .stTextInput input,
+            .stSelectbox div[data-baseweb="select"] > div {{
+                min-height: 56px !important;
+            }}
+
+            .stTextInput input {{
+                color: var(--text) !important;
+            }}
+
+            .stTextInput input:focus,
+            .stSelectbox div[data-baseweb="select"] > div:focus-within {{
+                border-color: rgba(25, 179, 166, 0.5) !important;
+                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
+            }}
+
+            .stFileUploader > div {{
+                border: 0 !important;
+                padding: 0 !important;
+            }}
+
+            .stFileUploader section {{
+                min-height: 104px;
+                border-radius: 18px !important;
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
+                padding: 20px 22px !important;
+            }}
+
+            .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {{
+                height: 50px;
+                border-radius: 14px;
+                font-weight: 700;
+                transition: 160ms ease;
+            }}
+
+            .stButton > button, .stDownloadButton > button {{
+                border: 1px solid var(--line-strong) !important;
+                background: #fff !important;
+                color: var(--text) !important;
+            }}
+
+            .stFormSubmitButton > button {{
+                border: none !important;
+                background: var(--accent) !important;
+                color: #fff !important;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+            }}
+
+            .stButton > button:hover, .stDownloadButton > button:hover {{
+                background: var(--surface-soft) !important;
+            }}
+
+            .stFormSubmitButton > button:hover {{
+                background: var(--accent-strong) !important;
+            }}
+
+            .status-card {{
                 display: flex;
                 align-items: center;
                 gap: 12px;
@@ -163,123 +218,58 @@ def inject_custom_theme() -> None:
                 border: 1px solid var(--line);
                 font-size: 1rem;
                 font-weight: 700;
-                margin-top: 0.35rem;
-            }
+                margin-top: 0.5rem;
+            }}
 
-            .status-dot {
+            .status-dot {{
                 width: 12px;
                 height: 12px;
                 border-radius: 999px;
                 background: var(--accent);
                 box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
                 flex: none;
-            }
+            }}
 
-            .status-label {
+            .status-label {{
                 color: var(--muted);
                 font-weight: 600;
                 margin-right: 6px;
-            }
+            }}
 
-            div[data-baseweb="select"] > div,
-            div[data-baseweb="input"] > div,
-            div[data-baseweb="textarea"] > div,
-            .stTextInput input,
-            .stSelectbox div[data-baseweb="select"] > div,
-            .stFileUploader > div > div {
-                border-radius: 14px !important;
-                border: 1px solid var(--line) !important;
-                background: rgba(255, 255, 255, 0.96) !important;
-                min-height: 56px !important;
-                box-shadow: none !important;
-            }
-
-            .stTextInput input {
-                color: var(--text) !important;
-            }
-
-            .stTextInput input:focus,
-            .stSelectbox div[data-baseweb="select"] > div:focus-within {
-                border-color: rgba(25, 179, 166, 0.5) !important;
-                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
-            }
-
-            .stFileUploader > div {
-                border: 0 !important;
-                padding: 0 !important;
-            }
-
-            .stFileUploader section {
-                min-height: 104px;
-                border-radius: 18px !important;
-                border: 1px solid var(--line) !important;
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
-                padding: 20px 22px !important;
-            }
-
-            .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
-                height: 50px;
-                border-radius: 14px;
-                font-weight: 700;
-                transition: 160ms ease;
-            }
-
-            .stButton > button,
-            .stDownloadButton > button {
-                border: 1px solid var(--line-strong) !important;
-                background: #fff !important;
-                color: var(--text) !important;
-            }
-
-            .stFormSubmitButton > button {
-                border: none !important;
-                background: var(--accent) !important;
-                color: #fff !important;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
-            }
-
-            .stFormSubmitButton > button:hover {
-                background: var(--accent-strong) !important;
-            }
-
-            .stAlert {
-                border-radius: 16px;
-                border: 1px solid var(--line);
-            }
-
-            .stDataFrame, [data-testid="stDataFrame"] {
-                border-radius: 18px;
-                overflow: hidden;
-                border: 1px solid var(--line);
-                background: rgba(255, 255, 255, 0.82);
-            }
+            .footer-note {{
+                display:flex;
+                justify-content:center;
+                color:#667085;
+                font-size:0.92rem;
+                padding-top:0.75rem;
+            }}
 
             [data-testid="column"] .stButton > button,
-            [data-testid="column"] .stDownloadButton > button {
+            [data-testid="column"] .stDownloadButton > button,
+            .stFormSubmitButton > button {{
                 width: 100%;
-            }
+            }}
 
-            @media (max-width: 760px) {
-                .block-container {
+            @media (max-width: 760px) {{
+                .block-container {{
                     padding-left: 1rem;
                     padding-right: 1rem;
-                }
-                .ui-header, .ui-content {
+                }}
+                .page-card .ui-header {{
                     padding-left: 18px;
                     padding-right: 18px;
-                }
-            }
+                }}
+            }}
         </style>
+        <script>document.body.setAttribute('data-page-mode', '{page_mode}');</script>
         """,
         unsafe_allow_html=True,
     )
 
-
 def render_shell_header(icon: str, title: str, subtitle: str, login: bool = False) -> None:
-    shell_class = "ui-shell login-shell" if login else "ui-shell"
     st.markdown(
         f"""
-        <div class="{shell_class}">
+        <div class="page-card">
             <div class="ui-header">
                 <div class="ui-header-row">
                     <div class="ui-mark">{icon}</div>
@@ -287,14 +277,14 @@ def render_shell_header(icon: str, title: str, subtitle: str, login: bool = Fals
                 </div>
                 <p class="ui-subtitle">{subtitle}</p>
             </div>
-            <div class="ui-content">
+        </div>
         """,
         unsafe_allow_html=True,
     )
 
 
 def close_shell() -> None:
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    return
 
 
 def render_status_card(status: str) -> None:
@@ -346,16 +336,12 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
-    st.markdown(
-        '<div style="display:flex;justify-content:center;color:#667085;font-size:0.92rem;padding-top:4px;">Need access? Contact administrator</div>',
-        unsafe_allow_html=True,
-    )
-    close_shell()
+    st.markdown('<div class="footer-note">Need access? Contact administrator</div>', unsafe_allow_html=True)
     st.stop()
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide", initial_sidebar_state="collapsed")
-inject_custom_theme()
+inject_custom_theme(authenticated=bool(st.session_state.get("is_authenticated")))
 require_basic_auth()
 
 
