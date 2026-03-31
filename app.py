@@ -42,7 +42,8 @@ from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 def inject_custom_theme(authenticated: bool = True) -> None:
     page_mode = "app" if authenticated else "login"
-    max_width = "1120px" if authenticated else "760px"
+    max_width = "1120px" if authenticated else "950px"
+    padding = "2.25rem 1.25rem 3rem" if authenticated else "5rem 1rem 4rem"
     st.markdown(
         f"""
         <style>
@@ -76,96 +77,103 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             .block-container {{
-                max-width: {max_width};
-                padding-top: 2.6rem;
-                padding-bottom: 3rem;
+                max-width: {max_width} !important;
+                padding: {padding} !important;
             }}
 
-            .page-card {{
+            [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] {{
                 background: rgba(255, 255, 255, 0.72);
                 border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
+                border-radius: 32px;
                 box-shadow: var(--shadow);
                 backdrop-filter: blur(8px);
                 overflow: hidden;
-                margin-bottom: 1.5rem;
             }}
 
-            .page-card .ui-header {{
-                padding: 34px 36px 26px;
+            body[data-page-mode="login"] [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] {{
+                max-width: 950px !important;
+                margin-top: 4vh;
+            }}
+
+            .ui-shell-header {{
+                padding: 42px 44px 26px;
                 border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+                margin: -1px -1px 28px;
             }}
 
             .ui-header-row {{
                 display: flex;
                 align-items: center;
-                gap: 18px;
-                margin-bottom: 12px;
+                gap: 24px;
+                margin-bottom: 14px;
             }}
 
             .ui-mark {{
-                width: 54px;
-                height: 54px;
-                border-radius: 16px;
+                width: 66px;
+                height: 66px;
+                border-radius: 18px;
                 display: grid;
                 place-items: center;
                 background: var(--accent-soft);
                 color: var(--accent-strong);
-                font-size: 1.5rem;
+                font-size: 1.9rem;
                 flex: none;
             }}
 
-            .page-card h1, .page-card h2, .page-card h3, .page-card p {{
-                margin: 0;
-            }}
-
             .ui-title {{
-                font-size: clamp(2rem, 4vw, 3.3rem);
-                line-height: 1.05;
-                letter-spacing: -0.05em;
+                margin: 0;
+                font-size: clamp(3.1rem, 4.8vw, 4.35rem);
+                line-height: 0.95;
+                letter-spacing: -0.07em;
                 font-weight: 800;
                 color: var(--text);
             }}
 
             .ui-subtitle {{
+                margin: 0;
                 color: var(--muted);
-                font-size: 1rem;
-                line-height: 1.7;
-                max-width: 720px;
+                font-size: 0.98rem;
+                line-height: 1.75;
+                max-width: 760px;
             }}
 
-            .section-title {{
-                font-size: 0.95rem;
-                font-weight: 700;
-                letter-spacing: -0.01em;
-                margin: 0 0 0.5rem 0;
-                color: var(--text);
+            .stSelectbox, .stTextInput, .stFileUploader, .stCheckbox, .stButton, .stDownloadButton, .stForm {{
+                margin-bottom: 0.7rem;
+            }}
+
+            .stTextInput label, .stSelectbox label, .stFileUploader label {{
+                font-size: 0.95rem !important;
+                font-weight: 800 !important;
+                color: var(--text) !important;
             }}
 
             div[data-baseweb="select"] > div,
             div[data-baseweb="input"] > div,
             .stTextInput input,
-            .stSelectbox div[data-baseweb="select"] > div,
-            .stFileUploader section {{
-                border-radius: 14px !important;
+            .stSelectbox div[data-baseweb="select"] > div {{
+                border-radius: 18px !important;
                 border: 1px solid var(--line) !important;
                 background: rgba(255, 255, 255, 0.96) !important;
                 box-shadow: none !important;
-            }}
-
-            .stTextInput input,
-            .stSelectbox div[data-baseweb="select"] > div {{
                 min-height: 56px !important;
             }}
 
             .stTextInput input {{
+                padding-left: 22px !important;
+                font-size: 1rem !important;
                 color: var(--text) !important;
+            }}
+
+            .stTextInput input::placeholder {{
+                color: #98a2b3 !important;
+                opacity: 1 !important;
             }}
 
             .stTextInput input:focus,
             .stSelectbox div[data-baseweb="select"] > div:focus-within {{
                 border-color: rgba(25, 179, 166, 0.5) !important;
                 box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
+                background: #fff !important;
             }}
 
             .stFileUploader > div {{
@@ -174,17 +182,36 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             .stFileUploader section {{
-                min-height: 104px;
-                border-radius: 18px !important;
+                min-height: 104px !important;
+                border-radius: 20px !important;
+                border: 1px solid var(--line) !important;
                 background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
-                padding: 20px 22px !important;
+                padding: 22px 22px !important;
             }}
 
-            .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {{
-                height: 50px;
-                border-radius: 14px;
-                font-weight: 700;
-                transition: 160ms ease;
+            .stFileUploader section button {{
+                border-radius: 16px !important;
+                border: 1px solid var(--line-strong) !important;
+                background: #fff !important;
+                color: var(--text) !important;
+                font-weight: 700 !important;
+                min-height: 48px !important;
+                padding: 0 18px !important;
+            }}
+
+            .stFileUploader small {{
+                color: var(--muted) !important;
+            }}
+
+            .stButton > button,
+            .stDownloadButton > button,
+            .stFormSubmitButton > button {{
+                height: 50px !important;
+                border-radius: 16px !important;
+                font-weight: 700 !important;
+                font-size: 1rem !important;
+                transition: 160ms ease !important;
+                width: 100% !important;
             }}
 
             .stButton > button, .stDownloadButton > button {{
@@ -193,32 +220,61 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 color: var(--text) !important;
             }}
 
+            .stButton > button:hover, .stDownloadButton > button:hover {{
+                background: var(--surface-soft) !important;
+            }}
+
             .stFormSubmitButton > button {{
                 border: none !important;
                 background: var(--accent) !important;
                 color: #fff !important;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
-            }}
-
-            .stButton > button:hover, .stDownloadButton > button:hover {{
-                background: var(--surface-soft) !important;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
             }}
 
             .stFormSubmitButton > button:hover {{
                 background: var(--accent-strong) !important;
             }}
 
+            .meta-row {{
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:12px;
+                margin: 8px 0 14px;
+            }}
+
+            .meta-row .fake-link, .footer-note .fake-link {{
+                color: var(--accent-strong);
+                text-decoration: none;
+                font-weight: 700;
+            }}
+
+            .login-divider {{
+                height:1px;
+                background: var(--line);
+                margin: 16px 0 18px;
+            }}
+
+            .footer-note {{
+                display:flex;
+                justify-content:center;
+                gap:8px;
+                color:#667085;
+                font-size:0.92rem;
+                padding: 4px 0 8px;
+            }}
+
             .status-card {{
-                display: flex;
-                align-items: center;
-                gap: 12px;
+                display:flex;
+                align-items:center;
+                gap:12px;
                 padding: 18px 20px;
-                border-radius: var(--radius-lg);
+                border-radius: 18px;
                 background: rgba(255, 255, 255, 0.82);
                 border: 1px solid var(--line);
                 font-size: 1rem;
                 font-weight: 700;
-                margin-top: 0.5rem;
+                margin-top: 0.75rem;
             }}
 
             .status-dot {{
@@ -232,32 +288,29 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             .status-label {{
                 color: var(--muted);
-                font-weight: 600;
+                font-weight: 700;
                 margin-right: 6px;
-            }}
-
-            .footer-note {{
-                display:flex;
-                justify-content:center;
-                color:#667085;
-                font-size:0.92rem;
-                padding-top:0.75rem;
-            }}
-
-            [data-testid="column"] .stButton > button,
-            [data-testid="column"] .stDownloadButton > button,
-            .stFormSubmitButton > button {{
-                width: 100%;
             }}
 
             @media (max-width: 760px) {{
                 .block-container {{
-                    padding-left: 1rem;
-                    padding-right: 1rem;
+                    padding: 1rem 0.75rem 2rem !important;
                 }}
-                .page-card .ui-header {{
-                    padding-left: 18px;
-                    padding-right: 18px;
+                .ui-shell-header {{
+                    padding: 28px 20px 20px;
+                }}
+                .ui-header-row {{
+                    gap: 16px;
+                    align-items: flex-start;
+                }}
+                .ui-mark {{
+                    width: 54px;
+                    height: 54px;
+                    font-size: 1.4rem;
+                }}
+                .ui-title {{
+                    font-size: clamp(2.3rem, 8vw, 3.2rem);
+                    line-height: 0.98;
                 }}
             }}
         </style>
@@ -266,25 +319,20 @@ def inject_custom_theme(authenticated: bool = True) -> None:
         unsafe_allow_html=True,
     )
 
-def render_shell_header(icon: str, title: str, subtitle: str, login: bool = False) -> None:
+
+def render_shell_header(icon: str, title: str, subtitle: str) -> None:
     st.markdown(
         f"""
-        <div class="page-card">
-            <div class="ui-header">
-                <div class="ui-header-row">
-                    <div class="ui-mark">{icon}</div>
-                    <div class="ui-title">{title}</div>
-                </div>
-                <p class="ui-subtitle">{subtitle}</p>
+        <div class="ui-shell-header">
+            <div class="ui-header-row">
+                <div class="ui-mark">{icon}</div>
+                <h1 class="ui-title">{title}</h1>
             </div>
+            <p class="ui-subtitle">{subtitle}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-
-def close_shell() -> None:
-    return
 
 
 def render_status_card(status: str) -> None:
@@ -299,8 +347,8 @@ def render_status_card(status: str) -> None:
         unsafe_allow_html=True,
     )
 
+
 def require_basic_auth() -> None:
-    """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
     configured_pass = os.getenv("BASIC_AUTH_PASS")
 
@@ -318,12 +366,15 @@ def require_basic_auth() -> None:
         "🔒",
         "Login required",
         "Sign in to continue to the bank statement parser workspace.",
-        login=True,
     )
 
     with st.form("basic_auth_form", clear_on_submit=False):
         entered_user = st.text_input("Username", placeholder="Enter your username")
         entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
+        st.markdown(
+            '<div class="meta-row"><div style="color:#667085;font-weight:700;">☐&nbsp;&nbsp;Remember me</div><div class="fake-link">Forgot password?</div></div>',
+            unsafe_allow_html=True,
+        )
         submitted = st.form_submit_button("Sign in", use_container_width=True)
 
     if submitted:
@@ -336,14 +387,13 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
-    st.markdown('<div class="footer-note">Need access? Contact administrator</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-divider"></div><div class="footer-note"><span>Need access?</span><span class="fake-link">Contact administrator</span></div>', unsafe_allow_html=True)
     st.stop()
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide", initial_sidebar_state="collapsed")
 inject_custom_theme(authenticated=bool(st.session_state.get("is_authenticated")))
 require_basic_auth()
-
 
 # -----------------------------
 # Session state init
