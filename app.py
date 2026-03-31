@@ -40,10 +40,12 @@ from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
 
+
 def inject_custom_theme(authenticated: bool = True) -> None:
     page_mode = "app" if authenticated else "login"
-    max_width = "1120px" if authenticated else "950px"
-    padding = "2.25rem 1.25rem 3rem" if authenticated else "5rem 1rem 4rem"
+    max_width = "1120px" if authenticated else "760px"
+    top_margin = "38px" if authenticated else "58px"
+
     st.markdown(
         f"""
         <style>
@@ -63,6 +65,10 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
             }}
 
+            html, body, [class*="css"] {{
+                font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+            }}
+
             .stApp {{
                 background:
                     linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
@@ -76,55 +82,54 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 display: none !important;
             }}
 
+            [data-testid="stAppViewContainer"] > .main {{
+                background: transparent !important;
+            }}
+
             .block-container {{
                 max-width: {max_width} !important;
-                padding: {padding} !important;
-            }}
-
-            [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] {{
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 32px;
-                box-shadow: var(--shadow);
+                padding: 0 34px 34px !important;
+                margin: {top_margin} auto 44px !important;
+                background: rgba(255, 255, 255, 0.72) !important;
+                border: 1px solid rgba(255, 255, 255, 0.7) !important;
+                border-radius: 28px !important;
+                box-shadow: var(--shadow) !important;
                 backdrop-filter: blur(8px);
-                overflow: hidden;
-            }}
-
-            body[data-page-mode="login"] [data-testid="stAppViewContainer"] [data-testid="stMainBlockContainer"] {{
-                max-width: 950px !important;
-                margin-top: 4vh;
+                -webkit-backdrop-filter: blur(8px);
+                overflow: hidden !important;
             }}
 
             .ui-shell-header {{
-                padding: 42px 44px 26px;
+                padding: 34px 36px 18px;
                 border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-                margin: -1px -1px 28px;
+                margin: 0 -34px 28px;
             }}
 
             .ui-header-row {{
                 display: flex;
                 align-items: center;
-                gap: 24px;
-                margin-bottom: 14px;
+                gap: 18px;
+                margin-bottom: 12px;
             }}
 
             .ui-mark {{
-                width: 66px;
-                height: 66px;
+                width: 58px;
+                height: 58px;
                 border-radius: 18px;
                 display: grid;
                 place-items: center;
                 background: var(--accent-soft);
                 color: var(--accent-strong);
-                font-size: 1.9rem;
+                font-size: 1.65rem;
+                line-height: 1;
                 flex: none;
             }}
 
             .ui-title {{
                 margin: 0;
-                font-size: clamp(3.1rem, 4.8vw, 4.35rem);
-                line-height: 0.95;
-                letter-spacing: -0.07em;
+                font-size: clamp(2.2rem, 4vw, 3.35rem);
+                line-height: 1.04;
+                letter-spacing: -0.055em;
                 font-weight: 800;
                 color: var(--text);
             }}
@@ -132,99 +137,156 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             .ui-subtitle {{
                 margin: 0;
                 color: var(--muted);
-                font-size: 0.98rem;
-                line-height: 1.75;
-                max-width: 760px;
+                font-size: 1rem;
+                line-height: 1.7;
+                max-width: 720px;
             }}
 
-            .stSelectbox, .stTextInput, .stFileUploader, .stCheckbox, .stButton, .stDownloadButton, .stForm {{
-                margin-bottom: 0.7rem;
+            .section-title {{
+                font-size: 0.95rem;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+                color: var(--text);
+                margin: 4px 0 10px;
             }}
 
-            .stTextInput label, .stSelectbox label, .stFileUploader label {{
-                font-size: 0.95rem !important;
-                font-weight: 800 !important;
+            .stForm {{
+                border: 0 !important;
+            }}
+
+            .stTextInput, .stSelectbox, .stFileUploader, .stButton, .stDownloadButton, .stForm {{
+                margin-bottom: 14px !important;
+            }}
+
+            .stTextInput label, .stSelectbox label, .stFileUploader label, .stCheckbox label {{
                 color: var(--text) !important;
+                font-size: 0.95rem !important;
+                font-weight: 700 !important;
+                letter-spacing: -0.01em !important;
             }}
 
-            div[data-baseweb="select"] > div,
-            div[data-baseweb="input"] > div,
-            .stTextInput input,
-            .stSelectbox div[data-baseweb="select"] > div {{
-                border-radius: 18px !important;
+            div[data-baseweb="input"] {{
                 border: 1px solid var(--line) !important;
-                background: rgba(255, 255, 255, 0.96) !important;
+                border-radius: 14px !important;
+                background: rgba(255,255,255,0.96) !important;
                 box-shadow: none !important;
                 min-height: 56px !important;
+                overflow: hidden !important;
             }}
 
-            .stTextInput input {{
-                padding-left: 22px !important;
-                font-size: 1rem !important;
+            div[data-baseweb="input"] > div {{
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                min-height: 56px !important;
+                overflow: hidden !important;
+            }}
+
+            div[data-baseweb="input"] input {{
+                background: transparent !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                min-height: 56px !important;
+                padding: 0 18px !important;
                 color: var(--text) !important;
+                font-size: 1rem !important;
             }}
 
-            .stTextInput input::placeholder {{
+            div[data-baseweb="input"] input::placeholder {{
                 color: #98a2b3 !important;
                 opacity: 1 !important;
             }}
 
-            .stTextInput input:focus,
-            .stSelectbox div[data-baseweb="select"] > div:focus-within {{
+            div[data-baseweb="input"]:focus-within {{
                 border-color: rgba(25, 179, 166, 0.5) !important;
                 box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
                 background: #fff !important;
             }}
 
-            .stFileUploader > div {{
-                border: 0 !important;
-                padding: 0 !important;
-            }}
-
-            .stFileUploader section {{
-                min-height: 104px !important;
-                border-radius: 20px !important;
+            div[data-baseweb="select"] > div {{
+                border-radius: 14px !important;
                 border: 1px solid var(--line) !important;
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
-                padding: 22px 22px !important;
+                background: rgba(255,255,255,0.96) !important;
+                box-shadow: none !important;
+                min-height: 56px !important;
+                padding-left: 10px !important;
             }}
 
-            .stFileUploader section button {{
-                border-radius: 16px !important;
+            div[data-baseweb="select"] > div:focus-within {{
+                border-color: rgba(25, 179, 166, 0.5) !important;
+                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
+                background: #fff !important;
+            }}
+
+            div[data-baseweb="select"] span {{
+                color: var(--text) !important;
+                font-size: 1rem !important;
+            }}
+
+            div[data-baseweb="select"] svg {{
+                color: var(--muted) !important;
+            }}
+
+            .stFileUploader > div {{
+                padding: 0 !important;
+                border: 0 !important;
+            }}
+
+            [data-testid="stFileUploaderDropzone"], .stFileUploader section {{
+                min-height: 104px !important;
+                border: 1px solid var(--line) !important;
+                border-radius: 18px !important;
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
+                padding: 20px 22px !important;
+            }}
+
+            [data-testid="stFileUploaderDropzone"] > div {{
+                gap: 18px !important;
+            }}
+
+            .stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] span {{
+                color: var(--muted) !important;
+            }}
+
+            .stFileUploader button {{
+                height: 50px !important;
+                border-radius: 14px !important;
                 border: 1px solid var(--line-strong) !important;
                 background: #fff !important;
                 color: var(--text) !important;
                 font-weight: 700 !important;
-                min-height: 48px !important;
-                padding: 0 18px !important;
-            }}
-
-            .stFileUploader small {{
-                color: var(--muted) !important;
+                box-shadow: none !important;
             }}
 
             .stButton > button,
             .stDownloadButton > button,
             .stFormSubmitButton > button {{
                 height: 50px !important;
-                border-radius: 16px !important;
+                border-radius: 14px !important;
+                padding: 0 18px !important;
                 font-weight: 700 !important;
                 font-size: 1rem !important;
                 transition: 160ms ease !important;
-                width: 100% !important;
+                box-shadow: none !important;
             }}
 
-            .stButton > button, .stDownloadButton > button {{
+            .stButton > button,
+            .stDownloadButton > button {{
                 border: 1px solid var(--line-strong) !important;
                 background: #fff !important;
                 color: var(--text) !important;
             }}
 
-            .stButton > button:hover, .stDownloadButton > button:hover {{
+            .stButton > button:hover,
+            .stDownloadButton > button:hover {{
                 background: var(--surface-soft) !important;
+                border-color: var(--line-strong) !important;
+                color: var(--text) !important;
             }}
 
             .stFormSubmitButton > button {{
+                width: 100% !important;
                 border: none !important;
                 background: var(--accent) !important;
                 color: #fff !important;
@@ -236,45 +298,49 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             .meta-row {{
-                display:flex;
-                align-items:center;
-                justify-content:space-between;
-                gap:12px;
-                margin: 8px 0 14px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin: 6px 0 16px;
+                color: var(--muted);
+                font-size: 0.94rem;
             }}
 
-            .meta-row .fake-link, .footer-note .fake-link {{
+            .meta-row .fake-link,
+            .footer-note .fake-link {{
                 color: var(--accent-strong);
                 text-decoration: none;
-                font-weight: 700;
+                font-weight: 600;
             }}
 
             .login-divider {{
-                height:1px;
+                height: 1px;
                 background: var(--line);
-                margin: 16px 0 18px;
+                margin: 2px 0 18px;
             }}
 
             .footer-note {{
-                display:flex;
-                justify-content:center;
-                gap:8px;
-                color:#667085;
-                font-size:0.92rem;
-                padding: 4px 0 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                color: var(--muted);
+                font-size: 0.92rem;
+                padding-top: 4px;
             }}
 
             .status-card {{
-                display:flex;
-                align-items:center;
-                gap:12px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
                 padding: 18px 20px;
                 border-radius: 18px;
-                background: rgba(255, 255, 255, 0.82);
+                background: rgba(255,255,255,0.82);
                 border: 1px solid var(--line);
                 font-size: 1rem;
                 font-weight: 700;
-                margin-top: 0.75rem;
+                margin-top: 8px;
             }}
 
             .status-dot {{
@@ -288,37 +354,65 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             .status-label {{
                 color: var(--muted);
-                font-weight: 700;
+                font-weight: 600;
                 margin-right: 6px;
+            }}
+
+            div[data-testid="column"]:nth-of-type(1) .stButton > button[data-testid="baseButton-secondary"] {{
+                border: none !important;
+                background: var(--accent) !important;
+                color: #fff !important;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
+            }}
+
+            div[data-testid="column"]:nth-of-type(1) .stButton > button[data-testid="baseButton-secondary"]:hover {{
+                background: var(--accent-strong) !important;
+            }}
+
+            .stAlert {{
+                border-radius: 14px !important;
             }}
 
             @media (max-width: 760px) {{
                 .block-container {{
-                    padding: 1rem 0.75rem 2rem !important;
+                    padding: 0 18px 24px !important;
+                    margin-top: 20px !important;
                 }}
+
                 .ui-shell-header {{
-                    padding: 28px 20px 20px;
+                    padding: 28px 18px 18px;
+                    margin-left: -18px;
+                    margin-right: -18px;
                 }}
+
                 .ui-header-row {{
                     gap: 16px;
                     align-items: flex-start;
                 }}
+
                 .ui-mark {{
                     width: 54px;
                     height: 54px;
-                    font-size: 1.4rem;
+                    font-size: 1.45rem;
                 }}
+
                 .ui-title {{
-                    font-size: clamp(2.3rem, 8vw, 3.2rem);
-                    line-height: 0.98;
+                    font-size: clamp(1.9rem, 8vw, 2.9rem);
+                }}
+
+                .meta-row {{
+                    flex-wrap: wrap;
                 }}
             }}
         </style>
-        <script>document.body.setAttribute('data-page-mode', '{page_mode}');</script>
+        <script>
+            const setMode = () => document.body.setAttribute("data-page-mode", "{page_mode}");
+            setMode();
+            window.addEventListener("load", setMode);
+        </script>
         """,
         unsafe_allow_html=True,
     )
-
 
 def render_shell_header(icon: str, title: str, subtitle: str) -> None:
     st.markdown(
