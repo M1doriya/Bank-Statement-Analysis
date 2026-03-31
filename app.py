@@ -412,16 +412,16 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             [data-testid="stFileUploaderFile"],
             [data-testid="stFileUploaderFileData"],
-            [data-testid="stFileUploaderDeleteBtn"] {
+            [data-testid="stFileUploaderDeleteBtn"] {{
                 display: none !important;
-            }
+            }}
 
             [data-testid="stFileUploader"] ul,
-            [data-testid="stFileUploader"] li {
+            [data-testid="stFileUploader"] li {{
                 margin: 0 !important;
                 padding: 0 !important;
                 list-style: none !important;
-            }
+            }}
 
             [data-testid="stFileUploaderFile"] *,
             [data-testid="stFileUploaderFileName"],
