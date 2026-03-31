@@ -172,7 +172,7 @@ _COMPANY_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _COMPANY_BAD_WORDS_RE = re.compile(
-    r"\b(STATEMENT|ACCOUNT\s+STATEMENT|CURRENT\s+ACCOUNT|PAGE\b|BALANCE\b|SUMMARY\b|TRANSACTION|ENQUIRIES|BRANCH|PIDM|DATE\b|MUKA\b|HALAMAN\b)\b",
+    r"\b(STATEMENT|ACCOUNT\s+STATEMENT|CURRENT\s+ACCOUNT|PAGE\b|BALANCE\b|SUMMARY\b|TRANSACTION|ENQUIRIES|BRANCH|PIDM|DATE\b|MUKA\b|HALAMAN\b|結單日期|结单日期)\b",
     re.IGNORECASE,
 )
 
@@ -181,7 +181,7 @@ def _clean_candidate_name(s: str) -> str:
     s = (s or "").strip()
     # stop at common trailing fields
     s = re.split(
-        r"\s{2,}|ACCOUNT\s+NO|A\/C\s+NO|NO\.\s*AKAUN|NO\s+AKAUN|STATEMENT|PENYATA|DATE|TARIKH|CURRENCY|BRANCH|PAGE|HALAMAN",
+        r"\s{2,}|ACCOUNT\s+NO|A\/C\s+NO|NO\.\s*AKAUN|NO\s+AKAUN|STATEMENT|PENYATA|DATE|TARIKH|CURRENCY|BRANCH|PAGE|HALAMAN|結單日期|结单日期",
         s,
         flags=re.IGNORECASE,
     )[0].strip()
