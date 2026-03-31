@@ -39,293 +39,6 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-
-def apply_template_theme() -> None:
-    """Apply app-wide styling aligned with the provided UI templates."""
-    st.markdown(
-        """
-        <style>
-          :root {
-            --bg: #f4f6f8;
-            --surface: #ffffff;
-            --surface-soft: #f8fafc;
-            --text: #17202f;
-            --muted: #667085;
-            --line: #e6ebf1;
-            --line-strong: #d7dee8;
-            --accent: #19b3a6;
-            --accent-strong: #129589;
-            --accent-soft: #e9f8f6;
-            --radius-lg: 18px;
-            --radius-md: 14px;
-            --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-          }
-
-          .stApp {
-            color: var(--text);
-            background:
-              linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-              var(--bg);
-            background-size: 64px 64px;
-          }
-
-          .main .block-container {
-            max-width: 1120px;
-            padding-top: 2rem;
-            padding-bottom: 3rem;
-          }
-
-          .app-shell {
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(8px);
-            padding: 1.6rem 1.6rem 1.1rem 1.6rem;
-            margin-bottom: 1rem;
-          }
-
-          .main-panel {
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(8px);
-            padding: 1.35rem 1.6rem 1.5rem 1.6rem;
-            margin-bottom: 1rem;
-          }
-
-          .main-panel-divider {
-            height: 1px;
-            margin: -0.2rem -1.6rem 1.2rem -1.6rem;
-            background: rgba(23, 32, 47, 0.08);
-          }
-
-          .app-title-row {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            margin-bottom: 0.4rem;
-          }
-
-          .app-mark {
-            width: 54px;
-            height: 54px;
-            border-radius: 16px;
-            display: grid;
-            place-items: center;
-            background: var(--accent-soft);
-            color: var(--accent-strong);
-            font-size: 1.5rem;
-            flex: none;
-          }
-
-          .app-title {
-            margin: 0;
-            color: var(--text);
-            font-size: clamp(1.75rem, 3.1vw, 2.7rem);
-            line-height: 1.08;
-            letter-spacing: -0.04em;
-            font-weight: 800;
-          }
-
-          .app-subtitle {
-            margin: 0;
-            color: var(--muted);
-            font-size: 1rem;
-            line-height: 1.6;
-          }
-
-          .auth-shell {
-            max-width: 900px;
-            margin: 1.25rem auto;
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(8px);
-            overflow: hidden;
-          }
-
-          .auth-header {
-            padding: 2rem 2.1rem 1.4rem 2.1rem;
-            border-bottom: 1px solid rgba(23, 32, 47, 0.08);
-          }
-
-          .auth-body,
-          .auth-footer {
-            padding-left: 2.1rem;
-            padding-right: 2.1rem;
-          }
-
-          .auth-body {
-            padding-top: 1.5rem;
-            padding-bottom: 1.35rem;
-          }
-
-          .auth-meta-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            margin-top: 0.35rem;
-            margin-bottom: 0.35rem;
-          }
-
-          .auth-link {
-            color: var(--accent-strong);
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 1.05rem;
-          }
-
-          .auth-divider {
-            height: 1px;
-            background: var(--line);
-            margin-top: 1.2rem;
-          }
-
-          .auth-footer {
-            text-align: center;
-            color: var(--muted);
-            font-size: 1.03rem;
-            padding-top: 1.05rem;
-            padding-bottom: 2rem;
-          }
-
-          .auth-footer .auth-link {
-            margin-left: 0.25rem;
-          }
-
-          div[data-testid="stCheckbox"] label p {
-            color: #5e6c87 !important;
-            font-weight: 700 !important;
-            font-size: 1rem !important;
-          }
-
-          div[data-testid="stForm"] {
-            background: transparent;
-            border: 0;
-            border-radius: 0;
-            padding: 0;
-          }
-
-          div[data-testid="stTextInput"] label p {
-            color: var(--text) !important;
-            font-weight: 700 !important;
-          }
-
-          div[data-testid="stTextInput"] input {
-            height: 56px !important;
-            border: 1px solid var(--line) !important;
-            border-radius: var(--radius-md) !important;
-            color: var(--text) !important;
-            background: rgba(255, 255, 255, 0.96) !important;
-          }
-
-          div[data-testid="stTextInput"] input:focus {
-            border-color: rgba(25, 179, 166, 0.5) !important;
-            box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
-          }
-
-          .stButton > button,
-          .stDownloadButton > button,
-          div[data-testid="stFormSubmitButton"] button {
-            border-radius: 14px !important;
-            height: 50px !important;
-            font-weight: 700 !important;
-          }
-
-          div[data-testid="stFormSubmitButton"] button,
-          .stButton > button[kind="primary"] {
-            border: none !important;
-            background: var(--accent) !important;
-            color: #ffffff !important;
-            box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
-          }
-
-          div[data-testid="stFormSubmitButton"] button:hover,
-          .stButton > button[kind="primary"]:hover {
-            background: var(--accent-strong) !important;
-            color: #ffffff !important;
-          }
-
-          .stButton > button {
-            border: 1px solid var(--line-strong) !important;
-            background: #ffffff !important;
-            color: var(--text) !important;
-          }
-
-          .stButton > button:hover {
-            background: var(--surface-soft) !important;
-            color: var(--text) !important;
-            border-color: var(--line-strong) !important;
-          }
-
-          div[data-baseweb="select"] > div,
-          section[data-testid="stFileUploaderDropzone"] {
-            border: 1px solid var(--line) !important;
-            border-radius: var(--radius-md) !important;
-            background: rgba(255, 255, 255, 0.96) !important;
-          }
-
-          section[data-testid="stFileUploaderDropzone"] {
-            min-height: 102px;
-          }
-
-          div[data-testid="stFileUploaderDropzoneInstructions"] span,
-          div[data-testid="stFileUploaderDropzoneInstructions"] small {
-            color: var(--muted) !important;
-          }
-
-          div[data-testid="stFileUploaderDropzone"] button {
-            border-radius: 14px !important;
-            border: 1px solid var(--line-strong) !important;
-            color: var(--text) !important;
-            background: #fff !important;
-            font-weight: 700 !important;
-          }
-
-          .stAlert p, .stMarkdown p, .stMarkdown li, .st-emotion-cache-10trblm {
-            color: var(--text);
-          }
-
-          .status-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.82);
-            padding: 0.95rem 1rem;
-            margin-top: 0.5rem;
-          }
-
-          .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-            background: var(--accent);
-            box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
-          }
-
-          .status-label {
-            color: var(--muted);
-            font-weight: 700;
-            margin-right: 6px;
-          }
-
-          .status-value {
-            color: var(--text);
-            font-weight: 800;
-            letter-spacing: 0.02em;
-          }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -341,43 +54,12 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.markdown(
-        """
-        <section class="auth-shell">
-          <div class="auth-header">
-            <div class="app-title-row">
-              <div class="app-mark">🔐</div>
-              <h1 class="app-title">Login required</h1>
-            </div>
-            <p class="app-subtitle">Sign in to continue to the bank statement parser workspace.</p>
-          </div>
-          <div class="auth-body">
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("🔐 Login required")
 
     with st.form("basic_auth_form"):
-        entered_user = st.text_input("Username", placeholder="Enter your username")
-        entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
-        cols = st.columns([1, 1])
-        with cols[0]:
-            st.checkbox("Remember me", key="remember_me")
-        with cols[1]:
-            st.markdown(
-                '<div style="text-align:right;padding-top:0.45rem;"><a class="auth-link" href="#">Forgot password?</a></div>',
-                unsafe_allow_html=True,
-            )
-        submitted = st.form_submit_button("Sign in", type="primary", use_container_width=True)
-
-    st.markdown(
-        """
-          </div>
-          <div class="auth-divider"></div>
-          <div class="auth-footer">Need access? <a class="auth-link" href="#">Contact administrator</a></div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+        entered_user = st.text_input("Username")
+        entered_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -393,21 +75,9 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-apply_template_theme()
 require_basic_auth()
-st.markdown(
-    """
-    <section class="app-shell">
-      <div class="app-title-row">
-        <div class="app-mark">📄</div>
-        <h1 class="app-title">Bank Statement Parser (Multi-File Support)</h1>
-      </div>
-      <p class="app-subtitle">Upload one or more bank statement PDFs to extract transactions.</p>
-    </section>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown('<section class="main-panel"><div class="main-panel-divider"></div>', unsafe_allow_html=True)
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -1111,9 +781,9 @@ if uploaded_files:
         st.text_input("PDF Password", type="password", key="pdf_password")
 
 
-col1, col2, col3 = st.columns([6, 1, 1])
+col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("Start Processing", type="primary", use_container_width=True):
+    if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -1128,11 +798,11 @@ with col1:
         st.session_state.file_account_no = {}
 
 with col2:
-    if st.button("Stop", use_container_width=True):
+    if st.button("⏹️ Stop"):
         st.session_state.status = "stopped"
 
 with col3:
-    if st.button("Reset", use_container_width=True):
+    if st.button("🔄 Reset"):
         st.session_state.status = "idle"
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
@@ -1150,16 +820,7 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.markdown(
-    f"""
-    <div class="status-card">
-      <div class="status-dot"></div>
-      <div><span class="status-label">Status:</span> <span class="status-value">{st.session_state.status.upper()}</span></div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown("</section>", unsafe_allow_html=True)
+st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 all_tx: List[dict] = []
