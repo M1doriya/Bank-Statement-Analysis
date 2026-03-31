@@ -39,147 +39,6 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-def inject_template_theme() -> None:
-    """Apply the provided template's visual language across the app."""
-    st.markdown(
-        """
-        <style>
-            :root {
-                --bg: #f4f6f8;
-                --surface: #ffffff;
-                --surface-soft: #f8fafc;
-                --text: #17202f;
-                --muted: #667085;
-                --line: #e6ebf1;
-                --line-strong: #d7dee8;
-                --accent: #19b3a6;
-                --accent-strong: #129589;
-                --accent-soft: #e9f8f6;
-                --radius-lg: 18px;
-                --radius-md: 14px;
-                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-            }
-
-            .stApp {
-                font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                color: var(--text);
-                background:
-                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    var(--bg);
-                background-size: 64px 64px;
-            }
-
-            [data-testid="stAppViewContainer"] > .main .block-container {
-                max-width: 1120px;
-                padding-top: 2.5rem;
-                padding-bottom: 2.5rem;
-            }
-
-            div[data-testid="stForm"] {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                box-shadow: var(--shadow);
-                border-radius: 28px;
-                padding: 1.25rem 1.3rem;
-            }
-
-            div[data-testid="stForm"] [data-testid="stFormSubmitButton"] button,
-            .stButton > button[kind="primary"] {
-                border: none;
-                background: var(--accent);
-                color: #fff;
-                border-radius: 14px;
-                font-weight: 700;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
-                min-height: 2.75rem;
-            }
-
-            .stButton > button[kind="primary"]:hover,
-            div[data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {
-                background: var(--accent-strong);
-            }
-
-            .stButton > button[kind="secondary"] {
-                border: 1px solid var(--line-strong);
-                background: #fff;
-                color: var(--text);
-                border-radius: 14px;
-                font-weight: 700;
-                min-height: 2.75rem;
-            }
-
-            .stButton > button[kind="secondary"]:hover {
-                background: var(--surface-soft);
-            }
-
-            .stTextInput input,
-            .stSelectbox > div > div,
-            .stFileUploader > div {
-                border: 1px solid var(--line) !important;
-                border-radius: 14px !important;
-                background: rgba(255, 255, 255, 0.96) !important;
-            }
-
-            .stAlert {
-                border-radius: var(--radius-md);
-                border: 1px solid var(--line);
-            }
-
-            .template-shell {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                overflow: hidden;
-                margin-bottom: 1rem;
-            }
-
-            .template-header {
-                padding: 1.8rem 2rem 1rem;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-            }
-
-            .template-row {
-                display: flex;
-                align-items: center;
-                gap: 0.85rem;
-                margin-bottom: 0.55rem;
-            }
-
-            .template-mark {
-                width: 54px;
-                height: 54px;
-                border-radius: 16px;
-                display: grid;
-                place-items: center;
-                background: var(--accent-soft);
-                color: var(--accent-strong);
-                font-size: 1.4rem;
-                flex: none;
-            }
-
-            .template-header h1 {
-                margin: 0;
-                font-size: clamp(1.8rem, 4vw, 3rem);
-                line-height: 1.05;
-                letter-spacing: -0.05em;
-                font-weight: 800;
-                color: var(--text);
-            }
-
-            .template-header p {
-                margin: 0;
-                color: var(--muted);
-                line-height: 1.65;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -195,20 +54,7 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.markdown(
-        """
-        <section class="template-shell">
-            <div class="template-header">
-                <div class="template-row">
-                    <div class="template-mark">🔐</div>
-                    <h1>Login required</h1>
-                </div>
-                <p>Please sign in with your preset username and password to access the parser.</p>
-            </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("🔐 Login required")
 
     with st.form("basic_auth_form"):
         entered_user = st.text_input("Username")
@@ -229,22 +75,9 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-inject_template_theme()
 require_basic_auth()
-st.markdown(
-    """
-    <section class="template-shell">
-        <div class="template-header">
-            <div class="template-row">
-                <div class="template-mark">📄</div>
-                <h1>Bank Statement Parser (Multi-File Support)</h1>
-            </div>
-            <p>Upload one or more bank statement PDFs to extract transactions.</p>
-        </div>
-    </section>
-    """,
-    unsafe_allow_html=True,
-)
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -950,7 +783,7 @@ if uploaded_files:
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing", type="primary"):
+    if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -965,11 +798,11 @@ with col1:
         st.session_state.file_account_no = {}
 
 with col2:
-    if st.button("⏹️ Stop", type="secondary"):
+    if st.button("⏹️ Stop"):
         st.session_state.status = "stopped"
 
 with col3:
-    if st.button("🔄 Reset", type="secondary"):
+    if st.button("🔄 Reset"):
         st.session_state.status = "idle"
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
