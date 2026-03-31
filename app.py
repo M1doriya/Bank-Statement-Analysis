@@ -39,6 +39,276 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
+
+def inject_custom_theme() -> None:
+    st.markdown(
+        """
+        <style>
+            :root {
+                --bg: #f4f6f8;
+                --surface: #ffffff;
+                --surface-soft: #f8fafc;
+                --text: #17202f;
+                --muted: #667085;
+                --line: #e6ebf1;
+                --line-strong: #d7dee8;
+                --accent: #19b3a6;
+                --accent-strong: #129589;
+                --accent-soft: #e9f8f6;
+                --radius-lg: 18px;
+                --radius-md: 14px;
+                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
+            }
+
+            .stApp {
+                background:
+                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+                    var(--bg);
+                background-size: 64px 64px;
+                color: var(--text);
+            }
+
+            [data-testid="stHeader"], #MainMenu, footer {
+                display: none !important;
+            }
+
+            .block-container {
+                max-width: 1120px;
+                padding-top: 2rem;
+                padding-bottom: 3rem;
+            }
+
+            .ui-shell {
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid rgba(255, 255, 255, 0.7);
+                border-radius: 28px;
+                box-shadow: var(--shadow);
+                backdrop-filter: blur(8px);
+                overflow: hidden;
+                margin-bottom: 1.25rem;
+            }
+
+            .ui-shell.login-shell {
+                max-width: 760px;
+                margin: 4rem auto 0;
+            }
+
+            .ui-header {
+                padding: 34px 36px 18px;
+                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+            }
+
+            .ui-header-row {
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                margin-bottom: 12px;
+            }
+
+            .ui-mark {
+                width: 54px;
+                height: 54px;
+                border-radius: 16px;
+                display: grid;
+                place-items: center;
+                background: var(--accent-soft);
+                color: var(--accent-strong);
+                font-size: 1.5rem;
+                flex: none;
+            }
+
+            .ui-shell h1, .ui-shell h2, .ui-shell h3, .ui-shell p {
+                margin: 0;
+            }
+
+            .ui-title {
+                font-size: clamp(2rem, 4vw, 3.2rem);
+                line-height: 1.05;
+                letter-spacing: -0.05em;
+                font-weight: 800;
+                color: var(--text);
+            }
+
+            .login-shell .ui-title {
+                font-size: clamp(1.8rem, 4vw, 2.8rem);
+            }
+
+            .ui-subtitle {
+                color: var(--muted);
+                font-size: 1rem;
+                line-height: 1.7;
+                max-width: 720px;
+            }
+
+            .ui-content {
+                padding: 28px 36px 36px;
+            }
+
+            .section-title {
+                font-size: 1rem;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+                margin-bottom: 0.45rem;
+                color: var(--text);
+            }
+
+            .status-card {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 18px 20px;
+                border-radius: var(--radius-lg);
+                background: rgba(255, 255, 255, 0.82);
+                border: 1px solid var(--line);
+                font-size: 1rem;
+                font-weight: 700;
+                margin-top: 0.35rem;
+            }
+
+            .status-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 999px;
+                background: var(--accent);
+                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
+                flex: none;
+            }
+
+            .status-label {
+                color: var(--muted);
+                font-weight: 600;
+                margin-right: 6px;
+            }
+
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="input"] > div,
+            div[data-baseweb="textarea"] > div,
+            .stTextInput input,
+            .stSelectbox div[data-baseweb="select"] > div,
+            .stFileUploader > div > div {
+                border-radius: 14px !important;
+                border: 1px solid var(--line) !important;
+                background: rgba(255, 255, 255, 0.96) !important;
+                min-height: 56px !important;
+                box-shadow: none !important;
+            }
+
+            .stTextInput input {
+                color: var(--text) !important;
+            }
+
+            .stTextInput input:focus,
+            .stSelectbox div[data-baseweb="select"] > div:focus-within {
+                border-color: rgba(25, 179, 166, 0.5) !important;
+                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
+            }
+
+            .stFileUploader > div {
+                border: 0 !important;
+                padding: 0 !important;
+            }
+
+            .stFileUploader section {
+                min-height: 104px;
+                border-radius: 18px !important;
+                border: 1px solid var(--line) !important;
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
+                padding: 20px 22px !important;
+            }
+
+            .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+                height: 50px;
+                border-radius: 14px;
+                font-weight: 700;
+                transition: 160ms ease;
+            }
+
+            .stButton > button,
+            .stDownloadButton > button {
+                border: 1px solid var(--line-strong) !important;
+                background: #fff !important;
+                color: var(--text) !important;
+            }
+
+            .stFormSubmitButton > button {
+                border: none !important;
+                background: var(--accent) !important;
+                color: #fff !important;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+            }
+
+            .stFormSubmitButton > button:hover {
+                background: var(--accent-strong) !important;
+            }
+
+            .stAlert {
+                border-radius: 16px;
+                border: 1px solid var(--line);
+            }
+
+            .stDataFrame, [data-testid="stDataFrame"] {
+                border-radius: 18px;
+                overflow: hidden;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.82);
+            }
+
+            [data-testid="column"] .stButton > button,
+            [data-testid="column"] .stDownloadButton > button {
+                width: 100%;
+            }
+
+            @media (max-width: 760px) {
+                .block-container {
+                    padding-left: 1rem;
+                    padding-right: 1rem;
+                }
+                .ui-header, .ui-content {
+                    padding-left: 18px;
+                    padding-right: 18px;
+                }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_shell_header(icon: str, title: str, subtitle: str, login: bool = False) -> None:
+    shell_class = "ui-shell login-shell" if login else "ui-shell"
+    st.markdown(
+        f"""
+        <div class="{shell_class}">
+            <div class="ui-header">
+                <div class="ui-header-row">
+                    <div class="ui-mark">{icon}</div>
+                    <div class="ui-title">{title}</div>
+                </div>
+                <p class="ui-subtitle">{subtitle}</p>
+            </div>
+            <div class="ui-content">
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def close_shell() -> None:
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+
+def render_status_card(status: str) -> None:
+    status_text = (status or "idle").upper()
+    st.markdown(
+        f"""
+        <div class="status-card">
+            <span class="status-dot"></span>
+            <div><span class="status-label">Status:</span> {status_text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -54,12 +324,17 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.subheader("🔐 Login required")
+    render_shell_header(
+        "🔒",
+        "Login required",
+        "Sign in to continue to the bank statement parser workspace.",
+        login=True,
+    )
 
-    with st.form("basic_auth_form"):
-        entered_user = st.text_input("Username")
-        entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
+    with st.form("basic_auth_form", clear_on_submit=False):
+        entered_user = st.text_input("Username", placeholder="Enter your username")
+        entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = st.form_submit_button("Sign in", use_container_width=True)
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -71,13 +346,17 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
+    st.markdown(
+        '<div style="display:flex;justify-content:center;color:#667085;font-size:0.92rem;padding-top:4px;">Need access? Contact administrator</div>',
+        unsafe_allow_html=True,
+    )
+    close_shell()
     st.stop()
 
 
-st.set_page_config(page_title="Bank Statement Parser", layout="wide")
+st.set_page_config(page_title="Bank Statement Parser", layout="wide", initial_sidebar_state="collapsed")
+inject_custom_theme()
 require_basic_auth()
-st.title("📄 Bank Statement Parser (Multi-File Support)")
-st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -754,14 +1033,22 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
+render_shell_header(
+    "📄",
+    "Bank Statement Parser (Multi-File Support)",
+    "Upload one or more bank statement PDFs to extract transactions.",
+)
 
-uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
+st.markdown('<div class="section-title">Select Bank Format</div>', unsafe_allow_html=True)
+bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()), label_visibility="collapsed")
+
+st.markdown('<div class="section-title">Upload PDF files</div>', unsafe_allow_html=True)
+uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, label_visibility="collapsed")
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
 
-# Manual company name override
-st.text_input("Company Name (optional override)", key="company_name_override")
+st.markdown('<div class="section-title">Company Name (optional override)</div>', unsafe_allow_html=True)
+st.text_input("Company Name (optional override)", key="company_name_override", label_visibility="collapsed", placeholder="Enter company name")
 
 # Detect encrypted files
 encrypted_files: List[str] = []
@@ -778,49 +1065,71 @@ if uploaded_files:
             "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
             + "\n".join([f"- {n}" for n in encrypted_files])
         )
-        st.text_input("PDF Password", type="password", key="pdf_password")
+        st.markdown('<div class="section-title">PDF Password</div>', unsafe_allow_html=True)
+        st.text_input("PDF Password", type="password", key="pdf_password", label_visibility="collapsed", placeholder="Enter your password")
 
-
-col1, col2, col3 = st.columns(3)
+col1, col2, col3 = st.columns([1.25, 1, 1])
 with col1:
-    if st.button("▶️ Start Processing"):
-        st.session_state.status = "running"
-        st.session_state.affin_statement_totals = []
-        st.session_state.affin_file_transactions = {}
-        st.session_state.ambank_statement_totals = []
-        st.session_state.ambank_file_transactions = {}
-        st.session_state.cimb_statement_totals = []
-        st.session_state.rhb_statement_totals = []
-        st.session_state.cimb_file_transactions = {}
-        st.session_state.rhb_file_transactions = {}
-        st.session_state.bank_islam_file_month = {}
-        st.session_state.file_company_name = {}
-        st.session_state.file_account_no = {}
-
+    start_clicked = st.button("Start Processing", use_container_width=True, key="start_processing_btn")
 with col2:
-    if st.button("⏹️ Stop"):
-        st.session_state.status = "stopped"
-
+    stop_clicked = st.button("Stop", use_container_width=True, key="stop_processing_btn")
 with col3:
-    if st.button("🔄 Reset"):
-        st.session_state.status = "idle"
-        st.session_state.results = []
-        st.session_state.affin_statement_totals = []
-        st.session_state.affin_file_transactions = {}
-        st.session_state.ambank_statement_totals = []
-        st.session_state.ambank_file_transactions = {}
-        st.session_state.cimb_statement_totals = []
-        st.session_state.rhb_statement_totals = []
-        st.session_state.cimb_file_transactions = {}
-        st.session_state.rhb_file_transactions = {}
-        st.session_state.bank_islam_file_month = {}
-        st.session_state.file_company_name = {}
-        st.session_state.file_account_no = {}
-        st.session_state.pdf_password = ""
-        st.session_state.company_name_override = ""
-        st.rerun()
+    reset_clicked = st.button("Reset", use_container_width=True, key="reset_processing_btn")
 
-st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
+st.markdown(
+    """
+    <style>
+    div[data-testid="column"]:nth-of-type(1) .stButton button {
+        border: none !important;
+        background: var(--accent) !important;
+        color: white !important;
+        box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+    }
+    div[data-testid="column"]:nth-of-type(1) .stButton button:hover {
+        background: var(--accent-strong) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+if start_clicked:
+    st.session_state.status = "running"
+    st.session_state.affin_statement_totals = []
+    st.session_state.affin_file_transactions = {}
+    st.session_state.ambank_statement_totals = []
+    st.session_state.ambank_file_transactions = {}
+    st.session_state.cimb_statement_totals = []
+    st.session_state.rhb_statement_totals = []
+    st.session_state.cimb_file_transactions = {}
+    st.session_state.rhb_file_transactions = {}
+    st.session_state.bank_islam_file_month = {}
+    st.session_state.file_company_name = {}
+    st.session_state.file_account_no = {}
+
+if stop_clicked:
+    st.session_state.status = "stopped"
+
+if reset_clicked:
+    st.session_state.status = "idle"
+    st.session_state.results = []
+    st.session_state.affin_statement_totals = []
+    st.session_state.affin_file_transactions = {}
+    st.session_state.ambank_statement_totals = []
+    st.session_state.ambank_file_transactions = {}
+    st.session_state.cimb_statement_totals = []
+    st.session_state.rhb_statement_totals = []
+    st.session_state.cimb_file_transactions = {}
+    st.session_state.rhb_file_transactions = {}
+    st.session_state.bank_islam_file_month = {}
+    st.session_state.file_company_name = {}
+    st.session_state.file_account_no = {}
+    st.session_state.pdf_password = ""
+    st.session_state.company_name_override = ""
+    st.rerun()
+
+render_status_card(st.session_state.status)
+close_shell()
 
 
 all_tx: List[dict] = []
@@ -1433,7 +1742,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 ) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals) or (
     bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals
 ):
-    st.subheader("📊 Extracted Transactions")
+    render_shell_header("📊", "Extracted Transactions", "Review the parsed transaction rows, monthly summary, and export options.")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
     if not df.empty:
@@ -1549,6 +1858,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
+    close_shell()
 else:
     if uploaded_files:
         st.warning("⚠️ No transactions found — click **Start Processing**.")
