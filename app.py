@@ -90,8 +90,8 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 max-width: {max_width} !important;
                 padding: 0 34px 34px !important;
                 margin: {top_margin} auto 44px !important;
-                background: rgba(255, 255, 255, 0.78) !important;
-                border: 1px solid rgba(255, 255, 255, 0.72) !important;
+                background: #fbfcfd !important;
+                border: 1px solid #edf1f5 !important;
                 border-radius: 28px !important;
                 box-shadow: 0 10px 30px rgba(23, 32, 47, 0.06) !important;
                 backdrop-filter: blur(8px);
@@ -136,7 +136,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             .ui-subtitle {{
                 margin: 0;
-                color: var(--muted);
+                color: #667085;
                 font-size: 1rem;
                 line-height: 1.7;
                 max-width: 720px;
@@ -146,7 +146,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 font-size: 0.95rem;
                 font-weight: 700;
                 letter-spacing: -0.01em;
-                color: var(--text);
+                color: #17202f;
                 margin: 4px 0 10px;
             }}
 
@@ -373,6 +373,76 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 border-radius: var(--radius-md) !important;
             }}
 
+            .stMarkdown, .stText, p, span, label, div {{
+                color: inherit;
+            }}
+
+            .stTextInput input, 
+            div[data-baseweb="input"] input,
+            div[data-baseweb="select"] div,
+            div[data-baseweb="select"] span,
+            [data-baseweb="select"] * {{
+                color: var(--text) !important;
+                -webkit-text-fill-color: var(--text) !important;
+                opacity: 1 !important;
+            }}
+
+            div[data-baseweb="input"] input::placeholder {{
+                color: #98a2b3 !important;
+                -webkit-text-fill-color: #98a2b3 !important;
+                opacity: 1 !important;
+            }}
+
+            [data-testid="stFileUploaderDropzone"] * {{
+                color: var(--text) !important;
+            }}
+
+            [data-testid="stFileUploaderDropzone"] small,
+            [data-testid="stFileUploaderDropzoneInstructions"] span,
+            [data-testid="stFileUploaderDropzoneInstructions"] div {{
+                color: var(--muted) !important;
+                -webkit-text-fill-color: var(--muted) !important;
+                opacity: 1 !important;
+            }}
+
+            [data-testid="stFileUploaderFile"] {{
+                background: transparent !important;
+                border: none !important;
+            }}
+
+            [data-testid="stFileUploaderFile"] *,
+            [data-testid="stFileUploaderFileName"],
+            [data-testid="stFileUploaderFileData"] {{
+                color: var(--text) !important;
+                -webkit-text-fill-color: var(--text) !important;
+                opacity: 1 !important;
+            }}
+
+            [data-testid="stFileUploaderDeleteBtn"] {{
+                border: 1px solid var(--line) !important;
+                border-radius: 14px !important;
+                background: #fff !important;
+                color: var(--text) !important;
+            }}
+
+            [data-testid="stFileUploaderDeleteBtn"] svg {{
+                color: var(--text) !important;
+                opacity: 1 !important;
+            }}
+
+            .stButton button {{
+                color: var(--text) !important;
+                opacity: 1 !important;
+            }}
+
+            div[data-testid="column"]:nth-of-type(1) .stButton button {{
+                color: #ffffff !important;
+            }}
+
+            .stSubheader, .stHeading, h1, h2, h3 {{
+                color: var(--text) !important;
+            }}
+
             @media (max-width: 760px) {{
                 .block-container {{
                     padding: 0 18px 24px !important;
@@ -477,7 +547,6 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
-    st.markdown('<div class="login-divider"></div><div class="footer-note"><span>Need access?</span><span class="fake-link">Contact administrator</span></div>', unsafe_allow_html=True)
     st.stop()
 
 
