@@ -90,17 +90,17 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 max-width: {max_width} !important;
                 padding: 0 34px 34px !important;
                 margin: {top_margin} auto 44px !important;
-                background: rgba(255, 255, 255, 0.72) !important;
-                border: 1px solid rgba(255, 255, 255, 0.7) !important;
+                background: rgba(255, 255, 255, 0.78) !important;
+                border: 1px solid rgba(255, 255, 255, 0.72) !important;
                 border-radius: 28px !important;
-                box-shadow: var(--shadow) !important;
+                box-shadow: 0 10px 30px rgba(23, 32, 47, 0.06) !important;
                 backdrop-filter: blur(8px);
                 -webkit-backdrop-filter: blur(8px);
                 overflow: hidden !important;
             }}
 
             .ui-shell-header {{
-                padding: 34px 36px 18px;
+                padding: 32px 34px 18px;
                 border-bottom: 1px solid rgba(23, 32, 47, 0.06);
                 margin: 0 -34px 28px;
             }}
@@ -108,19 +108,19 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             .ui-header-row {{
                 display: flex;
                 align-items: center;
-                gap: 18px;
+                gap: 16px;
                 margin-bottom: 12px;
             }}
 
             .ui-mark {{
-                width: 58px;
-                height: 58px;
+                width: 52px;
+                height: 52px;
                 border-radius: 18px;
                 display: grid;
                 place-items: center;
                 background: var(--accent-soft);
                 color: var(--accent-strong);
-                font-size: 1.65rem;
+                font-size: 1.4rem;
                 line-height: 1;
                 flex: none;
             }}
@@ -167,8 +167,8 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             div[data-baseweb="input"] {{
                 border: 1px solid var(--line) !important;
-                border-radius: 14px !important;
-                background: rgba(255,255,255,0.96) !important;
+                border-radius: var(--radius-md) !important;
+                background: rgba(255, 255, 255, 0.96) !important;
                 box-shadow: none !important;
                 min-height: 56px !important;
                 overflow: hidden !important;
@@ -205,9 +205,9 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             div[data-baseweb="select"] > div {{
-                border-radius: 14px !important;
+                border-radius: var(--radius-md) !important;
                 border: 1px solid var(--line) !important;
-                background: rgba(255,255,255,0.96) !important;
+                background: rgba(255, 255, 255, 0.96) !important;
                 box-shadow: none !important;
                 min-height: 56px !important;
                 padding-left: 10px !important;
@@ -236,7 +236,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             [data-testid="stFileUploaderDropzone"], .stFileUploader section {{
                 min-height: 104px !important;
                 border: 1px solid var(--line) !important;
-                border-radius: 18px !important;
+                border-radius: var(--radius-lg) !important;
                 background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
                 padding: 20px 22px !important;
             }}
@@ -251,7 +251,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
 
             .stFileUploader button {{
                 height: 50px !important;
-                border-radius: 14px !important;
+                border-radius: var(--radius-md) !important;
                 border: 1px solid var(--line-strong) !important;
                 background: #fff !important;
                 color: var(--text) !important;
@@ -263,7 +263,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             .stDownloadButton > button,
             .stFormSubmitButton > button {{
                 height: 50px !important;
-                border-radius: 14px !important;
+                border-radius: var(--radius-md) !important;
                 padding: 0 18px !important;
                 font-weight: 700 !important;
                 font-size: 1rem !important;
@@ -370,7 +370,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             .stAlert {{
-                border-radius: 14px !important;
+                border-radius: var(--radius-md) !important;
             }}
 
             @media (max-width: 760px) {{
@@ -465,10 +465,6 @@ def require_basic_auth() -> None:
     with st.form("basic_auth_form", clear_on_submit=False):
         entered_user = st.text_input("Username", placeholder="Enter your username")
         entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
-        st.markdown(
-            '<div class="meta-row"><div style="color:#667085;font-weight:700;">☐&nbsp;&nbsp;Remember me</div><div class="fake-link">Forgot password?</div></div>',
-            unsafe_allow_html=True,
-        )
         submitted = st.form_submit_button("Sign in", use_container_width=True)
 
     if submitted:
