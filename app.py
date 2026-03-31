@@ -168,7 +168,7 @@ _EXCLUDE_LINE_REGEX = re.compile(
 # If a candidate contains a long digit run, it’s usually not a company name.
 _LONG_DIGITS_RE = re.compile(r"\d{6,}")
 _COMPANY_SUFFIX_RE = re.compile(
-    r"\b(SDN\.?\s*BHD\.?|BHD\.?|ENTERPRISE|RESOURCES|HOLDINGS|TRADING|SERVICES|TECHNOLOGY|VENTURES|INDUSTRIES|GLOBAL|GROUP|CORPORATION|PLT)\b",
+    r"\b(SDN\.?\s*BHD\.?|BHD\.?|ENTERPRISE|PERNIAGAAN|AGENCY|RESOURCES|HOLDINGS|TRADING|SERVICES|TECHNOLOGY|VENTURES|INDUSTRIES|GLOBAL|GROUP|CORPORATION|PLT)\b",
     re.IGNORECASE,
 )
 _COMPANY_BAD_WORDS_RE = re.compile(
@@ -260,6 +260,73 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
         cand = _clean_candidate_name(m_uob.group(1))
         # strip appended currency/balance if present
         cand = re.split(r"\bMYR\b", cand, maxsplit=1, flags=re.IGNORECASE)[0].strip() or cand
+        if cand and not _looks_like_account_number_line(cand):
+            return cand
+
+    # 0.5) Maybank bilingual header style (company line with statement-date markers)
+    # Examples:
+    #   LSR AGENCY 結單日期 : 31/03/25
+    #   PERNIAGAAN SEPAKAT ABADI 結單日期 : 31/01/25
+    maybank_lines = [ln.strip() for ln in full.splitlines() if ln.strip()]
+
+    # Maybank often places the company around "TARIKH PENYATA", sometimes split:
+    #   QUATTRO FRATELLI
+    #   TARIKH PENYATA
+    #   ENERGY SDN. BHD.
+    for i, ln in enumerate(maybank_lines[:80]):
+        if not re.search(r"^TARIKH\s+PENYATA$", ln, flags=re.IGNORECASE):
+            continue
+
+        prev_ln = _clean_candidate_name(maybank_lines[i - 1]) if i - 1 >= 0 else ""
+        next_ln = _clean_candidate_name(maybank_lines[i + 1]) if i + 1 < len(maybank_lines) else ""
+
+        if prev_ln and next_ln and not _looks_like_account_number_line(prev_ln):
+            if re.search(r"(MUKA|PAGE|MAYBANK|IBS\s|BRANCH)", prev_ln, flags=re.IGNORECASE):
+                prev_ln = ""
+
+        if prev_ln and next_ln:
+            merged = _clean_candidate_name(f"{prev_ln} {next_ln}")
+            if merged and not _looks_like_account_number_line(merged):
+                if _looks_like_company_name(merged) or re.search(
+                    r"\b(SDN\.?\s*BHD\.?|PERNIAGAAN|AGENCY)\b",
+                    merged,
+                    flags=re.IGNORECASE,
+                ):
+                    return merged
+
+        if next_ln and not _looks_like_account_number_line(next_ln):
+            if _looks_like_company_name(next_ln):
+                return next_ln
+
+    for i, ln in enumerate(maybank_lines[:80]):
+        m_maybank_line = re.match(
+            r"^([A-Z][A-Z0-9 &().,\'\/-]{2,}?)\s+(?:結單日期|结单日期|STATEMENT\s+DATE)\s*:?\s*\d{2}/\d{2}/\d{2,4}\s*$",
+            ln,
+            flags=re.IGNORECASE,
+        )
+        if not m_maybank_line:
+            continue
+
+        cand = _clean_candidate_name(m_maybank_line.group(1))
+
+        # Some Maybank statements split the name over 2 lines, e.g.:
+        #   QUATTRO FRATELLI ENERGY
+        #   SDN. BHD. 結單日期 : 31/07/2025
+        if re.fullmatch(r"SDN\.?\s*BHD\.?", cand, flags=re.IGNORECASE):
+            # In some files the line right above is "TARIKH PENYATA", so walk
+            # backward to find the nearest plausible company prefix.
+            for j in range(i - 1, max(-1, i - 4), -1):
+                if j < 0:
+                    break
+                prefix = _clean_candidate_name(maybank_lines[j])
+                if not prefix:
+                    continue
+                if re.search(r"^(TARIKH\s+PENYATA|STATEMENT\s+DATE|MUKA|PAGE)\b", prefix, flags=re.IGNORECASE):
+                    continue
+                merged = _clean_candidate_name(f"{prefix} {cand}")
+                if merged and not _looks_like_account_number_line(merged):
+                    return merged
+
         if cand and not _looks_like_account_number_line(cand):
             return cand
 
