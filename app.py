@@ -39,520 +39,8 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-
-
-def inject_custom_theme(authenticated: bool = True) -> None:
-    page_mode = "app" if authenticated else "login"
-    max_width = "1120px" if authenticated else "760px"
-    top_margin = "38px" if authenticated else "58px"
-
-    st.markdown(
-        f"""
-        <style>
-            :root {{
-                --bg: #f4f6f8;
-                --surface: #ffffff;
-                --surface-soft: #f8fafc;
-                --text: #17202f;
-                --muted: #667085;
-                --line: #e6ebf1;
-                --line-strong: #d7dee8;
-                --accent: #19b3a6;
-                --accent-strong: #129589;
-                --accent-soft: #e9f8f6;
-                --radius-lg: 18px;
-                --radius-md: 14px;
-                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-            }}
-
-            html, body, [class*="css"] {{
-                font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-            }}
-
-            .stApp {{
-                background:
-                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    var(--bg);
-                background-size: 64px 64px;
-                color: var(--text);
-            }}
-
-            [data-testid="stHeader"], #MainMenu, footer {{
-                display: none !important;
-            }}
-
-            [data-testid="stAppViewContainer"] > .main {{
-                background: transparent !important;
-            }}
-
-            .block-container {{
-                max-width: {max_width} !important;
-                padding: 0 34px 34px !important;
-                margin: {top_margin} auto 44px !important;
-                background: #fbfcfd !important;
-                border: 1px solid #edf1f5 !important;
-                border-radius: 28px !important;
-                box-shadow: 0 10px 30px rgba(23, 32, 47, 0.06) !important;
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
-                overflow: hidden !important;
-            }}
-
-            .ui-shell-header {{
-                padding: 32px 34px 18px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-                margin: 0 -34px 28px;
-            }}
-
-            .ui-header-row {{
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                margin-bottom: 12px;
-            }}
-
-            .ui-mark {{
-                width: 52px;
-                height: 52px;
-                border-radius: 18px;
-                display: grid;
-                place-items: center;
-                background: var(--accent-soft);
-                color: var(--accent-strong);
-                font-size: 1.4rem;
-                line-height: 1;
-                flex: none;
-            }}
-
-            .ui-title {{
-                margin: 0;
-                font-size: clamp(2.2rem, 4vw, 3.35rem);
-                line-height: 1.04;
-                letter-spacing: -0.055em;
-                font-weight: 800;
-                color: var(--text);
-            }}
-
-            .ui-subtitle {{
-                margin: 0;
-                color: #667085;
-                font-size: 1rem;
-                line-height: 1.7;
-                max-width: 720px;
-            }}
-
-            .section-title {{
-                font-size: 0.95rem;
-                font-weight: 700;
-                letter-spacing: -0.01em;
-                color: #17202f;
-                margin: 4px 0 10px;
-            }}
-
-            .stForm {{
-                border: 0 !important;
-            }}
-
-            .stTextInput, .stSelectbox, .stFileUploader, .stButton, .stDownloadButton, .stForm {{
-                margin-bottom: 14px !important;
-            }}
-
-            .stTextInput label, .stSelectbox label, .stFileUploader label, .stCheckbox label {{
-                color: var(--text) !important;
-                font-size: 0.95rem !important;
-                font-weight: 700 !important;
-                letter-spacing: -0.01em !important;
-            }}
-
-            div[data-baseweb="input"] {{
-                border: 1px solid var(--line) !important;
-                border-radius: var(--radius-md) !important;
-                background: rgba(255, 255, 255, 0.96) !important;
-                box-shadow: none !important;
-                min-height: 56px !important;
-                overflow: hidden !important;
-            }}
-
-            div[data-baseweb="input"] > div {{
-                border: none !important;
-                background: transparent !important;
-                box-shadow: none !important;
-                min-height: 56px !important;
-                overflow: hidden !important;
-            }}
-
-            div[data-baseweb="input"] input {{
-                background: transparent !important;
-                border: none !important;
-                outline: none !important;
-                box-shadow: none !important;
-                min-height: 56px !important;
-                padding: 0 18px !important;
-                color: var(--text) !important;
-                font-size: 1rem !important;
-            }}
-
-            div[data-baseweb="input"] input::placeholder {{
-                color: #98a2b3 !important;
-                opacity: 1 !important;
-            }}
-
-            div[data-baseweb="input"]:focus-within {{
-                border-color: rgba(25, 179, 166, 0.5) !important;
-                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
-                background: #fff !important;
-            }}
-
-            div[data-baseweb="select"] > div {{
-                border-radius: var(--radius-md) !important;
-                border: 1px solid var(--line) !important;
-                background: rgba(255, 255, 255, 0.96) !important;
-                box-shadow: none !important;
-                min-height: 56px !important;
-                padding-left: 10px !important;
-            }}
-
-            div[data-baseweb="select"] > div:focus-within {{
-                border-color: rgba(25, 179, 166, 0.5) !important;
-                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11) !important;
-                background: #fff !important;
-            }}
-
-            div[data-baseweb="select"] span {{
-                color: var(--text) !important;
-                font-size: 1rem !important;
-            }}
-
-            div[data-baseweb="select"] svg {{
-                color: var(--muted) !important;
-            }}
-
-            .stFileUploader > div {{
-                padding: 0 !important;
-                border: 0 !important;
-            }}
-
-            [data-testid="stFileUploaderDropzone"], .stFileUploader section {{
-                min-height: 104px !important;
-                border: 1px solid var(--line) !important;
-                border-radius: var(--radius-lg) !important;
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)) !important;
-                padding: 20px 22px !important;
-            }}
-
-            [data-testid="stFileUploaderDropzone"] > div {{
-                gap: 18px !important;
-            }}
-
-            .stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] span {{
-                color: var(--muted) !important;
-            }}
-
-            .stFileUploader button {{
-                height: 50px !important;
-                border-radius: var(--radius-md) !important;
-                border: 1px solid var(--line-strong) !important;
-                background: #fff !important;
-                color: var(--text) !important;
-                font-weight: 700 !important;
-                box-shadow: none !important;
-            }}
-
-            .stButton > button,
-            .stDownloadButton > button,
-            .stFormSubmitButton > button {{
-                height: 50px !important;
-                border-radius: var(--radius-md) !important;
-                padding: 0 18px !important;
-                font-weight: 700 !important;
-                font-size: 1rem !important;
-                transition: 160ms ease !important;
-                box-shadow: none !important;
-            }}
-
-            .stButton > button,
-            .stDownloadButton > button {{
-                border: 1px solid var(--line-strong) !important;
-                background: #fff !important;
-                color: var(--text) !important;
-            }}
-
-            .stButton > button:hover,
-            .stDownloadButton > button:hover {{
-                background: var(--surface-soft) !important;
-                border-color: var(--line-strong) !important;
-                color: var(--text) !important;
-            }}
-
-            .stFormSubmitButton > button {{
-                width: 100% !important;
-                border: none !important;
-                background: var(--accent) !important;
-                color: #fff !important;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
-            }}
-
-            .stFormSubmitButton > button:hover {{
-                background: var(--accent-strong) !important;
-            }}
-
-            .meta-row {{
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-                margin: 6px 0 16px;
-                color: var(--muted);
-                font-size: 0.94rem;
-            }}
-
-            .meta-row .fake-link,
-            .footer-note .fake-link {{
-                color: var(--accent-strong);
-                text-decoration: none;
-                font-weight: 600;
-            }}
-
-            .login-divider {{
-                height: 1px;
-                background: var(--line);
-                margin: 2px 0 18px;
-            }}
-
-            .footer-note {{
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                color: var(--muted);
-                font-size: 0.92rem;
-                padding-top: 4px;
-            }}
-
-            .status-card {{
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 18px 20px;
-                border-radius: 18px;
-                background: rgba(255,255,255,0.82);
-                border: 1px solid var(--line);
-                font-size: 1rem;
-                font-weight: 700;
-                margin-top: 8px;
-            }}
-
-            .status-dot {{
-                width: 12px;
-                height: 12px;
-                border-radius: 999px;
-                background: var(--accent);
-                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
-                flex: none;
-            }}
-
-            .status-label {{
-                color: var(--muted);
-                font-weight: 600;
-                margin-right: 6px;
-            }}
-
-            div[data-testid="column"]:nth-of-type(1) .stButton > button[data-testid="baseButton-secondary"] {{
-                border: none !important;
-                background: var(--accent) !important;
-                color: #fff !important;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
-            }}
-
-            div[data-testid="column"]:nth-of-type(1) .stButton > button[data-testid="baseButton-secondary"]:hover {{
-                background: var(--accent-strong) !important;
-            }}
-
-            .stAlert {{
-                border-radius: var(--radius-md) !important;
-            }}
-
-            .stMarkdown, .stText, p, span, label, div {{
-                color: inherit;
-            }}
-
-            .stTextInput input, 
-            div[data-baseweb="input"] input,
-            div[data-baseweb="select"] div,
-            div[data-baseweb="select"] span,
-            [data-baseweb="select"] * {{
-                color: var(--text) !important;
-                -webkit-text-fill-color: var(--text) !important;
-                opacity: 1 !important;
-            }}
-
-            div[data-baseweb="input"] input::placeholder {{
-                color: #98a2b3 !important;
-                -webkit-text-fill-color: #98a2b3 !important;
-                opacity: 1 !important;
-            }}
-
-            [data-testid="stFileUploaderDropzone"] * {{
-                color: #17202f !important;
-            }}
-
-            [data-testid="stFileUploaderDropzone"] small,
-            [data-testid="stFileUploaderDropzoneInstructions"] span,
-            [data-testid="stFileUploaderDropzoneInstructions"] div {{
-                color: var(--muted) !important;
-                -webkit-text-fill-color: var(--muted) !important;
-                opacity: 1 !important;
-            }}
-
-            [data-testid="stFileUploaderFile"] {{
-                background: transparent !important;
-                border: none !important;
-            }}
-
-            [data-testid="stFileUploaderFile"],
-            [data-testid="stFileUploaderFileData"],
-            [data-testid="stFileUploaderFileName"],
-            [data-testid="stFileUploaderDeleteBtn"],
-            [data-testid^="stFileUploaderFile"] {{
-                display: none !important;
-                visibility: hidden !important;
-                height: 0 !important;
-                min-height: 0 !important;
-                max-height: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                border: 0 !important;
-                overflow: hidden !important;
-            }}
-
-            [data-testid="stFileUploader"] {{
-                max-height: 138px !important;
-                overflow: hidden !important;
-                display: block !important;
-            }}
-
-            [data-testid="stFileUploader"] ul,
-            [data-testid="stFileUploader"] li,
-            [data-testid="stFileUploader"] [role="list"],
-            [data-testid="stFileUploader"] [role="listitem"] {{
-                margin: 0 !important;
-                padding: 0 !important;
-                list-style: none !important;
-            }}
-
-            [data-testid="stFileUploader"] button[aria-label*="page"],
-            [data-testid="stFileUploader"] button[title*="page"] {{
-                display: none !important;
-            }}
-
-            .action-row-anchor {{
-                margin-top: 8px;
-            }}
-
-            [data-testid="stFileUploaderFile"] *,
-            [data-testid="stFileUploaderFileName"],
-            [data-testid="stFileUploaderFileData"] {{
-                color: var(--text) !important;
-                -webkit-text-fill-color: var(--text) !important;
-                opacity: 1 !important;
-            }}
-
-            [data-testid="stFileUploaderDeleteBtn"] {{
-                border: 1px solid var(--line) !important;
-                border-radius: 14px !important;
-                background: #fff !important;
-                color: var(--text) !important;
-            }}
-
-            [data-testid="stFileUploaderDeleteBtn"] svg {{
-                color: var(--text) !important;
-                opacity: 1 !important;
-            }}
-
-            .stButton button {{
-                color: var(--text) !important;
-                opacity: 1 !important;
-            }}
-
-            div[data-testid="column"]:nth-of-type(1) .stButton button {{
-                color: #ffffff !important;
-            }}
-
-            .stSubheader, .stHeading, h1, h2, h3 {{
-                color: var(--text) !important;
-            }}
-
-            @media (max-width: 760px) {{
-                .block-container {{
-                    padding: 0 18px 24px !important;
-                    margin-top: 20px !important;
-                }}
-
-                .ui-shell-header {{
-                    padding: 28px 18px 18px;
-                    margin-left: -18px;
-                    margin-right: -18px;
-                }}
-
-                .ui-header-row {{
-                    gap: 16px;
-                    align-items: flex-start;
-                }}
-
-                .ui-mark {{
-                    width: 54px;
-                    height: 54px;
-                    font-size: 1.45rem;
-                }}
-
-                .ui-title {{
-                    font-size: clamp(1.9rem, 8vw, 2.9rem);
-                }}
-
-                .meta-row {{
-                    flex-wrap: wrap;
-                }}
-            }}
-        </style>
-        <script>
-            const setMode = () => document.body.setAttribute("data-page-mode", "{page_mode}");
-            setMode();
-            window.addEventListener("load", setMode);
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def render_shell_header(icon: str, title: str, subtitle: str) -> None:
-    st.markdown(
-        f"""
-        <div class="ui-shell-header">
-            <div class="ui-header-row">
-                <div class="ui-mark">{icon}</div>
-                <h1 class="ui-title">{title}</h1>
-            </div>
-            <p class="ui-subtitle">{subtitle}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_status_card(status: str) -> None:
-    status_text = (status or "idle").upper()
-    st.markdown(
-        f"""
-        <div class="status-card">
-            <span class="status-dot"></span>
-            <div><span class="status-label">Status:</span> {status_text}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def require_basic_auth() -> None:
+    """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
     configured_pass = os.getenv("BASIC_AUTH_PASS")
 
@@ -566,16 +54,12 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    render_shell_header(
-        "🔒",
-        "Login required",
-        "Sign in to continue to the bank statement parser workspace.",
-    )
+    st.subheader("🔐 Login required")
 
-    with st.form("basic_auth_form", clear_on_submit=False):
-        entered_user = st.text_input("Username", placeholder="Enter your username")
-        entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
-        submitted = st.form_submit_button("Sign in", use_container_width=True)
+    with st.form("basic_auth_form"):
+        entered_user = st.text_input("Username")
+        entered_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -590,9 +74,11 @@ def require_basic_auth() -> None:
     st.stop()
 
 
-st.set_page_config(page_title="Bank Statement Parser", layout="wide", initial_sidebar_state="collapsed")
-inject_custom_theme(authenticated=bool(st.session_state.get("is_authenticated")))
+st.set_page_config(page_title="Bank Statement Parser", layout="wide")
 require_basic_auth()
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
+
 
 # -----------------------------
 # Session state init
@@ -1268,56 +754,14 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-render_shell_header(
-    "📄",
-    "Bank Statement Parser (Multi-File Support)",
-    "Upload one or more bank statement PDFs to extract transactions.",
-)
+bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
 
-st.markdown('<div class="section-title">Select Bank Format</div>', unsafe_allow_html=True)
-bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()), label_visibility="collapsed")
-
-st.markdown('<div class="section-title">Upload PDF files</div>', unsafe_allow_html=True)
-uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, label_visibility="collapsed")
+uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
-    selected_names = ", ".join(f.name for f in uploaded_files[:3])
-    if len(uploaded_files) > 3:
-        selected_names += f" +{len(uploaded_files)-3} more"
-    st.markdown(
-        f'<div style="margin:-6px 0 16px; color:#667085; font-size:0.94rem;"><strong>{len(uploaded_files)} file(s) selected</strong> — {selected_names}</div>',
-        unsafe_allow_html=True,
-    )
 
-st.markdown('<div class="action-row-anchor"></div>', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1.25, 1, 1])
-with col1:
-    start_clicked = st.button("Start Processing", use_container_width=True, key="start_processing_btn")
-with col2:
-    stop_clicked = st.button("Stop", use_container_width=True, key="stop_processing_btn")
-with col3:
-    reset_clicked = st.button("Reset", use_container_width=True, key="reset_processing_btn")
-
-st.markdown(
-    """
-    <style>
-    div[data-testid="column"]:nth-of-type(1) .stButton button {
-        border: none !important;
-        background: var(--accent) !important;
-        color: white !important;
-        box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
-    }
-    div[data-testid="column"]:nth-of-type(1) .stButton button:hover {
-        background: var(--accent-strong) !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-st.markdown('<div class="section-title">Company Name (optional override)</div>', unsafe_allow_html=True)
-st.text_input("Company Name (optional override)", key="company_name_override", label_visibility="collapsed", placeholder="Enter company name")
+# Manual company name override
+st.text_input("Company Name (optional override)", key="company_name_override")
 
 # Detect encrypted files
 encrypted_files: List[str] = []
@@ -1334,46 +778,49 @@ if uploaded_files:
             "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
             + "\n".join([f"- {n}" for n in encrypted_files])
         )
-        st.markdown('<div class="section-title">PDF Password</div>', unsafe_allow_html=True)
-        st.text_input("PDF Password", type="password", key="pdf_password", label_visibility="collapsed", placeholder="Enter your password")
+        st.text_input("PDF Password", type="password", key="pdf_password")
 
-if start_clicked:
-    st.session_state.status = "running"
-    st.session_state.affin_statement_totals = []
-    st.session_state.affin_file_transactions = {}
-    st.session_state.ambank_statement_totals = []
-    st.session_state.ambank_file_transactions = {}
-    st.session_state.cimb_statement_totals = []
-    st.session_state.rhb_statement_totals = []
-    st.session_state.cimb_file_transactions = {}
-    st.session_state.rhb_file_transactions = {}
-    st.session_state.bank_islam_file_month = {}
-    st.session_state.file_company_name = {}
-    st.session_state.file_account_no = {}
 
-if stop_clicked:
-    st.session_state.status = "stopped"
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("▶️ Start Processing"):
+        st.session_state.status = "running"
+        st.session_state.affin_statement_totals = []
+        st.session_state.affin_file_transactions = {}
+        st.session_state.ambank_statement_totals = []
+        st.session_state.ambank_file_transactions = {}
+        st.session_state.cimb_statement_totals = []
+        st.session_state.rhb_statement_totals = []
+        st.session_state.cimb_file_transactions = {}
+        st.session_state.rhb_file_transactions = {}
+        st.session_state.bank_islam_file_month = {}
+        st.session_state.file_company_name = {}
+        st.session_state.file_account_no = {}
 
-if reset_clicked:
-    st.session_state.status = "idle"
-    st.session_state.results = []
-    st.session_state.affin_statement_totals = []
-    st.session_state.affin_file_transactions = {}
-    st.session_state.ambank_statement_totals = []
-    st.session_state.ambank_file_transactions = {}
-    st.session_state.cimb_statement_totals = []
-    st.session_state.rhb_statement_totals = []
-    st.session_state.cimb_file_transactions = {}
-    st.session_state.rhb_file_transactions = {}
-    st.session_state.bank_islam_file_month = {}
-    st.session_state.file_company_name = {}
-    st.session_state.file_account_no = {}
-    st.session_state.pdf_password = ""
-    st.session_state.company_name_override = ""
-    st.rerun()
+with col2:
+    if st.button("⏹️ Stop"):
+        st.session_state.status = "stopped"
 
-render_status_card(st.session_state.status)
-close_shell()
+with col3:
+    if st.button("🔄 Reset"):
+        st.session_state.status = "idle"
+        st.session_state.results = []
+        st.session_state.affin_statement_totals = []
+        st.session_state.affin_file_transactions = {}
+        st.session_state.ambank_statement_totals = []
+        st.session_state.ambank_file_transactions = {}
+        st.session_state.cimb_statement_totals = []
+        st.session_state.rhb_statement_totals = []
+        st.session_state.cimb_file_transactions = {}
+        st.session_state.rhb_file_transactions = {}
+        st.session_state.bank_islam_file_month = {}
+        st.session_state.file_company_name = {}
+        st.session_state.file_account_no = {}
+        st.session_state.pdf_password = ""
+        st.session_state.company_name_override = ""
+        st.rerun()
+
+st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 all_tx: List[dict] = []
@@ -1986,7 +1433,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 ) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals) or (
     bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals
 ):
-    render_shell_header("📊", "Extracted Transactions", "Review the parsed transaction rows, monthly summary, and export options.")
+    st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
 
     if not df.empty:
@@ -2102,7 +1549,6 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-    close_shell()
 else:
     if uploaded_files:
         st.warning("⚠️ No transactions found — click **Start Processing**.")
