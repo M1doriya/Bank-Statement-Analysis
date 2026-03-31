@@ -39,259 +39,6 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
-def apply_template_theme() -> None:
-    """Apply template-inspired styling to Streamlit controls/layout."""
-    st.markdown(
-        """
-        <style>
-            :root {
-                --bg: #f4f6f8;
-                --surface: #ffffff;
-                --surface-soft: #f8fafc;
-                --text: #17202f;
-                --muted: #667085;
-                --line: #e6ebf1;
-                --line-strong: #d7dee8;
-                --accent: #19b3a6;
-                --accent-strong: #129589;
-                --accent-soft: #e9f8f6;
-                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
-            }
-            .stApp {
-                color: var(--text);
-                background:
-                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    var(--bg);
-                background-size: 64px 64px;
-            }
-            .block-container {
-                max-width: 1120px;
-                padding-top: 2rem;
-                padding-bottom: 2rem;
-            }
-            .ui-shell {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                overflow: hidden;
-                margin-bottom: 1rem;
-            }
-            .ui-header {
-                padding: 34px 36px 18px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
-            }
-            .ui-header h1 {
-                margin: 0;
-                color: var(--text);
-                font-size: clamp(2rem, 4vw, 3rem);
-                line-height: 1.06;
-                letter-spacing: -0.05em;
-            }
-            .ui-header p {
-                margin: 10px 0 0;
-                color: var(--muted);
-                max-width: 760px;
-                line-height: 1.6;
-            }
-            .page-title {
-                margin: 0;
-                color: var(--text);
-                font-size: clamp(2rem, 4vw, 3rem);
-                line-height: 1.06;
-                letter-spacing: -0.05em;
-                font-weight: 800;
-            }
-            .page-subtitle {
-                margin: 10px 0 18px;
-                color: var(--muted);
-                max-width: 760px;
-                line-height: 1.6;
-            }
-            .auth-title {
-                margin: 0 0 6px;
-                color: var(--text);
-                font-size: clamp(1.8rem, 4vw, 2.5rem);
-                line-height: 1.06;
-                letter-spacing: -0.05em;
-                font-weight: 800;
-            }
-            .auth-subtitle {
-                margin: 0 0 16px;
-                color: var(--muted);
-                line-height: 1.6;
-            }
-            .ui-body {
-                padding: 20px 28px 28px;
-            }
-            .auth-shell .ui-header h1 {
-                font-size: clamp(1.8rem, 4vw, 2.5rem);
-            }
-            .stTextInput > div > div > input,
-            .stSelectbox [data-baseweb="select"] > div,
-            .stFileUploader section {
-                background: rgba(255, 255, 255, 0.96) !important;
-                color: var(--text) !important;
-                border: 1px solid var(--line) !important;
-                border-radius: 14px !important;
-            }
-            .stTextInput > label,
-            .stSelectbox > label,
-            .stFileUploader > label {
-                color: var(--text) !important;
-                font-weight: 700 !important;
-                letter-spacing: -0.01em;
-            }
-            .stTextInput input::placeholder {
-                color: #8a94a8 !important;
-            }
-            .stButton > button,
-            .stFormSubmitButton > button {
-                border-radius: 14px !important;
-                height: 50px !important;
-                font-weight: 700 !important;
-                border: 1px solid var(--line-strong) !important;
-                color: var(--text) !important;
-                background: #fff !important;
-            }
-            .stFormSubmitButton > button[kind="primary"],
-            .stButton > button[kind="primary"] {
-                border: none !important;
-                color: #fff !important;
-                background: var(--accent) !important;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22) !important;
-            }
-            .stAlert {
-                border-radius: 14px;
-            }
-            .status-pill {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                margin-top: 8px;
-                padding: 9px 14px;
-                border-radius: 999px;
-                border: 1px solid var(--line);
-                background: rgba(255, 255, 255, 0.9);
-                color: var(--text);
-                font-weight: 700;
-            }
-            .status-dot {
-                width: 9px;
-                height: 9px;
-                border-radius: 999px;
-                background: var(--accent);
-                box-shadow: 0 0 0 6px rgba(25, 179, 166, 0.16);
-            }
-            .section-block {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                padding: 24px 22px 20px;
-                margin-bottom: 1rem;
-            }
-            .auth-shell-card {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                overflow: hidden;
-                margin: 1.5rem auto;
-                max-width: 980px;
-            }
-            .auth-shell-header {
-                padding: 34px 42px 22px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.08);
-            }
-            .auth-shell-body {
-                padding: 24px 42px 24px;
-            }
-            .auth-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-top: 2px;
-                margin-bottom: 10px;
-                gap: 10px;
-                flex-wrap: wrap;
-            }
-            .auth-link {
-                color: var(--accent-strong);
-                text-decoration: none;
-                font-weight: 700;
-            }
-            .auth-divider {
-                border-top: 1px solid var(--line);
-                margin-top: 14px;
-                padding-top: 18px;
-                text-align: center;
-                color: var(--muted);
-            }
-            .app-shell {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                border-radius: 28px;
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                overflow: hidden;
-                margin-bottom: 1.2rem;
-            }
-            .app-shell-header {
-                padding: 28px 34px 14px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.08);
-            }
-            .app-shell-body {
-                padding: 18px 34px 28px;
-            }
-            .title-row {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-            }
-            .title-badge {
-                width: 56px;
-                height: 56px;
-                border-radius: 16px;
-                display: grid;
-                place-items: center;
-                background: var(--accent-soft);
-                color: var(--accent-strong);
-                font-size: 1.4rem;
-                flex: none;
-            }
-            div[data-testid="stDownloadButton"] > button {
-                border-radius: 14px !important;
-                border: 1px solid var(--line-strong) !important;
-                color: var(--text) !important;
-                background: #fff !important;
-                font-weight: 700 !important;
-            }
-            div[data-testid="stDataFrame"] {
-                border: 1px solid var(--line) !important;
-                border-radius: 14px !important;
-                overflow: hidden;
-                background: rgba(255, 255, 255, 0.95);
-            }
-            @media (max-width: 760px) {
-                .app-shell-header,
-                .app-shell-body,
-                .auth-shell-header,
-                .auth-shell-body {
-                    padding-left: 18px;
-                    padding-right: 18px;
-                }
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -307,32 +54,12 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.markdown(
-        """
-        <section class="auth-shell-card">
-            <div class="auth-shell-header">
-                <div class="title-row">
-                    <div class="title-badge">🔐</div>
-                    <h1 class="auth-title">Login required</h1>
-                </div>
-                <p class="auth-subtitle">Sign in to continue to the bank statement parser workspace.</p>
-            </div>
-            <div class="auth-shell-body">
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("🔐 Login required")
+
     with st.form("basic_auth_form"):
-        entered_user = st.text_input("Username", placeholder="Enter your username")
-        entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
-        meta_col1, meta_col2 = st.columns([1, 1])
-        with meta_col1:
-            st.checkbox("Remember me", key="remember_me")
-        with meta_col2:
-            st.markdown(
-                '<div style="text-align:right; padding-top: 0.4rem;"><a href="#" class="auth-link">Forgot password?</a></div>',
-                unsafe_allow_html=True,
-            )
-        submitted = st.form_submit_button("Sign in", type="primary")
+        entered_user = st.text_input("Username")
+        entered_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in")
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -344,34 +71,13 @@ def require_basic_auth() -> None:
             st.rerun()
         st.error("Invalid username or password.")
 
-    st.markdown(
-        """
-            <div class="auth-divider">Need access? <span class="auth-link">Contact administrator</span></div>
-            </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
     st.stop()
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-apply_template_theme()
 require_basic_auth()
-st.markdown(
-    """
-    <section class="app-shell">
-        <div class="app-shell-header">
-            <div class="title-row">
-                <div class="title-badge">📄</div>
-                <h1 class="page-title">Bank Statement Parser (Multi-File Support)</h1>
-            </div>
-            <p class="page-subtitle">Upload one or more bank statement PDFs to extract transactions.</p>
-        </div>
-        <div class="app-shell-body">
-    """,
-    unsafe_allow_html=True,
-)
+st.title("📄 Bank Statement Parser (Multi-File Support)")
+st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 
 # -----------------------------
@@ -1077,7 +783,7 @@ if uploaded_files:
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing", type="primary"):
+    if st.button("▶️ Start Processing"):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -1114,11 +820,7 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.markdown(
-    f'<div class="status-pill"><span class="status-dot"></span>⚙️ Status: {st.session_state.status.upper()}</div>',
-    unsafe_allow_html=True,
-)
-st.markdown("</div></section>", unsafe_allow_html=True)
+st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
 
 
 all_tx: List[dict] = []
