@@ -426,6 +426,12 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 overflow: hidden !important;
             }}
 
+            [data-testid="stFileUploader"] {{
+                max-height: 138px !important;
+                overflow: hidden !important;
+                display: block !important;
+            }}
+
             [data-testid="stFileUploader"] ul,
             [data-testid="stFileUploader"] li,
             [data-testid="stFileUploader"] [role="list"],
@@ -433,6 +439,11 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 margin: 0 !important;
                 padding: 0 !important;
                 list-style: none !important;
+            }}
+
+            [data-testid="stFileUploader"] button[aria-label*="page"],
+            [data-testid="stFileUploader"] button[title*="page"] {{
+                display: none !important;
             }}
 
             .action-row-anchor {{
@@ -1278,27 +1289,6 @@ if uploaded_files:
         unsafe_allow_html=True,
     )
 
-st.markdown('<div class="section-title">Company Name (optional override)</div>', unsafe_allow_html=True)
-st.text_input("Company Name (optional override)", key="company_name_override", label_visibility="collapsed", placeholder="Enter company name")
-
-# Detect encrypted files
-encrypted_files: List[str] = []
-if uploaded_files:
-    for uf in uploaded_files:
-        try:
-            if is_pdf_encrypted(uf.getvalue()):
-                encrypted_files.append(uf.name)
-        except Exception:
-            encrypted_files.append(uf.name)
-
-    if encrypted_files:
-        st.warning(
-            "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
-            + "\n".join([f"- {n}" for n in encrypted_files])
-        )
-        st.markdown('<div class="section-title">PDF Password</div>', unsafe_allow_html=True)
-        st.text_input("PDF Password", type="password", key="pdf_password", label_visibility="collapsed", placeholder="Enter your password")
-
 st.markdown('<div class="action-row-anchor"></div>', unsafe_allow_html=True)
 col1, col2, col3 = st.columns([1.25, 1, 1])
 with col1:
@@ -1324,6 +1314,28 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+st.markdown('<div class="section-title">Company Name (optional override)</div>', unsafe_allow_html=True)
+st.text_input("Company Name (optional override)", key="company_name_override", label_visibility="collapsed", placeholder="Enter company name")
+
+# Detect encrypted files
+encrypted_files: List[str] = []
+if uploaded_files:
+    for uf in uploaded_files:
+        try:
+            if is_pdf_encrypted(uf.getvalue()):
+                encrypted_files.append(uf.name)
+        except Exception:
+            encrypted_files.append(uf.name)
+
+    if encrypted_files:
+        st.warning(
+            "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
+            + "\n".join([f"- {n}" for n in encrypted_files])
+        )
+        st.markdown('<div class="section-title">PDF Password</div>', unsafe_allow_html=True)
+        st.text_input("PDF Password", type="password", key="pdf_password", label_visibility="collapsed", placeholder="Enter your password")
 
 if start_clicked:
     st.session_state.status = "running"
