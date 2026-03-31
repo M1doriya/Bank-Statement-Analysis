@@ -394,7 +394,7 @@ def inject_custom_theme(authenticated: bool = True) -> None:
             }}
 
             [data-testid="stFileUploaderDropzone"] * {{
-                color: var(--text) !important;
+                color: #17202f !important;
             }}
 
             [data-testid="stFileUploaderDropzone"] small,
@@ -409,6 +409,19 @@ def inject_custom_theme(authenticated: bool = True) -> None:
                 background: transparent !important;
                 border: none !important;
             }}
+
+            [data-testid="stFileUploaderFile"],
+            [data-testid="stFileUploaderFileData"],
+            [data-testid="stFileUploaderDeleteBtn"] {
+                display: none !important;
+            }
+
+            [data-testid="stFileUploader"] ul,
+            [data-testid="stFileUploader"] li {
+                margin: 0 !important;
+                padding: 0 !important;
+                list-style: none !important;
+            }
 
             [data-testid="stFileUploaderFile"] *,
             [data-testid="stFileUploaderFileName"],
@@ -1241,6 +1254,10 @@ st.markdown('<div class="section-title">Upload PDF files</div>', unsafe_allow_ht
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, label_visibility="collapsed")
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
+    st.markdown(
+        f'<div style="margin:-6px 0 16px; color:#667085; font-size:0.94rem;">{len(uploaded_files)} file(s) selected</div>',
+        unsafe_allow_html=True,
+    )
 
 st.markdown('<div class="section-title">Company Name (optional override)</div>', unsafe_allow_html=True)
 st.text_input("Company Name (optional override)", key="company_name_override", label_visibility="collapsed", placeholder="Enter company name")
