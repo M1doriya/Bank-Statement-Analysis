@@ -53,51 +53,51 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     is_light = str(theme_mode or "Dark").strip().lower() == "light"
     if is_light:
         theme_vars = """
-            --page-bg: #eff5f7;
-            --page-bg-soft: #f8fbfc;
+            --page-bg: #edf3f6;
+            --page-bg-soft: #f7fafc;
             --surface: #ffffff;
-            --surface-soft: #f5fafb;
+            --surface-soft: #f4f8fb;
             --surface-elevated: #ffffff;
             --panel: #ffffff;
-            --panel-soft: #f7fbfc;
-            --text: #12242d;
-            --text-strong: #09161d;
-            --muted: #5d7380;
-            --line: rgba(16, 126, 121, 0.18);
-            --line-strong: rgba(16, 126, 121, 0.34);
-            --accent: #10cfc0;
-            --accent-strong: #0aa89b;
-            --accent-soft: rgba(16, 207, 192, 0.12);
+            --panel-soft: #f5f9fb;
+            --text: #17303c;
+            --text-strong: #0a1a22;
+            --muted: #536a77;
+            --line: rgba(13, 55, 74, 0.12);
+            --line-strong: rgba(13, 55, 74, 0.24);
+            --accent: #0fb6aa;
+            --accent-strong: #0a958b;
+            --accent-soft: rgba(15, 182, 170, 0.10);
             --navy: #0d1d27;
             --navy-soft: #17313e;
             --hero-bg: linear-gradient(180deg, #10222d 0%, #0c1b24 100%);
-            --hero-surface: rgba(255, 255, 255, 0.04);
+            --hero-surface: rgba(255, 255, 255, 0.05);
             --hero-line: rgba(16, 207, 192, 0.20);
-            --hero-text: #f4fcfc;
-            --hero-muted: #9fc2c4;
-            --hero-subtle: #d9f1f1;
-            --hero-card-bg: rgba(255, 255, 255, 0.035);
-            --hero-card-overlay: rgba(16, 207, 192, 0.06);
-            --hero-ghost: rgba(255, 255, 255, 0.02);
+            --hero-text: #f6ffff;
+            --hero-muted: #a6c8ca;
+            --hero-subtle: #ebfbfb;
+            --hero-card-bg: rgba(255, 255, 255, 0.04);
+            --hero-card-overlay: rgba(16, 207, 192, 0.07);
+            --hero-ghost: rgba(255, 255, 255, 0.03);
             --hero-primary-bg: #19c4b3;
             --hero-primary-text: #082126;
-            --button-primary-bg: #0f766e;
+            --button-primary-bg: #0d766e;
             --button-primary-text: #ffffff;
             --button-primary-border: transparent;
             --button-secondary-bg: #ffffff;
-            --button-secondary-text: #12242d;
-            --button-secondary-border: rgba(18, 36, 45, 0.12);
+            --button-secondary-text: #17303c;
+            --button-secondary-border: rgba(13, 55, 74, 0.18);
             --shadow: 0 16px 36px rgba(6, 18, 24, 0.08);
             --shadow-soft: 0 10px 22px rgba(6, 18, 24, 0.05);
-            --status-idle-bg: #eef6f7;
-            --status-idle-text: #43606b;
-            --status-running-bg: rgba(16, 207, 192, 0.14);
-            --status-running-text: #0c8c83;
-            --status-stopped-bg: #fff4e9;
-            --status-stopped-text: #b15c00;
+            --status-idle-bg: #eef4f7;
+            --status-idle-text: #44606f;
+            --status-running-bg: rgba(15, 182, 170, 0.14);
+            --status-running-text: #0a8d84;
+            --status-stopped-bg: #fff3e8;
+            --status-stopped-text: #a95600;
             --table-bg: #ffffff;
-            --table-head: #f1f8f9;
-            --table-text: #12242d;
+            --table-head: #eef4f7;
+            --table-text: #17303c;
         """
     else:
         theme_vars = """
@@ -266,14 +266,52 @@ __THEME_VARS__
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            margin: 0 0 4px;
-            text-align: right;
+            margin: 0;
+        }
+
+        .theme-switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 34px;
+        }
+
+        .theme-switch-copy {
+            color: var(--hero-text);
+            font-size: 0.9rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: 4px;
+        }
+
+        .theme-switch-state {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 64px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--hero-line);
+            color: var(--hero-subtle);
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
         }
 
         .topbar-shell [data-testid="stWidgetLabel"] { display: none; }
 
-        .topbar-shell div[data-baseweb="select"] > div {
-            min-height: 42px;
+        .topbar-shell div[data-testid="stToggle"] {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .topbar-shell [data-testid="stToggle"] > label,
+        .topbar-shell [data-testid="stCheckbox"] > label {
+            margin-bottom: 0;
         }
 
         .hero-shell,
@@ -579,22 +617,19 @@ __THEME_VARS__
         }
 
         .tool-shell div[data-baseweb="input"] > div,
-        .tool-shell div[data-baseweb="select"] > div,
-        .topbar-shell div[data-baseweb="select"] > div {
+        .tool-shell div[data-baseweb="select"] > div {
             background: var(--hero-card-bg);
             border-color: var(--hero-line);
         }
 
         .tool-shell div[data-baseweb="input"] > div:hover,
-        .tool-shell div[data-baseweb="select"] > div:hover,
-        .topbar-shell div[data-baseweb="select"] > div:hover {
+        .tool-shell div[data-baseweb="select"] > div:hover {
             border-color: var(--line-strong);
             background: var(--hero-card-bg);
         }
 
         .tool-shell div[data-baseweb="input"] > div:focus-within,
-        .tool-shell div[data-baseweb="select"] > div:focus-within,
-        .topbar-shell div[data-baseweb="select"] > div:focus-within {
+        .tool-shell div[data-baseweb="select"] > div:focus-within {
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.14);
             background: var(--hero-card-bg);
@@ -604,10 +639,7 @@ __THEME_VARS__
         .tool-shell div[data-baseweb="input"] textarea,
         .tool-shell div[data-baseweb="select"] input,
         .tool-shell div[data-baseweb="select"] span,
-        .tool-shell div[data-baseweb="select"] div,
-        .topbar-shell div[data-baseweb="select"] input,
-        .topbar-shell div[data-baseweb="select"] span,
-        .topbar-shell div[data-baseweb="select"] div {
+        .tool-shell div[data-baseweb="select"] div {
             color: var(--hero-text) !important;
             -webkit-text-fill-color: var(--hero-text) !important;
         }
@@ -661,6 +693,13 @@ __THEME_VARS__
             color: var(--muted) !important;
             -webkit-text-fill-color: var(--muted) !important;
             opacity: 1 !important;
+        }
+
+        .topbar-shell [data-testid="stToggle"] p,
+        .topbar-shell [data-testid="stCheckbox"] p,
+        .topbar-shell [data-testid="stToggle"] span,
+        .topbar-shell [data-testid="stCheckbox"] span {
+            color: var(--hero-text) !important;
         }
 
         div[data-testid="stWidgetLabel"] p,
@@ -1015,7 +1054,7 @@ __THEME_VARS__
 
 
 def render_top_bar() -> None:
-    left, middle, right = st.columns([1.6, 1.5, 0.9], gap="small")
+    left, middle, right = st.columns([1.6, 1.5, 1.0], gap="small")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1044,11 +1083,21 @@ def render_top_bar() -> None:
         unsafe_allow_html=True,
     )
     with right:
-        st.markdown('<div class="topbar-shell"><div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
-        if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
-            st.selectbox("Appearance", ["Dark", "Light"], key="ui_theme_mode", label_visibility="collapsed")
-        else:
-            st.selectbox("Appearance", ["Dark", "Light"], key="ui_theme_mode")
+        theme_state = "Light" if st.session_state.get("ui_theme_light", False) else "Dark"
+        st.markdown(
+            f"""
+            <div class="topbar-shell">
+                <div class="theme-switch-row">
+                    <div>
+                        <div class="theme-slot-label">Appearance</div>
+                        <div class="theme-switch-copy">{theme_state} mode</div>
+                    </div>
+                    <div class="theme-switch-state">{theme_state}</div>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        toggle_compat("Light mode", key="ui_theme_light", label_visibility="collapsed")
         st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -1060,7 +1109,7 @@ def render_auth_shell() -> None:
                 <span class="section-badge">Secure access</span>
             </div>
             <h1>Access the parser workspace</h1>
-            <p class="auth-copy">Sign in to continue. Sign in to continue to the parser workspace. This update refines the visual system only, while keeping the existing authentication and app logic intact.</p>
+            <p class="auth-copy">Sign in to continue to the parser workspace. The visual design is refreshed, while the authentication and parser functionality remain unchanged.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1172,33 +1221,15 @@ def render_progress_panel(status: str, uploaded_files: List, has_results: bool) 
         ("View Results", "Review tables and download reports"),
     ]
 
-    step_html = []
+    st.markdown('<section class="progress-shell"><div class="progress-title">Progress</div><div class="progress-steps">', unsafe_allow_html=True)
     for idx, (title, copy) in enumerate(steps, start=1):
         active_class = " is-active" if idx == current_step else ""
-        step_html.append(
-            f"""
-            <div class="progress-step{active_class}">
-                <div class="progress-index">{idx}</div>
-                <div>
-                    <div class="progress-step-title">{html.escape(title)}</div>
-                    <div class="progress-step-copy">{html.escape(copy)}</div>
-                </div>
-            </div>
-            """
+        st.markdown(
+            f'<div class="progress-step{active_class}"><div class="progress-index">{idx}</div><div><div class="progress-step-title">{html.escape(title)}</div><div class="progress-step-copy">{html.escape(copy)}</div></div></div>',
+            unsafe_allow_html=True,
         )
-
     st.markdown(
-        f"""
-        <section class="progress-shell">
-            <div class="progress-title">Progress</div>
-            <div class="progress-steps">{"".join(step_html)}</div>
-            <div class="progress-divider"></div>
-            <div class="progress-footer">
-                <span>Status</span>
-                <span class="mini-pill">{html.escape(status_label)}</span>
-            </div>
-        </section>
-        """,
+        f'</div><div class="progress-divider"></div><div class="progress-footer"><span>Status</span><span class="mini-pill">{html.escape(status_label)}</span></div></section>',
         unsafe_allow_html=True,
     )
 
@@ -1285,6 +1316,16 @@ def form_submit_button_compat(label: str, primary: bool = False, **kwargs):
     return st.form_submit_button(label, **call_kwargs)
 
 
+def toggle_compat(label: str, **kwargs):
+    call_kwargs = dict(kwargs)
+    if hasattr(st, "toggle"):
+        if "label_visibility" in call_kwargs and not _supports_streamlit_kwarg(st.toggle, "label_visibility"):
+            call_kwargs.pop("label_visibility", None)
+        return st.toggle(label, **call_kwargs)
+    call_kwargs.pop("label_visibility", None)
+    return st.checkbox(label, **call_kwargs)
+
+
 def download_button_compat(label: str, *args, **kwargs):
     call_kwargs = dict(kwargs)
     if "use_container_width" in call_kwargs and not _supports_streamlit_kwarg(st.download_button, "use_container_width"):
@@ -1293,17 +1334,13 @@ def download_button_compat(label: str, *args, **kwargs):
 
 
 def render_metric_cards(items: List[Tuple[str, str]]) -> None:
-    cards = []
-    for label, value in items:
-        cards.append(
-            f"""
-            <div class="metric-card">
-                <div class="metric-card__label">{html.escape(label)}</div>
-                <div class="metric-card__value">{html.escape(value)}</div>
-            </div>
-            """
-        )
-    st.markdown(f'<div class="metric-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+    columns = st.columns(len(items)) if items else []
+    for col, (label, value) in zip(columns, items):
+        with col:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-card__label">{html.escape(label)}</div><div class="metric-card__value">{html.escape(value)}</div></div>',
+                unsafe_allow_html=True,
+            )
 
 
 def require_basic_auth() -> None:
@@ -1348,8 +1385,9 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-if "ui_theme_mode" not in st.session_state:
-    st.session_state.ui_theme_mode = "Dark"
+if "ui_theme_light" not in st.session_state:
+    st.session_state.ui_theme_light = False
+st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
 
 inject_global_styles(st.session_state.ui_theme_mode)
 render_top_bar()
