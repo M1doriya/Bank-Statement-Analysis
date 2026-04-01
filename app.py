@@ -1,3 +1,5 @@
+import html
+import inspect
 import json
 import os
 import re
@@ -46,6 +48,509 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
+def inject_global_styles() -> None:
+    st.markdown(
+        """
+        <style>
+            :root {
+                --bg: #f4f6f8;
+                --surface: rgba(255, 255, 255, 0.86);
+                --surface-strong: #ffffff;
+                --surface-soft: #f8fafc;
+                --text: #17202f;
+                --muted: #667085;
+                --line: #e6ebf1;
+                --line-strong: #d7dee8;
+                --accent: #19b3a6;
+                --accent-strong: #129589;
+                --accent-soft: #e9f8f6;
+                --warning: #c78317;
+                --radius-xl: 28px;
+                --radius-lg: 18px;
+                --radius-md: 14px;
+                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
+            }
+
+            html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+                background:
+                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+                    var(--bg);
+                background-size: 64px 64px;
+                color: var(--text);
+            }
+
+            [data-testid="stHeader"] {
+                background: rgba(0, 0, 0, 0);
+            }
+
+            #MainMenu, footer {
+                visibility: hidden;
+            }
+
+            .block-container {
+                max-width: 1120px;
+                padding-top: 2rem;
+                padding-bottom: 3rem;
+            }
+
+            .hero-shell, .auth-shell, .section-shell, .results-shell, .download-shell {
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid rgba(255, 255, 255, 0.7);
+                border-radius: var(--radius-xl);
+                box-shadow: var(--shadow);
+                backdrop-filter: blur(8px);
+                overflow: hidden;
+            }
+
+            .hero-shell {
+                margin-bottom: 1.2rem;
+            }
+
+            .hero-shell__header, .auth-shell__header {
+                padding: 34px 36px 18px;
+                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+            }
+
+            .hero-shell__row, .auth-shell__row {
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                margin-bottom: 12px;
+                flex-wrap: wrap;
+            }
+
+            .hero-shell__icon, .auth-shell__icon {
+                width: 54px;
+                height: 54px;
+                border-radius: 16px;
+                display: grid;
+                place-items: center;
+                background: var(--accent-soft);
+                color: var(--accent-strong);
+                font-size: 1.5rem;
+                flex: none;
+            }
+
+            .auth-shell__icon {
+                width: 52px;
+                height: 52px;
+                font-size: 1.4rem;
+            }
+
+            .hero-shell h1, .auth-shell h1 {
+                margin: 0;
+                font-size: clamp(2rem, 4vw, 3.3rem);
+                line-height: 1.05;
+                letter-spacing: -0.05em;
+                font-weight: 800;
+                color: var(--text);
+            }
+
+            .auth-shell h1 {
+                font-size: clamp(1.8rem, 4vw, 2.8rem);
+            }
+
+            .hero-shell__subtitle, .auth-shell__subtitle {
+                margin: 0;
+                color: var(--muted);
+                font-size: 1rem;
+                line-height: 1.7;
+                max-width: 720px;
+            }
+
+            .auth-shell {
+                max-width: 760px;
+                margin: 8vh auto 0;
+            }
+
+            .panel-label {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.84rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--accent-strong);
+                margin-bottom: 0.5rem;
+            }
+
+            .section-shell, .results-shell, .download-shell {
+                padding: 1.1rem 1.25rem 1.25rem;
+                margin-bottom: 1rem;
+            }
+
+            .section-title {
+                margin: 0;
+                color: var(--text);
+                font-size: 1.15rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+            }
+
+            .section-copy {
+                margin: 0.35rem 0 0;
+                color: var(--muted);
+                line-height: 1.6;
+                font-size: 0.95rem;
+            }
+
+            .section-head {
+                margin-bottom: 1rem;
+            }
+
+            div[data-testid="stForm"] {
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid rgba(255, 255, 255, 0.7);
+                border-radius: var(--radius-xl);
+                box-shadow: var(--shadow);
+                backdrop-filter: blur(8px);
+                padding: 24px 24px 18px;
+                max-width: 760px;
+                margin: 0.9rem auto 0;
+            }
+
+            div[data-testid="stForm"] label p,
+            div[data-testid="stWidgetLabel"] p {
+                color: var(--text);
+                font-size: 0.95rem;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+            }
+
+            div[data-baseweb="input"],
+            div[data-baseweb="select"] > div {
+                border-radius: var(--radius-md) !important;
+            }
+
+            div[data-baseweb="input"] > div,
+            div[data-baseweb="select"] > div {
+                min-height: 56px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.96);
+                box-shadow: none;
+                transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+            }
+
+            div[data-baseweb="input"] > div:focus-within,
+            div[data-baseweb="select"] > div:focus-within {
+                border-color: rgba(25, 179, 166, 0.5);
+                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11);
+                background: #fff;
+            }
+
+            div[data-testid="stFileUploaderDropzone"] {
+                border: 1px solid var(--line);
+                border-radius: var(--radius-lg);
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+                padding: 18px 20px;
+            }
+
+            div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {
+                color: var(--muted);
+            }
+
+            div[data-testid="stFileUploader"] section button,
+            div.stButton > button,
+            div.stDownloadButton > button,
+            div[data-testid="stFormSubmitButton"] > button {
+                min-height: 50px;
+                border-radius: 14px;
+                font-weight: 700;
+                transition: 160ms ease;
+                border: 1px solid var(--line-strong);
+                background: #fff;
+                color: var(--text);
+            }
+
+            div.stButton > button:hover,
+            div.stDownloadButton > button:hover,
+            div[data-testid="stFormSubmitButton"] > button:hover,
+            div[data-testid="stFileUploader"] section button:hover {
+                background: var(--surface-soft);
+                border-color: var(--line-strong);
+                color: var(--text);
+            }
+
+            div.stButton > button[kind="primary"],
+            div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+                border: none;
+                background: var(--accent);
+                color: #fff;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+            }
+
+            div.stButton > button[kind="primary"]:hover,
+            div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+                background: var(--accent-strong);
+                color: #fff;
+            }
+
+            .status-card {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 18px 20px;
+                border-radius: 18px;
+                background: rgba(255, 255, 255, 0.82);
+                border: 1px solid var(--line);
+                font-size: 1rem;
+                font-weight: 700;
+                margin-bottom: 1rem;
+            }
+
+            .status-card__dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 999px;
+                background: var(--accent);
+                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
+                flex: none;
+            }
+
+            .status-card.is-idle .status-card__dot { background: #94a3b8; box-shadow: 0 0 0 8px rgba(148, 163, 184, 0.12); }
+            .status-card.is-running .status-card__dot { background: var(--accent); }
+            .status-card.is-stopped .status-card__dot { background: var(--warning); box-shadow: 0 0 0 8px rgba(199, 131, 23, 0.12); }
+
+            .status-card__label {
+                color: var(--muted);
+                font-weight: 600;
+                margin-right: 6px;
+            }
+
+            .file-chip-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin: 0.85rem 0 0.15rem;
+            }
+
+            .file-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 14px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid var(--line);
+                color: var(--text);
+                font-size: 0.92rem;
+                font-weight: 600;
+            }
+
+            .file-chip.is-encrypted {
+                background: #fff7ed;
+                border-color: #fed7aa;
+                color: #9a3412;
+            }
+
+            .metric-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 14px;
+                margin-bottom: 1rem;
+            }
+
+            .metric-card {
+                background: rgba(255, 255, 255, 0.86);
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                padding: 16px 18px;
+            }
+
+            .metric-card__label {
+                color: var(--muted);
+                font-size: 0.82rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                margin-bottom: 0.4rem;
+            }
+
+            .metric-card__value {
+                color: var(--text);
+                font-size: 1.15rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                word-break: break-word;
+            }
+
+            div[data-testid="stDataFrame"] {
+                background: rgba(255, 255, 255, 0.92);
+                border: 1px solid var(--line);
+                border-radius: 20px;
+                padding: 0.35rem;
+                overflow: hidden;
+            }
+
+            div[data-testid="stProgressBar"] > div > div {
+                background-color: rgba(25, 179, 166, 0.18);
+            }
+
+            div[data-testid="stProgressBar"] div[role="progressbar"] {
+                background: var(--accent);
+            }
+
+            .auth-footer-note {
+                max-width: 760px;
+                margin: 0.75rem auto 0;
+                text-align: center;
+                color: var(--muted);
+                font-size: 0.92rem;
+            }
+
+            @media (max-width: 760px) {
+                .block-container {
+                    padding-top: 1rem;
+                }
+
+                .hero-shell__header, .auth-shell__header {
+                    padding: 24px 20px 16px;
+                }
+
+                .section-shell, .results-shell, .download-shell {
+                    padding: 1rem;
+                }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_auth_shell() -> None:
+    st.markdown(
+        """
+        <section class="auth-shell">
+            <div class="auth-shell__header">
+                <div class="auth-shell__row">
+                    <div class="auth-shell__icon">🔒</div>
+                    <h1>Login required</h1>
+                </div>
+                <p class="auth-shell__subtitle">Sign in to continue to the bank statement parser workspace.</p>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_app_hero() -> None:
+    st.markdown(
+        """
+        <section class="hero-shell">
+            <div class="hero-shell__header">
+                <div class="hero-shell__row">
+                    <div class="hero-shell__icon">📄</div>
+                    <h1>Bank Statement Parser (Multi-File Support)</h1>
+                </div>
+                <p class="hero-shell__subtitle">Upload one or more bank statement PDFs to extract transactions without changing the underlying processing logic.</p>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_section_header(label: str, title: str, subtitle: str) -> None:
+    st.markdown(
+        f"""
+        <div class="section-head">
+            <div class="panel-label">{html.escape(label)}</div>
+            <h2 class="section-title">{html.escape(title)}</h2>
+            <p class="section-copy">{html.escape(subtitle)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_card(status: str) -> None:
+    status_key = (status or "idle").strip().lower()
+    status_copy = {
+        "idle": "Ready to process uploaded statements.",
+        "running": "Parsing uploaded PDFs and generating summaries.",
+        "stopped": "Processing paused. You can resume by starting again.",
+    }
+    status_label = {
+        "idle": "Idle",
+        "running": "Running",
+        "stopped": "Stopped",
+    }.get(status_key, status.upper())
+    st.markdown(
+        f"""
+        <div class="status-card is-{html.escape(status_key)}">
+            <span class="status-card__dot"></span>
+            <div><span class="status-card__label">Status:</span> {html.escape(status_label)}</div>
+        </div>
+        <p class="section-copy" style="margin:-0.55rem 0 1rem 0.1rem;">{html.escape(status_copy.get(status_key, "Current application state updated."))}</p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_file_chips(uploaded_files: List, encrypted_files: List[str]) -> None:
+    if not uploaded_files:
+        return
+
+    chips = []
+    encrypted_set = set(encrypted_files or [])
+    for uploaded_file in uploaded_files:
+        name = getattr(uploaded_file, "name", str(uploaded_file))
+        extra_class = " is-encrypted" if name in encrypted_set else ""
+        icon = "🔒" if name in encrypted_set else "📎"
+        chips.append(f'<span class="file-chip{extra_class}">{icon} {html.escape(name)}</span>')
+
+    st.markdown(f'<div class="file-chip-row">{"".join(chips)}</div>', unsafe_allow_html=True)
+
+
+def _supports_streamlit_kwarg(func, name: str) -> bool:
+    try:
+        return name in inspect.signature(func).parameters
+    except Exception:
+        return False
+
+
+def button_compat(label: str, primary: bool = False, **kwargs):
+    call_kwargs = dict(kwargs)
+    if primary and _supports_streamlit_kwarg(st.button, "type"):
+        call_kwargs["type"] = "primary"
+    if "use_container_width" in call_kwargs and not _supports_streamlit_kwarg(st.button, "use_container_width"):
+        call_kwargs.pop("use_container_width", None)
+    return st.button(label, **call_kwargs)
+
+
+def form_submit_button_compat(label: str, primary: bool = False, **kwargs):
+    call_kwargs = dict(kwargs)
+    if primary and _supports_streamlit_kwarg(st.form_submit_button, "type"):
+        call_kwargs["type"] = "primary"
+    if "use_container_width" in call_kwargs and not _supports_streamlit_kwarg(st.form_submit_button, "use_container_width"):
+        call_kwargs.pop("use_container_width", None)
+    return st.form_submit_button(label, **call_kwargs)
+
+
+def download_button_compat(label: str, *args, **kwargs):
+    call_kwargs = dict(kwargs)
+    if "use_container_width" in call_kwargs and not _supports_streamlit_kwarg(st.download_button, "use_container_width"):
+        call_kwargs.pop("use_container_width", None)
+    return st.download_button(label, *args, **call_kwargs)
+
+
+def render_metric_cards(items: List[Tuple[str, str]]) -> None:
+    cards = []
+    for label, value in items:
+        cards.append(
+            f"""
+            <div class="metric-card">
+                <div class="metric-card__label">{html.escape(label)}</div>
+                <div class="metric-card__value">{html.escape(value)}</div>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="metric-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
 def require_basic_auth() -> None:
     """Gate the app behind credentials loaded from environment variables."""
     configured_user = os.getenv("BASIC_AUTH_USER")
@@ -61,12 +566,18 @@ def require_basic_auth() -> None:
     if st.session_state.get("is_authenticated"):
         return
 
-    st.subheader("🔐 Login required")
+    render_auth_shell()
+    auth_feedback = st.empty()
 
     with st.form("basic_auth_form"):
-        entered_user = st.text_input("Username")
-        entered_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
+        entered_user = st.text_input("Username", placeholder="Enter your username")
+        entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = form_submit_button_compat("Sign in", primary=True)
+
+    st.markdown(
+        '<div class="auth-footer-note">Need access? Contact your administrator.</div>',
+        unsafe_allow_html=True,
+    )
 
     if submitted:
         is_valid = secrets.compare_digest(entered_user, configured_user) and secrets.compare_digest(
@@ -76,15 +587,15 @@ def require_basic_auth() -> None:
         if is_valid:
             st.session_state.is_authenticated = True
             st.rerun()
-        st.error("Invalid username or password.")
+        auth_feedback.error("Invalid username or password.")
 
     st.stop()
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
+inject_global_styles()
 require_basic_auth()
-st.title("📄 Bank Statement Parser (Multi-File Support)")
-st.write("Upload one or more bank statement PDFs to extract transactions.")
+render_app_hero()
 
 
 # -----------------------------
@@ -924,14 +1435,22 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
+st.markdown('<section class="section-shell">', unsafe_allow_html=True)
+render_section_header(
+    "Workspace",
+    "Configure parser input",
+    "Match the bank format, upload one or more PDF statements, and optionally override the detected company name.",
+)
+
+control_left, control_right = st.columns([1.2, 1], gap="large")
+with control_left:
+    bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
+with control_right:
+    st.text_input("Company Name (optional override)", key="company_name_override")
 
 uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
 if uploaded_files:
     uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
-
-# Manual company name override
-st.text_input("Company Name (optional override)", key="company_name_override")
 
 # Detect encrypted files
 encrypted_files: List[str] = []
@@ -943,17 +1462,27 @@ if uploaded_files:
         except Exception:
             encrypted_files.append(uf.name)
 
-    if encrypted_files:
-        st.warning(
-            "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
-            + "\n".join([f"- {n}" for n in encrypted_files])
-        )
-        st.text_input("PDF Password", type="password", key="pdf_password")
+render_file_chips(uploaded_files, encrypted_files)
 
+if encrypted_files:
+    st.warning(
+        "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
+        + "\n".join([f"- {n}" for n in encrypted_files])
+    )
+    st.text_input("PDF Password", type="password", key="pdf_password")
+
+st.markdown('</section>', unsafe_allow_html=True)
+
+st.markdown('<section class="section-shell">', unsafe_allow_html=True)
+render_section_header(
+    "Actions",
+    "Run parser workflow",
+    "Start processing when you are ready, stop an active run, or reset the current workspace state.",
+)
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Processing"):
+    if button_compat("▶️ Start Processing", primary=True, use_container_width=True):
         st.session_state.status = "running"
         st.session_state.affin_statement_totals = []
         st.session_state.affin_file_transactions = {}
@@ -970,11 +1499,11 @@ with col1:
         st.session_state.file_account_no = {}
 
 with col2:
-    if st.button("⏹️ Stop"):
+    if button_compat("⏹️ Stop", use_container_width=True):
         st.session_state.status = "stopped"
 
 with col3:
-    if st.button("🔄 Reset"):
+    if button_compat("🔄 Reset", use_container_width=True):
         st.session_state.status = "idle"
         st.session_state.results = []
         st.session_state.affin_statement_totals = []
@@ -994,8 +1523,8 @@ with col3:
         st.session_state.company_name_override = ""
         st.rerun()
 
-st.write(f"### ⚙️ Status: **{st.session_state.status.upper()}**")
-
+render_status_card(st.session_state.status)
+st.markdown('</section>', unsafe_allow_html=True)
 
 all_tx: List[dict] = []
 
@@ -1691,8 +2220,43 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
 ) or (bank_choice == "CIMB Bank" and st.session_state.cimb_statement_totals) or (
     bank_choice == "RHB Bank" and st.session_state.rhb_statement_totals
 ):
-    st.subheader("📊 Extracted Transactions")
     df = pd.DataFrame(st.session_state.results) if st.session_state.results else pd.DataFrame()
+
+    monthly_summary_raw = calculate_monthly_summary(st.session_state.results)
+    monthly_summary = present_monthly_summary_standard(monthly_summary_raw)
+
+    date_min = df["date"].min() if "date" in df.columns and not df.empty else None
+    date_max = df["date"].max() if "date" in df.columns and not df.empty else None
+
+    total_files_processed = None
+    if "source_file" in df.columns and not df.empty:
+        total_files_processed = int(df["source_file"].nunique())
+    else:
+        if bank_choice == "Affin Bank":
+            total_files_processed = len(st.session_state.affin_statement_totals)
+        elif bank_choice == "Ambank":
+            total_files_processed = len(st.session_state.ambank_statement_totals)
+        elif bank_choice == "CIMB Bank":
+            total_files_processed = len(st.session_state.cimb_statement_totals)
+        elif bank_choice == "RHB Bank":
+            total_files_processed = len(st.session_state.rhb_statement_totals)
+
+    summary_range = f"{date_min} to {date_max}" if date_min and date_max else "Not available"
+    render_metric_cards(
+        [
+            ("Bank Format", bank_choice),
+            ("Files Processed", str(total_files_processed or 0)),
+            ("Transactions", str(len(df))),
+            ("Date Range", summary_range),
+        ]
+    )
+
+    st.markdown('<section class="results-shell">', unsafe_allow_html=True)
+    render_section_header(
+        "Results",
+        "Extracted transactions",
+        "Review normalized line items before exporting or moving to the monthly summary.",
+    )
 
     if not df.empty:
         display_cols = [
@@ -1712,12 +2276,15 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         st.dataframe(df[display_cols], use_container_width=True)
     else:
         st.info("No line-item transactions extracted.")
-
-    monthly_summary_raw = calculate_monthly_summary(st.session_state.results)
-    monthly_summary = present_monthly_summary_standard(monthly_summary_raw)
+    st.markdown('</section>', unsafe_allow_html=True)
 
     if monthly_summary:
-        st.subheader("📅 Monthly Summary (Standardized)")
+        st.markdown('<section class="results-shell">', unsafe_allow_html=True)
+        render_section_header(
+            "Summary",
+            "Monthly summary (standardized)",
+            "Opening balances, total flows, and ending balances are preserved from the existing summary logic.",
+        )
         summary_df = pd.DataFrame(monthly_summary)
         desired_cols = [
             "month",
@@ -1734,37 +2301,28 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         ]
         summary_df = summary_df[[c for c in desired_cols if c in summary_df.columns]]
         st.dataframe(summary_df, use_container_width=True)
+        st.markdown('</section>', unsafe_allow_html=True)
 
-    st.subheader("⬇️ Download Options")
+    st.markdown('<section class="download-shell">', unsafe_allow_html=True)
+    render_section_header(
+        "Exports",
+        "Download options",
+        "Export transactions only, or generate full JSON and XLSX reports using the same underlying data.",
+    )
     col1, col2, col3 = st.columns(3)
 
     df_download = df.copy() if not df.empty else pd.DataFrame([])
 
     with col1:
-        st.download_button(
+        download_button_compat(
             "📄 Download Transactions (JSON)",
             json.dumps(df_download.to_dict(orient="records"), indent=4),
             "transactions.json",
             "application/json",
+            use_container_width=True,
         )
 
     with col2:
-        date_min = df_download["date"].min() if "date" in df_download.columns and not df_download.empty else None
-        date_max = df_download["date"].max() if "date" in df_download.columns and not df_download.empty else None
-
-        total_files_processed = None
-        if "source_file" in df_download.columns and not df_download.empty:
-            total_files_processed = int(df_download["source_file"].nunique())
-        else:
-            if bank_choice == "Affin Bank":
-                total_files_processed = len(st.session_state.affin_statement_totals)
-            elif bank_choice == "Ambank":
-                total_files_processed = len(st.session_state.ambank_statement_totals)
-            elif bank_choice == "CIMB Bank":
-                total_files_processed = len(st.session_state.cimb_statement_totals)
-            elif bank_choice == "RHB Bank":
-                total_files_processed = len(st.session_state.rhb_statement_totals)
-
         company_names = sorted(
             {x for x in df_download.get("company_name", pd.Series([], dtype=object)).dropna().astype(str).tolist() if x.strip()}
         )
@@ -1786,11 +2344,12 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "transactions": df_download.to_dict(orient="records"),
         }
 
-        st.download_button(
+        download_button_compat(
             "📊 Download Full Report (JSON)",
             json.dumps(full_report, indent=4),
             "full_report.json",
             "application/json",
+            use_container_width=True,
         )
 
     with col3:
@@ -1800,12 +2359,14 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             if monthly_summary:
                 pd.DataFrame(monthly_summary).to_excel(writer, sheet_name="Monthly Summary", index=False)
 
-        st.download_button(
+        download_button_compat(
             "📊 Download Full Report (XLSX)",
             output.getvalue(),
             "full_report.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
+    st.markdown('</section>', unsafe_allow_html=True)
 
 else:
     if uploaded_files:
