@@ -316,9 +316,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             gap: 12px;
         }}
 
-        .theme-toggle-shell [data-testid="stHorizontalBlock"] {
+        .theme-toggle-shell [data-testid="stHorizontalBlock"] {{
             align-items: center;
-        }
+        }}
 
         .theme-toggle-shell__copy {{
             min-width: 0;
@@ -417,9 +417,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             line-height: 1.2;
         }}
 
-        .theme-mode-badge--label-only {
+        .theme-mode-badge--label-only {{
             gap: 0;
-        }
+        }}
 
         .theme-mode-label {{
             color: var(--topbar-text);
