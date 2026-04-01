@@ -53,51 +53,55 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     is_light = str(theme_mode or "Dark").strip().lower() == "light"
     if is_light:
         theme_vars = """
-            --page-bg: #edf3f6;
+            --page-bg: #eef3f6;
             --page-bg-soft: #f7fafc;
             --surface: #ffffff;
-            --surface-soft: #f4f8fb;
+            --surface-soft: #f5f8fb;
             --surface-elevated: #ffffff;
             --panel: #ffffff;
-            --panel-soft: #f5f9fb;
-            --text: #17303c;
-            --text-strong: #0a1a22;
-            --muted: #536a77;
-            --line: rgba(13, 55, 74, 0.12);
-            --line-strong: rgba(13, 55, 74, 0.24);
-            --accent: #0fb6aa;
-            --accent-strong: #0a958b;
-            --accent-soft: rgba(15, 182, 170, 0.10);
-            --navy: #0d1d27;
-            --navy-soft: #17313e;
-            --hero-bg: linear-gradient(180deg, #10222d 0%, #0c1b24 100%);
-            --hero-surface: rgba(255, 255, 255, 0.05);
-            --hero-line: rgba(16, 207, 192, 0.20);
-            --hero-text: #f6ffff;
-            --hero-muted: #a6c8ca;
-            --hero-subtle: #ebfbfb;
-            --hero-card-bg: rgba(255, 255, 255, 0.04);
-            --hero-card-overlay: rgba(16, 207, 192, 0.07);
-            --hero-ghost: rgba(255, 255, 255, 0.03);
-            --hero-primary-bg: #19c4b3;
-            --hero-primary-text: #082126;
-            --button-primary-bg: #0d766e;
-            --button-primary-text: #ffffff;
-            --button-primary-border: transparent;
-            --button-secondary-bg: #ffffff;
-            --button-secondary-text: #17303c;
-            --button-secondary-border: rgba(13, 55, 74, 0.18);
-            --shadow: 0 16px 36px rgba(6, 18, 24, 0.08);
-            --shadow-soft: 0 10px 22px rgba(6, 18, 24, 0.05);
-            --status-idle-bg: #eef4f7;
-            --status-idle-text: #44606f;
-            --status-running-bg: rgba(15, 182, 170, 0.14);
-            --status-running-text: #0a8d84;
-            --status-stopped-bg: #fff3e8;
-            --status-stopped-text: #a95600;
+            --panel-soft: #f3f7fa;
+            --text: #223541;
+            --text-strong: #0f1f29;
+            --muted: #526674;
+            --line: rgba(17, 39, 51, 0.12);
+            --line-strong: rgba(17, 39, 51, 0.22);
+            --accent: #12c7b5;
+            --accent-strong: #0ea796;
+            --accent-soft: rgba(18, 199, 181, 0.10);
+            --navy: #0c1d27;
+            --navy-soft: #132a35;
+            --hero-bg: linear-gradient(180deg, #0c1d27 0%, #08171f 100%);
+            --hero-surface: rgba(255, 255, 255, 0.04);
+            --hero-line: rgba(18, 199, 181, 0.22);
+            --hero-text: #f7ffff;
+            --hero-muted: #9bc2c4;
+            --hero-subtle: #eefbfb;
+            --hero-card-bg: rgba(255, 255, 255, 0.03);
+            --hero-card-overlay: rgba(18, 199, 181, 0.08);
+            --hero-ghost: rgba(255, 255, 255, 0.04);
+            --shadow: 0 16px 36px rgba(10, 25, 32, 0.08);
+            --shadow-soft: 0 10px 22px rgba(10, 25, 32, 0.05);
+            --badge-bg: rgba(18, 199, 181, 0.08);
+            --badge-border: rgba(18, 199, 181, 0.20);
+            --badge-text: #0c8d80;
+            --display-heading: #11222c;
+            --display-copy: #556975;
+            --auth-bg: #ffffff;
+            --auth-heading: #11222c;
+            --auth-copy: #4e6470;
+            --input-bg: #ffffff;
+            --input-border: rgba(17, 39, 51, 0.18);
+            --input-text: #10222c;
+            --placeholder: #7b909b;
+            --status-idle-bg: #edf3f6;
+            --status-idle-text: #4e6470;
+            --status-running-bg: rgba(18, 199, 181, 0.12);
+            --status-running-text: #0d8b7e;
+            --status-stopped-bg: #fff1e7;
+            --status-stopped-text: #a85a10;
             --table-bg: #ffffff;
             --table-head: #eef4f7;
-            --table-text: #17303c;
+            --table-text: #11222c;
         """
     else:
         theme_vars = """
@@ -112,7 +116,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --text-strong: #f6ffff;
             --muted: #84afb1;
             --line: rgba(17, 213, 196, 0.14);
-            --line-strong: rgba(17, 213, 196, 0.34);
+            --line-strong: rgba(17, 213, 196, 0.32);
             --accent: #11d5c4;
             --accent-strong: #0fb7a8;
             --accent-soft: rgba(17, 213, 196, 0.12);
@@ -127,16 +131,20 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --hero-card-bg: rgba(255, 255, 255, 0.02);
             --hero-card-overlay: rgba(17, 213, 196, 0.05);
             --hero-ghost: rgba(255, 255, 255, 0.03);
-            --hero-primary-bg: #dbf9f5;
-            --hero-primary-text: #0a191d;
-            --button-primary-bg: #11d5c4;
-            --button-primary-text: #082126;
-            --button-primary-border: transparent;
-            --button-secondary-bg: rgba(255, 255, 255, 0.02);
-            --button-secondary-text: #c7e5e6;
-            --button-secondary-border: rgba(17, 213, 196, 0.18);
             --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
             --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.18);
+            --badge-bg: rgba(17, 213, 196, 0.10);
+            --badge-border: rgba(17, 213, 196, 0.20);
+            --badge-text: #7ef1e6;
+            --display-heading: #eaf9fa;
+            --display-copy: #8db4b6;
+            --auth-bg: #0d1d27;
+            --auth-heading: #f6ffff;
+            --auth-copy: #94c4c6;
+            --input-bg: #0f202a;
+            --input-border: rgba(17, 213, 196, 0.18);
+            --input-text: #eaf8f8;
+            --placeholder: #7ea6a8;
             --status-idle-bg: rgba(235, 241, 245, 0.10);
             --status-idle-text: #dfeef0;
             --status-running-bg: rgba(17, 213, 196, 0.15);
@@ -148,53 +156,72 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-text: #eaf8f8;
         """
 
-    css = """
+    css = f"""
     <style>
-        :root {
-__THEME_VARS__
+        :root {{
+{theme_vars}
             --radius-xl: 24px;
             --radius-lg: 18px;
             --radius-md: 14px;
-        }
+        }}
 
-        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
             background:
-                radial-gradient(circle at top center, rgba(17, 213, 196, 0.08), transparent 22%),
+                radial-gradient(circle at top center, rgba(17, 213, 196, 0.07), transparent 24%),
                 linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
             color: var(--text);
-        }
+        }}
 
-        [data-testid="stHeader"] {
-            background: transparent;
-        }
+        [data-testid="stHeader"] {{ background: transparent; }}
+        #MainMenu, footer {{ visibility: hidden; }}
 
-        #MainMenu, footer {
-            visibility: hidden;
-        }
-
-        .block-container {
+        .block-container {{
             max-width: 1180px;
             padding-top: 1rem;
             padding-bottom: 3rem;
-        }
+        }}
 
-        .topbar-shell {
-            border: 1px solid var(--line);
+        .topbar-shell,
+        .hero-shell,
+        .steps-shell,
+        .progress-shell,
+        .tool-shell {{
             background: var(--hero-bg);
-            border-radius: 18px;
-            padding: 14px 18px;
+            border: 1px solid var(--hero-line);
+            border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
-            margin-bottom: 1rem;
-        }
+        }}
 
-        .brand-lockup {
+        .topbar-shell {{
+            padding: 14px 18px;
+            margin-bottom: 1rem;
+        }}
+
+        .theme-toggle-shell {{
+            background: var(--hero-bg);
+            border: 1px solid var(--hero-line);
+            border-radius: 18px;
+            padding: 12px 16px;
+            box-shadow: var(--shadow-soft);
+        }}
+
+        .results-shell,
+        .download-shell,
+        .auth-shell {{
+            background: var(--auth-bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+        }}
+
+        .brand-lockup {{
             display: flex;
             align-items: center;
             gap: 10px;
             color: var(--hero-text);
-        }
+        }}
 
-        .brand-mark {
+        .brand-mark {{
             width: 34px;
             height: 34px;
             border-radius: 12px;
@@ -205,29 +232,25 @@ __THEME_VARS__
             color: var(--accent);
             font-size: 1rem;
             font-weight: 800;
-        }
+        }}
 
-        .brand-copy {
-            min-width: 0;
-        }
-
-        .brand-title {
+        .brand-title {{
             margin: 0;
             color: var(--hero-text);
             font-size: 0.96rem;
             font-weight: 800;
             line-height: 1.1;
             letter-spacing: -0.02em;
-        }
+        }}
 
-        .brand-subtitle {
+        .brand-subtitle {{
             margin: 2px 0 0;
             color: var(--hero-muted);
             font-size: 0.78rem;
             line-height: 1.2;
-        }
+        }}
 
-        .nav-links {
+        .nav-links {{
             display: flex;
             align-items: center;
             justify-content: center;
@@ -237,354 +260,322 @@ __THEME_VARS__
             color: var(--hero-muted);
             font-size: 0.88rem;
             font-weight: 600;
-        }
+        }}
 
-        .nav-links span {
-            opacity: 0.9;
-        }
-
-        .nav-links .is-active {
+        .nav-links .is-active {{
             color: var(--hero-text);
             position: relative;
-        }
+        }}
 
-        .nav-links .is-active::after {
+        .nav-links .is-active::after {{
             content: "";
             position: absolute;
             left: 50%;
             bottom: -12px;
             transform: translateX(-50%);
-            width: 72px;
+            width: 68px;
             height: 2px;
             border-radius: 999px;
             background: var(--accent);
-        }
+        }}
 
-        .theme-slot-label {
+        .theme-slot-label {{
             color: var(--hero-muted);
             font-size: 0.74rem;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            margin: 0;
-        }
+            margin: 0 0 4px;
+        }}
 
-        .theme-switch-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            min-height: 34px;
-        }
-
-        .theme-switch-copy {
+        .theme-switch-copy {{
             color: var(--hero-text);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 700;
-            line-height: 1.2;
-            margin-top: 4px;
-        }
+            line-height: 1.25;
+        }}
 
-        .theme-switch-state {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 64px;
-            padding: 7px 10px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid var(--hero-line);
-            color: var(--hero-subtle);
-            font-size: 0.76rem;
-            font-weight: 800;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
+        .theme-toggle-shell [data-testid="stToggle"] {{
+            margin-top: 0.35rem;
+        }}
 
-        .topbar-shell [data-testid="stWidgetLabel"] { display: none; }
+        .theme-toggle-shell [data-testid="stWidgetLabel"] p,
+        .theme-toggle-shell label p {{
+            color: var(--hero-subtle) !important;
+            font-size: 0.9rem !important;
+            font-weight: 700 !important;
+        }}
 
-        .topbar-shell div[data-testid="stToggle"] {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-        }
+        .theme-toggle-shell [data-testid="stToggle"] label {{
+            gap: 10px;
+        }}
 
-        .topbar-shell [data-testid="stToggle"] > label,
-        .topbar-shell [data-testid="stCheckbox"] > label {
-            margin-bottom: 0;
-        }
-
-        .hero-shell,
-        .auth-shell,
-        .steps-shell,
-        .progress-shell,
-        .tool-shell,
-        .results-shell,
-        .download-shell {
-            border: 1px solid var(--line);
-            border-radius: var(--radius-xl);
-            background: var(--surface);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-
-        .hero-shell,
-        .steps-shell,
-        .progress-shell,
-        .tool-shell {
-            background: var(--hero-bg);
-        }
-
-        .hero-shell {
-            padding: 26px 28px;
+        .hero-shell {{
+            padding: 28px 30px;
             margin-bottom: 1rem;
-        }
+        }}
 
-        .hero-badge,
-        .section-badge {
+        .hero-badge {{
             display: inline-flex;
             align-items: center;
             gap: 8px;
             padding: 7px 12px;
             border-radius: 999px;
-            background: var(--accent-soft);
+            background: rgba(17, 213, 196, 0.08);
             border: 1px solid var(--hero-line);
             color: var(--accent);
             font-size: 0.74rem;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-        }
+        }}
+
+        .section-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--badge-bg);
+            border: 1px solid var(--badge-border);
+            color: var(--badge-text);
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }}
 
         .hero-shell h1,
-        .auth-shell h1,
-        .parser-heading h2 {
+        .steps-shell h1 {{
             margin: 14px 0 0;
             color: var(--hero-text);
             font-size: clamp(2rem, 4vw, 3rem);
             line-height: 1.05;
             letter-spacing: -0.04em;
             font-weight: 800;
-        }
+        }}
 
-        .auth-shell h1 {
-            font-size: clamp(1.8rem, 4vw, 2.4rem);
-        }
-
-        .hero-copy,
-        .auth-copy,
-        .parser-copy {
+        .hero-copy {{
             margin: 12px 0 0;
             max-width: 760px;
             color: var(--hero-muted);
             line-height: 1.7;
             font-size: 0.97rem;
-        }
+        }}
 
-        .steps-shell {
+        .steps-shell {{
             padding: 28px;
             margin-bottom: 1.2rem;
-        }
+        }}
 
-        .steps-grid {
+        .steps-grid {{
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
-            margin-top: 22px;
-        }
+            margin-top: 4px;
+        }}
 
-        .step-card {
+        .step-card {{
             position: relative;
-            min-height: 146px;
+            min-height: 152px;
             border-radius: 16px;
             border: 1px solid var(--hero-line);
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
             padding: 18px 16px 16px;
-        }
+        }}
 
-        .step-card::after {
+        .step-card::after {{
             content: "";
             position: absolute;
             top: 0;
             right: 0;
-            width: 72px;
-            height: 50px;
-            border-bottom-left-radius: 18px;
-            background: var(--hero-card-overlay);
-        }
+            width: 46px;
+            height: 30px;
+            border-radius: 0 16px 0 16px;
+            background: rgba(255,255,255,0.04);
+        }}
 
-        .step-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 12px;
+        .step-icon {{
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
             display: grid;
             place-items: center;
-            background: rgba(17, 213, 196, 0.12);
-            border: 1px solid rgba(17, 213, 196, 0.15);
+            background: rgba(17, 213, 196, 0.10);
+            border: 1px solid rgba(17, 213, 196, 0.16);
             color: var(--accent);
-            margin-bottom: 18px;
-            position: relative;
-            z-index: 1;
-            font-weight: 800;
-        }
+            font-size: 0.88rem;
+            margin-bottom: 14px;
+        }}
 
-        .step-kicker {
+        .step-kicker {{
             color: var(--accent);
-            font-size: 0.67rem;
+            font-size: 0.7rem;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            margin-bottom: 8px;
-        }
+            margin-bottom: 10px;
+        }}
 
-        .step-title {
+        .step-title {{
             color: var(--hero-text);
-            font-size: 1rem;
+            font-size: 0.98rem;
             font-weight: 800;
-            line-height: 1.35;
             margin-bottom: 8px;
-            position: relative;
-            z-index: 1;
-        }
+            line-height: 1.3;
+        }}
 
-        .step-copy {
+        .step-copy {{
             color: var(--hero-muted);
-            font-size: 0.89rem;
-            line-height: 1.55;
-            max-width: 235px;
-            position: relative;
-            z-index: 1;
-        }
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }}
 
-        .parser-intro {
+        .parser-intro {{
             text-align: center;
-            padding: 1rem 0 1.15rem;
-        }
+            padding: 1rem 0 1.2rem;
+        }}
 
-        .parser-heading {
+        .parser-heading {{
             display: inline-flex;
             flex-direction: column;
             align-items: center;
-            gap: 0;
-        }
+        }}
 
-        .workspace-grid {
+        .parser-heading h2 {{
+            margin: 14px 0 0;
+            color: var(--display-heading);
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1.06;
+            letter-spacing: -0.04em;
+            font-weight: 800;
+        }}
+
+        .parser-copy {{
+            margin: 12px 0 0;
+            max-width: 760px;
+            color: var(--display-copy);
+            line-height: 1.75;
+            font-size: 0.97rem;
+        }}
+
+        .workspace-grid {{
             display: grid;
-            grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.4fr);
+            grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.4fr);
             gap: 16px;
             align-items: start;
             margin-bottom: 1.2rem;
-        }
+        }}
 
-        .progress-shell {
+        .progress-shell {{
             padding: 18px;
-            min-height: 348px;
-        }
+            min-height: 350px;
+        }}
 
-        .progress-title {
+        .progress-title {{
             color: var(--hero-text);
             font-size: 1rem;
             font-weight: 800;
             margin-bottom: 16px;
-        }
+        }}
 
-        .progress-steps {
+        .progress-steps {{
             display: flex;
             flex-direction: column;
             gap: 14px;
-        }
+        }}
 
-        .progress-step {
+        .progress-step {{
             display: grid;
-            grid-template-columns: 28px 1fr;
+            grid-template-columns: 30px 1fr;
             gap: 12px;
             align-items: start;
-        }
+        }}
 
-        .progress-index {
-            width: 28px;
-            height: 28px;
+        .progress-index {{
+            width: 30px;
+            height: 30px;
             border-radius: 999px;
             display: grid;
             place-items: center;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 800;
             border: 1px solid var(--hero-line);
             color: var(--hero-muted);
             background: var(--hero-ghost);
-        }
+        }}
 
-        .progress-step.is-active .progress-index {
+        .progress-step.is-active .progress-index {{
             background: var(--accent);
-            color: #092023;
+            color: #082126;
             border-color: transparent;
             box-shadow: 0 0 0 6px rgba(17, 213, 196, 0.10);
-        }
+        }}
 
-        .progress-step-title {
+        .progress-step-title {{
             color: var(--hero-subtle);
-            font-size: 0.92rem;
+            font-size: 0.93rem;
             font-weight: 700;
             line-height: 1.2;
             margin-top: 4px;
-        }
+        }}
 
-        .progress-step-copy {
+        .progress-step-copy {{
             color: var(--hero-muted);
-            font-size: 0.76rem;
-            line-height: 1.45;
+            font-size: 0.78rem;
+            line-height: 1.5;
             margin-top: 4px;
-        }
+        }}
 
-        .progress-divider {
+        .progress-divider {{
             height: 1px;
             background: var(--hero-line);
             margin: 18px 0 14px;
-        }
+        }}
 
-        .progress-footer {
+        .progress-footer {{
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             color: var(--hero-muted);
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 700;
-        }
+        }}
 
-        .mini-pill {
+        .mini-pill {{
             display: inline-flex;
             align-items: center;
             justify-content: center;
             padding: 6px 12px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.92);
-            color: #567074;
+            background: rgba(255, 255, 255, 0.94);
+            color: #39505b;
             font-size: 0.76rem;
             font-weight: 800;
-            min-width: 66px;
-        }
+            min-width: 72px;
+        }}
 
-        .tool-shell {
-            padding: 16px;
-        }
+        .tool-shell {{
+            padding: 18px;
+        }}
 
-        .tool-card {
+        .tool-card {{
             border: 1px solid var(--hero-line);
             background: var(--hero-card-bg);
             border-radius: 16px;
             padding: 14px 14px 12px;
             margin-bottom: 12px;
-        }
+        }}
 
-        .tool-card__head {
+        .tool-card__head {{
             display: flex;
             align-items: flex-start;
             gap: 10px;
             margin-bottom: 12px;
-        }
+        }}
 
-        .tool-card__icon {
+        .tool-card__icon {{
             width: 28px;
             height: 28px;
             border-radius: 10px;
@@ -595,466 +586,422 @@ __THEME_VARS__
             color: var(--accent);
             font-size: 0.9rem;
             flex: none;
-        }
+        }}
 
-        .tool-card__title {
+        .tool-card__title {{
             color: var(--hero-text);
             font-size: 0.94rem;
             font-weight: 800;
             line-height: 1.2;
-        }
+        }}
 
-        .tool-card__copy {
+        .tool-card__copy {{
             color: var(--hero-muted);
             font-size: 0.78rem;
             line-height: 1.45;
             margin-top: 2px;
-        }
+        }}
 
-        .tool-card--actions {
-            padding-bottom: 4px;
-            margin-bottom: 0;
-        }
-
-        .tool-shell div[data-baseweb="input"] > div,
-        .tool-shell div[data-baseweb="select"] > div {
-            background: var(--hero-card-bg);
-            border-color: var(--hero-line);
-        }
-
-        .tool-shell div[data-baseweb="input"] > div:hover,
-        .tool-shell div[data-baseweb="select"] > div:hover {
-            border-color: var(--line-strong);
-            background: var(--hero-card-bg);
-        }
-
-        .tool-shell div[data-baseweb="input"] > div:focus-within,
-        .tool-shell div[data-baseweb="select"] > div:focus-within {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.14);
-            background: var(--hero-card-bg);
-        }
-
-        .tool-shell div[data-baseweb="input"] input,
-        .tool-shell div[data-baseweb="input"] textarea,
-        .tool-shell div[data-baseweb="select"] input,
-        .tool-shell div[data-baseweb="select"] span,
-        .tool-shell div[data-baseweb="select"] div {
-            color: var(--hero-text) !important;
-            -webkit-text-fill-color: var(--hero-text) !important;
-        }
-
-        .tool-shell div[data-baseweb="input"] input::placeholder,
-        .tool-shell div[data-baseweb="input"] textarea::placeholder,
-        .tool-shell div[data-baseweb="select"] input::placeholder,
-        .topbar-shell div[data-baseweb="select"] input::placeholder {
-            color: var(--hero-muted) !important;
-            -webkit-text-fill-color: var(--hero-muted) !important;
-        }
-
-        .tool-shell div[data-baseweb="select"] svg,
-        .topbar-shell div[data-baseweb="select"] svg {
-            fill: var(--hero-muted);
-        }
-
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="select"] > div {
-            min-height: 48px;
-            border-radius: 12px !important;
-            border: 1px solid var(--line-strong);
-            background: var(--panel-soft);
-            box-shadow: none;
-        }
-
-        div[data-baseweb="input"] > div:hover,
-        div[data-baseweb="select"] > div:hover {
-            border-color: rgba(17, 213, 196, 0.42);
-        }
-
-        div[data-baseweb="input"] > div:focus-within,
-        div[data-baseweb="select"] > div:focus-within {
-            border-color: rgba(17, 213, 196, 0.62);
-            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.12);
-        }
-
-        div[data-baseweb="input"] input,
-        div[data-baseweb="input"] textarea,
-        div[data-baseweb="select"] input,
-        div[data-baseweb="select"] span,
-        div[data-baseweb="select"] div {
-            color: var(--text-strong) !important;
-            -webkit-text-fill-color: var(--text-strong) !important;
-            opacity: 1 !important;
-        }
-
-        div[data-baseweb="input"] input::placeholder,
-        div[data-baseweb="input"] textarea::placeholder,
-        div[data-baseweb="select"] input::placeholder {
-            color: var(--muted) !important;
-            -webkit-text-fill-color: var(--muted) !important;
-            opacity: 1 !important;
-        }
-
-        .topbar-shell [data-testid="stToggle"] p,
-        .topbar-shell [data-testid="stCheckbox"] p,
-        .topbar-shell [data-testid="stToggle"] span,
-        .topbar-shell [data-testid="stCheckbox"] span {
-            color: var(--hero-text) !important;
-        }
-
-        div[data-testid="stWidgetLabel"] p,
-        div[data-testid="stMarkdownContainer"] p,
-        .stMarkdown,
-        .stText,
-        .stCaption {
-            color: var(--text);
-        }
-
-        .tool-shell [data-testid="stWidgetLabel"] p {
-            color: var(--hero-subtle);
-            font-size: 0.88rem;
-            font-weight: 700;
-        }
-
-        div[data-testid="stFileUploaderDropzone"] {
-            border: 1px dashed rgba(17, 213, 196, 0.26);
-            border-radius: 14px;
-            background: var(--hero-ghost);
-            min-height: 132px;
-            padding: 18px 20px;
-        }
-
-        div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
-        div[data-testid="stFileUploaderDropzone"] small,
-        div[data-testid="stFileUploaderDropzone"] span {
-            color: var(--hero-muted) !important;
-        }
-
-        div[data-testid="stFileUploader"] section button,
-        div.stButton > button,
-        div.stDownloadButton > button,
-        div[data-testid="stFormSubmitButton"] > button {
-            min-height: 46px;
-            border-radius: 12px;
-            font-weight: 800;
-            border: 1px solid var(--button-secondary-border);
-            background: var(--button-secondary-bg);
-            color: var(--button-secondary-text);
-            transition: 160ms ease;
-            box-shadow: none;
-        }
-
-        div.stButton > button:hover,
-        div.stDownloadButton > button:hover,
-        div[data-testid="stFormSubmitButton"] > button:hover,
-        div[data-testid="stFileUploader"] section button:hover {
-            border-color: rgba(17, 213, 196, 0.42);
-            color: var(--text-strong);
-            background: var(--hero-card-overlay);
-        }
-
-        div.stButton > button[kind="primary"],
-        div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
-            background: var(--button-primary-bg);
-            color: var(--button-primary-text);
-            border: 1px solid var(--button-primary-border);
-            box-shadow: var(--shadow-soft);
-        }
-
-        .tool-shell div.stButton > button,
-        .tool-shell div[data-testid="stFileUploader"] section button {
-            background: var(--hero-ghost);
-            color: var(--hero-text);
-            border-color: var(--hero-line);
-        }
-
-        .tool-shell div.stButton > button:hover,
-        .tool-shell div[data-testid="stFileUploader"] section button:hover {
-            background: var(--hero-card-overlay);
-            color: var(--hero-text);
-            border-color: var(--line-strong);
-        }
-
-        .tool-shell div.stButton > button[kind="primary"] {
-            background: var(--hero-primary-bg);
-            color: var(--hero-primary-text);
-            border-color: transparent;
-            box-shadow: none;
-        }
-
-        .tool-shell div.stButton > button[kind="primary"]:hover {
-            filter: brightness(0.98);
-            background: var(--hero-primary-bg);
-            color: var(--hero-primary-text);
-        }
-
-        div.stButton > button[kind="primary"]:hover,
-        div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
-            filter: brightness(0.98);
-            background: var(--button-primary-bg);
-            color: var(--button-primary-text);
-        }
-
-        .file-chip-row {
+        .file-chip-row {{
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin: 0.6rem 0 0.1rem;
-        }
+            margin: 0.5rem 0 0.85rem;
+        }}
 
-        .file-chip {
+        .file-chip {{
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 9px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--hero-line);
-            background: var(--hero-ghost);
-            color: var(--hero-subtle);
-            font-size: 0.84rem;
-            font-weight: 700;
-        }
-
-        .file-chip.is-encrypted {
-            color: #ffd59e;
-            border-color: rgba(255, 176, 66, 0.24);
-            background: rgba(255, 176, 66, 0.08);
-        }
-
-        .status-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 14px 16px;
-            border-radius: 14px;
-            border: 1px solid var(--hero-line);
-            background: var(--hero-ghost);
-            margin-top: 12px;
-        }
-
-        .status-card__group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .status-card__dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: var(--accent);
-            box-shadow: 0 0 0 6px rgba(17, 213, 196, 0.12);
-        }
-
-        .status-card__title {
-            color: var(--hero-muted);
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .status-card__copy {
-            color: var(--hero-text);
-            font-size: 0.88rem;
-            font-weight: 700;
-            line-height: 1.35;
-        }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 74px;
             padding: 8px 12px;
             border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 800;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
+            background: rgba(255,255,255,0.94);
+            color: #1d323d;
+            border: 1px solid rgba(17,39,51,0.10);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }}
 
-        .status-card.is-idle .status-pill {
-            background: var(--status-idle-bg);
-            color: var(--status-idle-text);
-        }
+        .file-chip.is-encrypted {{
+            background: #fff4ea;
+            color: #9a4e08;
+            border-color: #f2c7a0;
+        }}
 
-        .status-card.is-running .status-pill {
-            background: var(--status-running-bg);
-            color: var(--status-running-text);
-        }
-
-        .status-card.is-stopped .status-card__dot {
-            background: #ffb066;
-            box-shadow: 0 0 0 6px rgba(255, 176, 102, 0.10);
-        }
-
-        .status-card.is-stopped .status-pill {
-            background: var(--status-stopped-bg);
-            color: var(--status-stopped-text);
-        }
-
-        .metric-grid {
+        .metric-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
             margin-bottom: 1rem;
-        }
+        }}
 
-        .metric-card {
+        .metric-card {{
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: 16px;
             padding: 14px 15px;
             box-shadow: var(--shadow-soft);
-        }
+        }}
 
-        .metric-card__label {
+        .metric-card__label {{
             color: var(--muted);
             font-size: 0.75rem;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             margin-bottom: 8px;
-        }
+        }}
 
-        .metric-card__value {
+        .metric-card__value {{
             color: var(--text-strong);
             font-size: 1.02rem;
             font-weight: 800;
             line-height: 1.35;
-        }
+        }}
+
+        .status-card {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            margin-bottom: 1rem;
+        }}
+
+        .status-card__group {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+
+        .status-card__dot {{
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: var(--muted);
+            box-shadow: 0 0 0 7px rgba(82,102,116,0.10);
+            flex: none;
+        }}
+
+        .status-card.is-running .status-card__dot {{
+            background: var(--accent);
+            box-shadow: 0 0 0 7px rgba(17,213,196,0.12);
+        }}
+
+        .status-card.is-stopped .status-card__dot {{
+            background: #f0a24b;
+            box-shadow: 0 0 0 7px rgba(240,162,75,0.12);
+        }}
+
+        .status-card__title {{
+            color: var(--text-strong);
+            font-size: 0.95rem;
+            font-weight: 800;
+        }}
+
+        .status-card__copy {{
+            color: var(--muted);
+            font-size: 0.84rem;
+            line-height: 1.5;
+            margin-top: 2px;
+        }}
+
+        .status-pill {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 82px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 0.77rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }}
+
+        .status-card.is-idle .status-pill {{
+            background: var(--status-idle-bg);
+            color: var(--status-idle-text);
+        }}
+
+        .status-card.is-running .status-pill {{
+            background: var(--status-running-bg);
+            color: var(--status-running-text);
+        }}
+
+        .status-card.is-stopped .status-pill {{
+            background: var(--status-stopped-bg);
+            color: var(--status-stopped-text);
+        }}
 
         .results-shell,
-        .download-shell {
-            padding: 18px 18px 16px;
+        .download-shell {{
+            padding: 18px;
             margin-bottom: 1rem;
-        }
+        }}
 
-        .section-head {
+        .section-head {{
             display: flex;
             flex-direction: column;
             gap: 6px;
             padding-bottom: 12px;
             margin-bottom: 14px;
             border-bottom: 1px solid var(--line);
-        }
+        }}
 
-        .section-title {
+        .section-title {{
             margin: 0;
             color: var(--text-strong);
             font-size: 1.08rem;
             font-weight: 800;
             letter-spacing: -0.02em;
-        }
+        }}
 
-        .section-copy {
+        .section-copy {{
             margin: 0;
             color: var(--muted);
             font-size: 0.92rem;
             line-height: 1.6;
-        }
+        }}
 
-        div[data-testid="stDataFrame"] {
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--line);
-            background: var(--table-bg);
-        }
-
-        div[data-testid="stDataFrame"] [role="grid"] {
-            background: var(--table-bg);
-            color: var(--table-text);
-        }
-
-        div[data-testid="stProgressBar"] > div > div {
-            background-color: rgba(17, 213, 196, 0.18);
-        }
-
-        div[data-testid="stProgressBar"] div[role="progressbar"] {
-            background-color: var(--accent);
-        }
-
-        div[data-testid="stAlert"] {
-            border-radius: 14px;
-            border: 1px solid var(--line);
-        }
-
-        .auth-shell {
+        .auth-shell {{
             max-width: 760px;
             margin: 7vh auto 0;
             padding: 24px 24px 20px;
-        }
+        }}
 
-        .auth-shell__logo {
+        .auth-shell__logo {{
             margin-bottom: 18px;
-        }
+        }}
 
-        div[data-testid="stForm"] {
+        .auth-shell h1 {{
+            margin: 14px 0 0;
+            color: var(--auth-heading);
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+            font-weight: 800;
+        }}
+
+        .auth-copy {{
+            margin: 12px 0 0;
+            color: var(--auth-copy);
+            line-height: 1.75;
+            font-size: 0.98rem;
+        }}
+
+        .auth-footer-note {{
+            margin-top: 12px;
+            color: var(--muted);
+            text-align: center;
+            font-size: 0.88rem;
+        }}
+
+        div[data-testid="stForm"] {{
             background: transparent;
             border: 0;
             box-shadow: none;
             padding: 0;
             margin: 0;
             max-width: none;
-        }
+        }}
 
-        .auth-footer-note {
-            margin-top: 12px;
+        div[data-testid="stWidgetLabel"] p {{
+            color: var(--text-strong);
+            font-size: 0.92rem;
+            font-weight: 700;
+        }}
+
+        div[data-baseweb="input"],
+        div[data-baseweb="select"] > div {{
+            border-radius: var(--radius-md) !important;
+        }}
+
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="select"] > div {{
+            min-height: 52px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            box-shadow: none;
+            transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }}
+
+        div[data-baseweb="input"] > div:hover,
+        div[data-baseweb="select"] > div:hover {{
+            border-color: var(--line-strong);
+        }}
+
+        div[data-baseweb="input"] > div:focus-within,
+        div[data-baseweb="select"] > div:focus-within {{
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.14);
+        }}
+
+        div[data-baseweb="input"] input,
+        div[data-baseweb="select"] input,
+        div[data-baseweb="select"] span,
+        div[data-baseweb="textarea"] textarea {{
+            color: var(--input-text) !important;
+            -webkit-text-fill-color: var(--input-text) !important;
+        }}
+
+        div[data-baseweb="input"] input::placeholder,
+        div[data-baseweb="textarea"] textarea::placeholder {{
+            color: var(--placeholder) !important;
+            opacity: 1 !important;
+        }}
+
+        .tool-shell div[data-baseweb="input"] > div,
+        .tool-shell div[data-baseweb="select"] > div {{
+            background: rgba(255,255,255,0.03);
+            border-color: var(--hero-line);
+        }}
+
+        .tool-shell div[data-baseweb="input"] input,
+        .tool-shell div[data-baseweb="select"] input,
+        .tool-shell div[data-baseweb="select"] span {{
+            color: var(--hero-text) !important;
+            -webkit-text-fill-color: var(--hero-text) !important;
+        }}
+
+        .tool-shell div[data-baseweb="input"] input::placeholder {{
+            color: var(--hero-muted) !important;
+        }}
+
+        div[data-testid="stFileUploaderDropzone"] {{
+            border: 1px dashed var(--input-border);
+            border-radius: 16px;
+            background: var(--input-bg);
+            padding: 18px;
+        }}
+
+        .tool-shell div[data-testid="stFileUploaderDropzone"] {{
+            background: rgba(255,255,255,0.03);
+            border-color: var(--hero-line);
+        }}
+
+        div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {{
             color: var(--muted);
-            text-align: center;
-            font-size: 0.88rem;
-        }
+        }}
 
-        @media (max-width: 980px) {
+        .tool-shell div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {{
+            color: var(--hero-muted);
+        }}
+
+        div[data-testid="stFileUploader"] section button,
+        div.stButton > button,
+        div.stDownloadButton > button,
+        div[data-testid="stFormSubmitButton"] > button {{
+            min-height: 46px;
+            border-radius: 12px;
+            font-weight: 700;
+            border: 1px solid var(--line-strong);
+            background: var(--surface);
+            color: var(--text-strong);
+            box-shadow: none;
+        }}
+
+        .tool-shell div.stButton > button,
+        .tool-shell div[data-testid="stFileUploader"] section button {{
+            background: rgba(255,255,255,0.04);
+            color: var(--hero-subtle);
+            border-color: var(--hero-line);
+        }}
+
+        div.stButton > button:hover,
+        div.stDownloadButton > button:hover,
+        div[data-testid="stFormSubmitButton"] > button:hover,
+        div[data-testid="stFileUploader"] section button:hover {{
+            border-color: var(--accent);
+            color: var(--text-strong);
+        }}
+
+        .tool-shell div.stButton > button:hover,
+        .tool-shell div[data-testid="stFileUploader"] section button:hover {{
+            color: var(--hero-text);
+        }}
+
+        div.stButton > button[kind="primary"],
+        div[data-testid="stFormSubmitButton"] > button[kind="primary"] {{
+            background: var(--accent);
+            color: #082126;
+            border-color: transparent;
+        }}
+
+        div[data-testid="stDataFrame"] {{
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            background: var(--table-bg);
+        }}
+
+        div[data-testid="stDataFrame"] [role="grid"] {{
+            background: var(--table-bg);
+            color: var(--table-text);
+        }}
+
+        div[data-testid="stAlert"] {{
+            border-radius: 14px;
+            border: 1px solid var(--line);
+        }}
+
+        div[data-testid="stProgressBar"] > div > div {{
+            background-color: rgba(17, 213, 196, 0.16);
+        }}
+
+        div[data-testid="stProgressBar"] div[role="progressbar"] {{
+            background-color: var(--accent);
+        }}
+
+        @media (max-width: 980px) {{
             .steps-grid,
-            .workspace-grid {
+            .workspace-grid {{
                 grid-template-columns: 1fr 1fr;
-            }
-        }
+            }}
+        }}
 
-        @media (max-width: 760px) {
-            .block-container {
+        @media (max-width: 760px) {{
+            .block-container {{
                 padding-top: 0.8rem;
-            }
+            }}
 
             .topbar-shell,
+            .theme-toggle-shell,
             .hero-shell,
             .steps-shell,
             .progress-shell,
             .tool-shell,
             .results-shell,
             .download-shell,
-            .auth-shell {
-                padding-left: 16px;
-                padding-right: 16px;
-            }
+            .auth-shell {{
+                padding: 16px;
+            }}
 
             .steps-grid,
-            .workspace-grid {
+            .workspace-grid {{
                 grid-template-columns: 1fr;
-            }
+            }}
 
-            .nav-links {
+            .hero-shell h1,
+            .parser-heading h2 {{
+                font-size: 2.2rem;
+            }}
+
+            .nav-links {{
                 justify-content: flex-start;
-                gap: 14px;
-                margin-top: 8px;
-            }
-
-            .theme-slot-label {
-                text-align: left;
-                margin-top: 10px;
-            }
-        }
+                gap: 16px;
+            }}
+        }}
     </style>
-    """.replace("__THEME_VARS__", theme_vars)
+    """
     st.markdown(css, unsafe_allow_html=True)
 
 
 def render_top_bar() -> None:
-    left, middle, right = st.columns([1.6, 1.5, 1.0], gap="small")
+    left, middle, right = st.columns([1.6, 1.45, 1.05], gap="small")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1083,22 +1030,17 @@ def render_top_bar() -> None:
         unsafe_allow_html=True,
     )
     with right:
-        theme_state = "Light" if st.session_state.get("ui_theme_light", False) else "Dark"
+        theme_state = "Light mode" if st.session_state.get("ui_theme_light", False) else "Dark mode"
         st.markdown(
             f"""
-            <div class="topbar-shell">
-                <div class="theme-switch-row">
-                    <div>
-                        <div class="theme-slot-label">Appearance</div>
-                        <div class="theme-switch-copy">{theme_state} mode</div>
-                    </div>
-                    <div class="theme-switch-state">{theme_state}</div>
-                </div>
+            <div class="theme-toggle-shell">
+                <div class="theme-slot-label">Appearance</div>
+                <div class="theme-switch-copy">{html.escape(theme_state)}</div>
+            </div>
             """,
             unsafe_allow_html=True,
         )
-        toggle_compat("Light mode", key="ui_theme_light", label_visibility="collapsed")
-        st.markdown('</div>', unsafe_allow_html=True)
+        toggle_compat("Light mode", key="ui_theme_light")
 
 
 def render_auth_shell() -> None:
@@ -1221,15 +1163,19 @@ def render_progress_panel(status: str, uploaded_files: List, has_results: bool) 
         ("View Results", "Review tables and download reports"),
     ]
 
-    st.markdown('<section class="progress-shell"><div class="progress-title">Progress</div><div class="progress-steps">', unsafe_allow_html=True)
-    for idx, (title, copy) in enumerate(steps, start=1):
-        active_class = " is-active" if idx == current_step else ""
-        st.markdown(
-            f'<div class="progress-step{active_class}"><div class="progress-index">{idx}</div><div><div class="progress-step-title">{html.escape(title)}</div><div class="progress-step-copy">{html.escape(copy)}</div></div></div>',
-            unsafe_allow_html=True,
-        )
+    steps_html = "".join(
+        f'<div class="progress-step{" is-active" if idx == current_step else ""}"><div class="progress-index">{idx}</div><div><div class="progress-step-title">{html.escape(title)}</div><div class="progress-step-copy">{html.escape(copy)}</div></div></div>'
+        for idx, (title, copy) in enumerate(steps, start=1)
+    )
     st.markdown(
-        f'</div><div class="progress-divider"></div><div class="progress-footer"><span>Status</span><span class="mini-pill">{html.escape(status_label)}</span></div></section>',
+        f"""
+        <section class="progress-shell">
+            <div class="progress-title">Progress</div>
+            <div class="progress-steps">{steps_html}</div>
+            <div class="progress-divider"></div>
+            <div class="progress-footer"><span>Status</span><span class="mini-pill">{html.escape(status_label)}</span></div>
+        </section>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -1334,13 +1280,13 @@ def download_button_compat(label: str, *args, **kwargs):
 
 
 def render_metric_cards(items: List[Tuple[str, str]]) -> None:
-    columns = st.columns(len(items)) if items else []
-    for col, (label, value) in zip(columns, items):
-        with col:
-            st.markdown(
-                f'<div class="metric-card"><div class="metric-card__label">{html.escape(label)}</div><div class="metric-card__value">{html.escape(value)}</div></div>',
-                unsafe_allow_html=True,
-            )
+    if not items:
+        return
+    cards_html = "".join(
+        f'<div class="metric-card"><div class="metric-card__label">{html.escape(label)}</div><div class="metric-card__value">{html.escape(value)}</div></div>'
+        for label, value in items
+    )
+    st.markdown(f'<div class="metric-grid">{cards_html}</div>', unsafe_allow_html=True)
 
 
 def require_basic_auth() -> None:
