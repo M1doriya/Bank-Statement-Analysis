@@ -49,11 +49,14 @@ def _extract_account_no(text: str) -> Optional[str]:
 
 
 def _extract_company_name(text: str) -> Optional[str]:
-    m = re.search(r"here.?s\s+a\s+look\s+at\s+(.+?)\s+performance", text, flags=re.IGNORECASE)
+    m = re.search(
+        r"here['’]?s\s+a\s+look\s+at\s+(.+?)(?:['’]s)?\s+performance\b",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if not m:
         return None
     name = normalize_text(m.group(1))
-    name = re.sub(r"['’]s$", "", name, flags=re.IGNORECASE).strip()
     return name or None
 
 def _to_iso(day: str, mon: str, year: int) -> Optional[str]:

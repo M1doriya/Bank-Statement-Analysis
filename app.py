@@ -253,6 +253,20 @@ def extract_company_name(pdf, max_pages: int = 2) -> Optional[str]:
 
     full = "\n".join(texts)
 
+    # 0) GX Bank greeting banner style
+    # Example:
+    #   "Hey Remy ..., here's a look at ELSANA TRADING & SERVICES's performance in September!"
+    # Capture only the company segment between "look at" and "performance".
+    m_gx = re.search(
+        r"here['’]?s\s+a\s+look\s+at\s+(.+?)(?:['’]s)?\s+performance\b",
+        full,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if m_gx:
+        cand = _clean_candidate_name(m_gx.group(1))
+        if cand and not _looks_like_account_number_line(cand):
+            return cand
+
     # 0) UOB "Account Activities" export style
     # Example block:
     #   Company / Account Account Balance
