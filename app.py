@@ -48,41 +48,43 @@ from alliance import parse_transactions_alliance
 from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
+
 def inject_global_styles() -> None:
     st.markdown(
         """
         <style>
             :root {
-                --bg: #f4f6f8;
-                --surface: rgba(255, 255, 255, 0.96);
-                --surface-strong: #ffffff;
-                --surface-soft: #f5f8fb;
-                --text: #17202f;
-                --text-strong: #101828;
-                --muted: #475467;
-                --line: #d6dee8;
-                --line-strong: #c3ceda;
-                --accent: #19b3a6;
-                --accent-strong: #129589;
-                --accent-soft: #e9f8f6;
+                --page-bg: #f3f5f7;
+                --page-bg-soft: #eef2f6;
+                --surface: #ffffff;
+                --surface-soft: #f8fafc;
+                --surface-muted: #f4f7fa;
+                --text: #0f172a;
+                --text-strong: #111827;
+                --muted: #526071;
+                --line: #d7dee7;
+                --line-strong: #c2ccd8;
+                --accent: #16857f;
+                --accent-strong: #116c67;
+                --accent-soft: #e8f6f5;
+                --success-soft: #ecfdf3;
                 --warning: #b45309;
-                --radius-xl: 28px;
+                --warning-soft: #fff7ed;
+                --danger-soft: #fef2f2;
+                --radius-xl: 24px;
                 --radius-lg: 18px;
                 --radius-md: 14px;
-                --shadow: 0 12px 32px rgba(23, 32, 47, 0.08);
+                --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.08);
+                --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.04);
             }
 
             html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
-                background:
-                    linear-gradient(rgba(23, 32, 47, 0.045) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(23, 32, 47, 0.045) 1px, transparent 1px),
-                    var(--bg);
-                background-size: 64px 64px;
+                background: linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
                 color: var(--text);
             }
 
             [data-testid="stHeader"] {
-                background: rgba(0, 0, 0, 0);
+                background: transparent;
             }
 
             #MainMenu, footer {
@@ -90,76 +92,130 @@ def inject_global_styles() -> None:
             }
 
             .block-container {
-                max-width: 1120px;
-                padding-top: 2rem;
+                max-width: 1160px;
+                padding-top: 1.35rem;
                 padding-bottom: 3rem;
             }
 
             .hero-shell, .auth-shell, .section-shell, .results-shell, .download-shell {
                 background: var(--surface);
-                border: 1px solid rgba(215, 222, 232, 0.98);
+                border: 1px solid rgba(194, 204, 216, 0.85);
                 border-radius: var(--radius-xl);
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
+                box-shadow: var(--shadow-lg);
                 overflow: hidden;
             }
 
+            .hero-shell,
+            .auth-shell {
+                position: relative;
+            }
+
+            .hero-shell::before,
+            .auth-shell::before {
+                content: "";
+                display: block;
+                height: 4px;
+                width: 100%;
+                background: linear-gradient(90deg, var(--accent) 0%, #49bdb4 100%);
+            }
+
             .hero-shell {
-                margin-bottom: 1.2rem;
+                margin-bottom: 1rem;
             }
 
-            .hero-shell__header, .auth-shell__header {
-                padding: 34px 36px 18px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.08);
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+            .hero-shell__header,
+            .auth-shell__header {
+                padding: 30px 34px 28px;
+                background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
             }
 
-            .hero-shell__row, .auth-shell__row {
-                display: flex;
+            .hero-shell__eyebrow,
+            .auth-shell__eyebrow {
+                display: inline-flex;
                 align-items: center;
-                gap: 18px;
-                margin-bottom: 12px;
+                gap: 8px;
+                padding: 6px 12px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: var(--surface-soft);
+                color: var(--muted);
+                font-size: 0.76rem;
+                font-weight: 800;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                margin-bottom: 16px;
+            }
+
+            .hero-shell__row,
+            .auth-shell__row {
+                display: flex;
+                align-items: flex-start;
+                gap: 16px;
                 flex-wrap: wrap;
             }
 
-            .hero-shell__icon, .auth-shell__icon {
-                width: 54px;
-                height: 54px;
+            .hero-shell__icon,
+            .auth-shell__icon {
+                width: 52px;
+                height: 52px;
                 border-radius: 16px;
                 display: grid;
                 place-items: center;
                 background: var(--accent-soft);
                 color: var(--accent-strong);
-                font-size: 1.5rem;
+                font-size: 1.35rem;
                 flex: none;
-                border: 1px solid rgba(25, 179, 166, 0.14);
+                border: 1px solid rgba(22, 133, 127, 0.14);
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
             }
 
-            .auth-shell__icon {
-                width: 52px;
-                height: 52px;
-                font-size: 1.4rem;
+            .hero-shell__content,
+            .auth-shell__content {
+                min-width: 0;
+                flex: 1;
             }
 
-            .hero-shell h1, .auth-shell h1 {
+            .hero-shell h1,
+            .auth-shell h1 {
                 margin: 0;
-                font-size: clamp(2rem, 4vw, 3.3rem);
-                line-height: 1.05;
-                letter-spacing: -0.05em;
-                font-weight: 800;
                 color: var(--text-strong);
+                font-size: clamp(1.95rem, 3.8vw, 3rem);
+                line-height: 1.06;
+                letter-spacing: -0.045em;
+                font-weight: 800;
             }
 
             .auth-shell h1 {
-                font-size: clamp(1.8rem, 4vw, 2.8rem);
+                font-size: clamp(1.85rem, 4vw, 2.45rem);
             }
 
-            .hero-shell__subtitle, .auth-shell__subtitle {
-                margin: 0;
+            .hero-shell__subtitle,
+            .auth-shell__subtitle {
+                margin: 10px 0 0;
                 color: var(--muted);
-                font-size: 1rem;
+                font-size: 0.99rem;
                 line-height: 1.7;
                 max-width: 720px;
+            }
+
+            .hero-shell__meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 18px;
+            }
+
+            .hero-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 9px 12px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: var(--surface-soft);
+                color: var(--text);
+                font-size: 0.9rem;
+                font-weight: 700;
             }
 
             .auth-shell {
@@ -170,48 +226,55 @@ def inject_global_styles() -> None:
             .panel-label {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
-                font-size: 0.84rem;
-                font-weight: 700;
+                width: fit-content;
+                padding: 6px 11px;
+                border-radius: 999px;
+                background: var(--surface-soft);
+                border: 1px solid var(--line);
+                color: var(--muted);
+                font-size: 0.77rem;
+                font-weight: 800;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                color: var(--accent-strong);
-                margin-bottom: 0.5rem;
             }
 
             .section-shell, .results-shell, .download-shell {
-                padding: 1.1rem 1.25rem 1.25rem;
+                padding: 1.2rem 1.3rem 1.3rem;
                 margin-bottom: 1rem;
+            }
+
+            .section-head {
+                display: flex;
+                flex-direction: column;
+                gap: 0.45rem;
+                padding-bottom: 0.95rem;
+                margin-bottom: 1rem;
+                border-bottom: 1px solid #edf1f5;
             }
 
             .section-title {
                 margin: 0;
                 color: var(--text-strong);
-                font-size: 1.15rem;
+                font-size: 1.12rem;
                 font-weight: 800;
                 letter-spacing: -0.02em;
             }
 
             .section-copy {
-                margin: 0.35rem 0 0;
+                margin: 0;
                 color: var(--muted);
-                line-height: 1.6;
+                line-height: 1.65;
                 font-size: 0.95rem;
-            }
-
-            .section-head {
-                margin-bottom: 1rem;
             }
 
             div[data-testid="stForm"] {
                 background: var(--surface);
-                border: 1px solid rgba(215, 222, 232, 0.98);
+                border: 1px solid rgba(194, 204, 216, 0.85);
                 border-radius: var(--radius-xl);
-                box-shadow: var(--shadow);
-                backdrop-filter: blur(8px);
-                padding: 24px 24px 18px;
+                box-shadow: var(--shadow-lg);
+                padding: 22px 22px 18px;
                 max-width: 760px;
-                margin: 0.9rem auto 0;
+                margin: 0.85rem auto 0;
             }
 
             div[data-testid="stForm"] label p,
@@ -225,7 +288,7 @@ def inject_global_styles() -> None:
 
             div[data-testid="stForm"] label p,
             div[data-testid="stWidgetLabel"] p {
-                font-size: 0.95rem;
+                font-size: 0.94rem;
                 font-weight: 700;
                 letter-spacing: -0.01em;
             }
@@ -244,11 +307,16 @@ def inject_global_styles() -> None:
                 transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
             }
 
+            div[data-baseweb="input"] > div:hover,
+            div[data-baseweb="select"] > div:hover {
+                border-color: var(--line-strong);
+            }
+
             div[data-baseweb="input"] > div:focus-within,
             div[data-baseweb="select"] > div:focus-within {
-                border-color: rgba(25, 179, 166, 0.55);
-                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.14);
-                background: #fff;
+                border-color: rgba(22, 133, 127, 0.55);
+                box-shadow: 0 0 0 4px rgba(22, 133, 127, 0.12);
+                background: #ffffff;
             }
 
             div[data-baseweb="input"] input,
@@ -264,16 +332,16 @@ def inject_global_styles() -> None:
             div[data-baseweb="input"] input::placeholder,
             div[data-baseweb="input"] textarea::placeholder,
             div[data-baseweb="select"] input::placeholder {
-                color: #667085 !important;
-                -webkit-text-fill-color: #667085 !important;
+                color: #6b7280 !important;
+                -webkit-text-fill-color: #6b7280 !important;
                 opacity: 1 !important;
             }
 
             div[data-testid="stFileUploaderDropzone"] {
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                background: linear-gradient(180deg, #ffffff, #f7fafc);
-                padding: 18px 20px;
+                border: 1.5px dashed var(--line-strong);
+                border-radius: 18px;
+                background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+                padding: 20px 22px;
             }
 
             div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
@@ -286,13 +354,14 @@ def inject_global_styles() -> None:
             div.stButton > button,
             div.stDownloadButton > button,
             div[data-testid="stFormSubmitButton"] > button {
-                min-height: 50px;
+                min-height: 48px;
                 border-radius: 14px;
                 font-weight: 700;
                 transition: 160ms ease;
                 border: 1px solid var(--line-strong);
                 background: #ffffff;
                 color: var(--text-strong);
+                box-shadow: none;
             }
 
             div.stButton > button:hover,
@@ -300,20 +369,21 @@ def inject_global_styles() -> None:
             div[data-testid="stFormSubmitButton"] > button:hover,
             div[data-testid="stFileUploader"] section button:hover {
                 background: var(--surface-soft);
-                border-color: #aebbcb;
+                border-color: #aeb9c6;
                 color: var(--text-strong);
             }
 
             div.stButton > button[kind="primary"],
             div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
-                border: none;
+                border: 1px solid var(--accent);
                 background: var(--accent);
                 color: #ffffff;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.24);
+                box-shadow: 0 10px 22px rgba(22, 133, 127, 0.2);
             }
 
             div.stButton > button[kind="primary"]:hover,
             div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+                border-color: var(--accent-strong);
                 background: var(--accent-strong);
                 color: #ffffff;
             }
@@ -321,15 +391,20 @@ def inject_global_styles() -> None:
             .status-card {
                 display: flex;
                 align-items: center;
-                gap: 12px;
+                justify-content: space-between;
+                gap: 16px;
                 padding: 18px 20px;
                 border-radius: 18px;
-                background: #ffffff;
+                background: var(--surface-soft);
                 border: 1px solid var(--line);
-                font-size: 1rem;
-                font-weight: 700;
-                margin-bottom: 1rem;
                 color: var(--text-strong);
+            }
+
+            .status-card__group {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-width: 0;
             }
 
             .status-card__dot {
@@ -337,81 +412,132 @@ def inject_global_styles() -> None:
                 height: 12px;
                 border-radius: 999px;
                 background: var(--accent);
-                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.14);
+                box-shadow: 0 0 0 8px rgba(22, 133, 127, 0.12);
                 flex: none;
             }
 
-            .status-card.is-idle .status-card__dot { background: #64748b; box-shadow: 0 0 0 8px rgba(100, 116, 139, 0.12); }
-            .status-card.is-running .status-card__dot { background: var(--accent); }
-            .status-card.is-stopped .status-card__dot { background: var(--warning); box-shadow: 0 0 0 8px rgba(180, 83, 9, 0.14); }
-
-            .status-card__label {
+            .status-card__title {
+                font-size: 0.83rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
                 color: var(--muted);
+                margin-bottom: 0.3rem;
+            }
+
+            .status-card__copy {
+                font-size: 0.96rem;
+                line-height: 1.5;
+                color: var(--text-strong);
                 font-weight: 700;
-                margin-right: 6px;
+            }
+
+            .status-pill {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px 12px;
+                border-radius: 999px;
+                font-size: 0.84rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                border: 1px solid transparent;
+                white-space: nowrap;
+            }
+
+            .status-card.is-idle .status-card__dot {
+                background: #64748b;
+                box-shadow: 0 0 0 8px rgba(100, 116, 139, 0.12);
+            }
+
+            .status-card.is-idle .status-pill {
+                background: #f1f5f9;
+                color: #475569;
+                border-color: #d7dee7;
+            }
+
+            .status-card.is-running .status-pill {
+                background: var(--accent-soft);
+                color: var(--accent-strong);
+                border-color: rgba(22, 133, 127, 0.18);
+            }
+
+            .status-card.is-stopped .status-card__dot {
+                background: var(--warning);
+                box-shadow: 0 0 0 8px rgba(180, 83, 9, 0.12);
+            }
+
+            .status-card.is-stopped .status-pill {
+                background: var(--warning-soft);
+                color: #9a3412;
+                border-color: #fdba74;
             }
 
             .file-chip-row {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 10px;
-                margin: 0.85rem 0 0.15rem;
+                margin: 0.9rem 0 0.1rem;
             }
 
             .file-chip {
                 display: inline-flex;
                 align-items: center;
                 gap: 8px;
-                padding: 10px 14px;
-                border-radius: 999px;
-                background: #ffffff;
+                padding: 10px 13px;
+                border-radius: 14px;
+                background: var(--surface-soft);
                 border: 1px solid var(--line);
-                color: var(--text-strong);
-                font-size: 0.92rem;
-                font-weight: 600;
+                color: var(--text);
+                font-size: 0.9rem;
+                font-weight: 700;
+                box-shadow: var(--shadow-sm);
             }
 
             .file-chip.is-encrypted {
-                background: #fff7ed;
+                background: var(--warning-soft);
                 border-color: #fdba74;
                 color: #9a3412;
             }
 
             .metric-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
                 gap: 14px;
                 margin-bottom: 1rem;
             }
 
             .metric-card {
-                background: #ffffff;
+                background: var(--surface);
                 border: 1px solid var(--line);
                 border-radius: 18px;
-                padding: 16px 18px;
+                padding: 16px 17px;
+                box-shadow: var(--shadow-sm);
             }
 
             .metric-card__label {
                 color: var(--muted);
-                font-size: 0.82rem;
-                font-weight: 700;
+                font-size: 0.8rem;
+                font-weight: 800;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                margin-bottom: 0.4rem;
+                margin-bottom: 0.55rem;
             }
 
             .metric-card__value {
                 color: var(--text-strong);
-                font-size: 1.15rem;
+                font-size: 1.08rem;
                 font-weight: 800;
                 letter-spacing: -0.02em;
+                line-height: 1.35;
                 word-break: break-word;
             }
 
             div[data-testid="stDataFrame"] {
                 background: #ffffff;
                 border: 1px solid var(--line);
-                border-radius: 20px;
+                border-radius: 18px;
                 padding: 0.35rem;
                 overflow: hidden;
             }
@@ -420,17 +546,22 @@ def inject_global_styles() -> None:
                 color: var(--text-strong);
             }
 
+            div[data-testid="stDataFrame"] [role="columnheader"] {
+                background: #f8fafc;
+            }
+
             div[data-testid="stProgressBar"] > div > div {
-                background-color: rgba(25, 179, 166, 0.18);
+                background-color: rgba(22, 133, 127, 0.16);
             }
 
             div[data-testid="stProgressBar"] div[role="progressbar"] {
-                background: var(--accent);
+                background: linear-gradient(90deg, var(--accent) 0%, #49bdb4 100%);
             }
 
             div[data-testid="stAlert"] {
                 border-radius: 16px;
                 border: 1px solid var(--line);
+                background: #ffffff;
             }
 
             div[data-testid="stAlert"] p,
@@ -441,10 +572,14 @@ def inject_global_styles() -> None:
 
             .auth-footer-note {
                 max-width: 760px;
-                margin: 0.75rem auto 0;
+                margin: 0.85rem auto 0;
                 text-align: center;
                 color: var(--muted);
                 font-size: 0.92rem;
+            }
+
+            .auth-footer-note strong {
+                color: var(--text-strong);
             }
 
             @media (max-width: 760px) {
@@ -452,12 +587,22 @@ def inject_global_styles() -> None:
                     padding-top: 1rem;
                 }
 
-                .hero-shell__header, .auth-shell__header {
-                    padding: 24px 20px 16px;
+                .hero-shell__header,
+                .auth-shell__header {
+                    padding: 24px 20px 22px;
                 }
 
                 .section-shell, .results-shell, .download-shell {
                     padding: 1rem;
+                }
+
+                .status-card {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+
+                .status-card__group {
+                    align-items: flex-start;
                 }
             }
         </style>
@@ -471,11 +616,14 @@ def render_auth_shell() -> None:
         """
         <section class="auth-shell">
             <div class="auth-shell__header">
+                <div class="auth-shell__eyebrow">Secure workspace</div>
                 <div class="auth-shell__row">
                     <div class="auth-shell__icon">🔒</div>
-                    <h1>Login required</h1>
+                    <div class="auth-shell__content">
+                        <h1>Login required</h1>
+                        <p class="auth-shell__subtitle">Sign in to continue to the bank statement parser workspace. Authentication stays unchanged — only the interface has been redesigned.</p>
+                    </div>
                 </div>
-                <p class="auth-shell__subtitle">Sign in to continue to the bank statement parser workspace.</p>
             </div>
         </section>
         """,
@@ -488,11 +636,19 @@ def render_app_hero() -> None:
         """
         <section class="hero-shell">
             <div class="hero-shell__header">
+                <div class="hero-shell__eyebrow">Statement processing workspace</div>
                 <div class="hero-shell__row">
                     <div class="hero-shell__icon">📄</div>
-                    <h1>Bank Statement Parser (Multi-File Support)</h1>
+                    <div class="hero-shell__content">
+                        <h1>Bank Statement Parser</h1>
+                        <p class="hero-shell__subtitle">A cleaner control surface for multi-file parsing, statement review, and report exports — while keeping the underlying parsing and summary logic exactly as-is.</p>
+                        <div class="hero-shell__meta">
+                            <span class="hero-chip">Secure auth layer</span>
+                            <span class="hero-chip">Multi-file PDF workflow</span>
+                            <span class="hero-chip">JSON and XLSX exports</span>
+                        </div>
+                    </div>
                 </div>
-                <p class="hero-shell__subtitle">Upload one or more bank statement PDFs to extract transactions without changing the underlying processing logic.</p>
             </div>
         </section>
         """,
@@ -518,7 +674,7 @@ def render_status_card(status: str) -> None:
     status_copy = {
         "idle": "Ready to process uploaded statements.",
         "running": "Parsing uploaded PDFs and generating summaries.",
-        "stopped": "Processing paused. You can resume by starting again.",
+        "stopped": "Processing paused. You can start again at any time.",
     }
     status_label = {
         "idle": "Idle",
@@ -528,10 +684,15 @@ def render_status_card(status: str) -> None:
     st.markdown(
         f"""
         <div class="status-card is-{html.escape(status_key)}">
-            <span class="status-card__dot"></span>
-            <div><span class="status-card__label">Status:</span> {html.escape(status_label)}</div>
+            <div class="status-card__group">
+                <span class="status-card__dot"></span>
+                <div>
+                    <div class="status-card__title">Processing status</div>
+                    <div class="status-card__copy">{html.escape(status_copy.get(status_key, "Current application state updated."))}</div>
+                </div>
+            </div>
+            <span class="status-pill">{html.escape(status_label)}</span>
         </div>
-        <p class="section-copy" style="margin:-0.55rem 0 1rem 0.1rem;">{html.escape(status_copy.get(status_key, "Current application state updated."))}</p>
         """,
         unsafe_allow_html=True,
     )
