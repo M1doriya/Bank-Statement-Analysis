@@ -53,96 +53,98 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     is_light = str(theme_mode or "Dark").strip().lower() == "light"
     if is_light:
         theme_vars = """
+
             --page-bg: #ffffff;
-            --page-bg-soft: #f7f9fb;
-            --page-spotlight: rgba(16, 191, 174, 0.025);
+            --page-bg-soft: #ffffff;
+            --page-spotlight: rgba(18, 184, 171, 0.00);
             --surface: #ffffff;
-            --surface-soft: #f7f9fb;
+            --surface-soft: #ffffff;
             --surface-elevated: #ffffff;
             --panel: #ffffff;
-            --panel-soft: #f8fbfc;
-            --text: #18242c;
-            --text-strong: #0b1620;
-            --muted: #556773;
-            --line: rgba(11, 22, 32, 0.10);
-            --line-strong: rgba(11, 22, 32, 0.18);
+            --panel-soft: #ffffff;
+            --text: #111827;
+            --text-strong: #0b1220;
+            --muted: #475569;
+            --line: rgba(15, 23, 42, 0.10);
+            --line-strong: rgba(15, 23, 42, 0.16);
             --accent: #12b8ab;
             --accent-strong: #0d8f85;
-            --accent-soft: rgba(18, 184, 171, 0.08);
-            --navy: #0c1d27;
-            --navy-soft: #132a35;
-            --hero-bg: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+            --accent-soft: rgba(18, 184, 171, 0.10);
+            --navy: #0f172a;
+            --navy-soft: #1e293b;
+            --hero-bg: #ffffff;
             --hero-surface: #ffffff;
-            --hero-line: rgba(11, 22, 32, 0.10);
-            --hero-text: #0b1620;
-            --hero-muted: #52636f;
-            --hero-subtle: #0b1620;
+            --hero-line: rgba(15, 23, 42, 0.10);
+            --hero-text: #0b1220;
+            --hero-muted: #475569;
+            --hero-subtle: #0b1220;
             --hero-card-bg: #ffffff;
-            --hero-card-overlay: rgba(18, 184, 171, 0.04);
-            --hero-ghost: #f1f6f7;
+            --hero-card-overlay: rgba(18, 184, 171, 0.05);
+            --hero-ghost: #f8fafc;
             --topbar-bg: #ffffff;
-            --topbar-border: rgba(11, 22, 32, 0.10);
-            --topbar-text: #0b1620;
-            --topbar-muted: #5b6d79;
-            --topbar-active: #0b1620;
+            --topbar-border: rgba(15, 23, 42, 0.10);
+            --topbar-text: #0b1220;
+            --topbar-muted: #475569;
+            --topbar-active: #0b1220;
             --theme-card-bg: #ffffff;
-            --theme-card-border: rgba(11, 22, 32, 0.10);
-            --theme-icon-bg: #f1f8f7;
-            --theme-icon-border: rgba(18, 184, 171, 0.20);
+            --theme-card-border: rgba(15, 23, 42, 0.10);
+            --theme-icon-bg: #f0fdfa;
+            --theme-icon-border: rgba(18, 184, 171, 0.24);
             --theme-icon-text: #0d8f85;
-            --progress-bg: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
-            --progress-border: rgba(11, 22, 32, 0.10);
-            --progress-title: #0b1620;
-            --progress-copy: #536773;
-            --progress-subtle: #0b1620;
-            --progress-pill-bg: #f1f5f7;
-            --progress-pill-text: #4e6572;
+            --progress-bg: #ffffff;
+            --progress-border: rgba(15, 23, 42, 0.10);
+            --progress-title: #0b1220;
+            --progress-copy: #475569;
+            --progress-subtle: #0b1220;
+            --progress-pill-bg: #f8fafc;
+            --progress-pill-text: #475569;
             --tool-bg: #ffffff;
-            --tool-border: rgba(11, 22, 32, 0.10);
+            --tool-border: rgba(15, 23, 42, 0.10);
             --tool-card-bg: #ffffff;
-            --tool-card-border: rgba(11, 22, 32, 0.10);
-            --tool-title: #0b1620;
-            --tool-copy: #51636f;
-            --tool-icon-bg: rgba(18, 184, 171, 0.08);
+            --tool-card-border: rgba(15, 23, 42, 0.10);
+            --tool-title: #0b1220;
+            --tool-copy: #475569;
+            --tool-icon-bg: rgba(18, 184, 171, 0.10);
             --tool-icon-border: rgba(18, 184, 171, 0.20);
             --tool-icon-text: #0d8f85;
             --tool-input-bg: #ffffff;
-            --tool-input-border: rgba(11, 22, 32, 0.16);
-            --tool-input-text: #0b1620;
-            --tool-placeholder: #6a7b87;
+            --tool-input-border: rgba(15, 23, 42, 0.16);
+            --tool-input-text: #0b1220;
+            --tool-placeholder: #64748b;
             --tool-button-bg: #ffffff;
-            --tool-button-text: #17303c;
-            --tool-button-border: rgba(11, 22, 32, 0.14);
-            --tool-button-hover-bg: #f2f6f8;
-            --tool-primary-bg: #12b8ab;
-            --tool-primary-text: #082126;
-            --tool-uploader-shell-bg: #f6f8fa;
-            --tool-uploader-shell-border: rgba(11, 22, 32, 0.10);
-            --tool-uploader-copy: #5a6b77;
-            --shadow: 0 16px 32px rgba(10, 25, 32, 0.06);
-            --shadow-soft: 0 8px 18px rgba(10, 25, 32, 0.04);
-            --badge-bg: rgba(18, 184, 171, 0.08);
+            --tool-button-text: #0b1220;
+            --tool-button-border: rgba(15, 23, 42, 0.12);
+            --tool-button-hover-bg: #f8fafc;
+            --tool-primary-bg: #14b8a6;
+            --tool-primary-text: #ffffff;
+            --tool-uploader-shell-bg: #ffffff;
+            --tool-uploader-shell-border: rgba(15, 23, 42, 0.10);
+            --tool-uploader-copy: #475569;
+            --shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+            --shadow-soft: 0 6px 16px rgba(15, 23, 42, 0.04);
+            --badge-bg: rgba(18, 184, 171, 0.10);
             --badge-border: rgba(18, 184, 171, 0.20);
             --badge-text: #0d8f85;
-            --display-heading: #0b1620;
-            --display-copy: #52636f;
+            --display-heading: #0b1220;
+            --display-copy: #475569;
             --auth-bg: #ffffff;
-            --auth-heading: #0b1620;
-            --auth-copy: #52636f;
+            --auth-heading: #0b1220;
+            --auth-copy: #475569;
             --input-bg: #ffffff;
-            --input-border: rgba(11, 22, 32, 0.20);
-            --input-text: #0b1620;
-            --placeholder: #6a7b87;
-            --form-label: #0b1620;
-            --status-idle-bg: #f1f5f7;
-            --status-idle-text: #52636f;
+            --input-border: rgba(15, 23, 42, 0.18);
+            --input-text: #0b1220;
+            --placeholder: #64748b;
+            --form-label: #0b1220;
+            --status-idle-bg: #f8fafc;
+            --status-idle-text: #475569;
             --status-running-bg: rgba(18, 184, 171, 0.12);
             --status-running-text: #0d8f85;
             --status-stopped-bg: #fff1e7;
             --status-stopped-text: #a85a10;
             --table-bg: #ffffff;
-            --table-head: #f3f7f9;
-            --table-text: #0b1620;
+            --table-head: #f8fafc;
+            --table-text: #0b1220;
+
         """
     else:
 
@@ -314,6 +316,10 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             gap: 12px;
         }}
 
+        .theme-toggle-shell [data-testid="stHorizontalBlock"] {
+            align-items: center;
+        }
+
         .theme-toggle-shell__copy {{
             min-width: 0;
         }}
@@ -411,6 +417,10 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             line-height: 1.2;
         }}
 
+        .theme-mode-badge--label-only {
+            gap: 0;
+        }
+
         .theme-mode-label {{
             color: var(--topbar-text);
             white-space: nowrap;
@@ -455,7 +465,11 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         .theme-toggle-button-wrap {{
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: center;
+        }}
+
+        .theme-toggle-button-wrap--left {{
+            justify-content: flex-start;
         }}
 
         .theme-toggle-button-wrap div.stButton {{
@@ -1056,6 +1070,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border: 1px solid var(--tool-uploader-shell-border);
             border-radius: 14px;
             padding: 12px 14px;
+            box-shadow: none;
         }}
 
         .tool-shell div[data-testid="stFileUploaderFileList"] {{
@@ -1230,30 +1245,28 @@ def render_top_bar() -> None:
         is_light = st.session_state.get("ui_theme_light", False)
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
-        button_icon = "☾" if is_light else "☀"
 
         st.markdown('<div class="theme-toggle-shell">', unsafe_allow_html=True)
-        label_col, button_col = st.columns([4.3, 1], gap="small")
+        st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+        icon_col, label_col = st.columns([0.9, 4.2], gap="small")
+        with icon_col:
+            st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
+            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
+                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
+                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
         with label_col:
             st.markdown(
                 f"""
-                <div class="theme-toggle-shell__copy">
-                    <div class="theme-slot-label">Appearance</div>
-                    <div class="theme-mode-badge">
-                        <span class="theme-mode-icon">{html.escape(mode_icon)}</span>
+                <div class="theme-toggle-shell__copy theme-toggle-shell__copy--inline">
+                    <div class="theme-mode-badge theme-mode-badge--label-only">
                         <span class="theme-mode-label">{html.escape(theme_state)}</span>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with button_col:
-            st.markdown('<div class="theme-toggle-button-wrap">', unsafe_allow_html=True)
-            if button_compat(button_icon, key="theme_icon_toggle", use_container_width=False):
-                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 
