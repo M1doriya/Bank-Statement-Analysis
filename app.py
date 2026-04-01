@@ -49,582 +49,928 @@ from pdf_security import is_pdf_encrypted, decrypt_pdf_bytes
 
 
 
-def inject_global_styles() -> None:
-    st.markdown(
+def inject_global_styles(theme_mode: str = "Dark") -> None:
+    is_light = str(theme_mode or "Dark").strip().lower() == "light"
+    if is_light:
+        theme_vars = """
+            --page-bg: #eff5f7;
+            --page-bg-soft: #f8fbfc;
+            --surface: #ffffff;
+            --surface-soft: #f5fafb;
+            --surface-elevated: #ffffff;
+            --panel: #ffffff;
+            --panel-soft: #f7fbfc;
+            --text: #12242d;
+            --text-strong: #09161d;
+            --muted: #5d7380;
+            --line: rgba(16, 126, 121, 0.18);
+            --line-strong: rgba(16, 126, 121, 0.34);
+            --accent: #10cfc0;
+            --accent-strong: #0aa89b;
+            --accent-soft: rgba(16, 207, 192, 0.12);
+            --navy: #0d1d27;
+            --navy-soft: #17313e;
+            --hero-bg: linear-gradient(180deg, #10202a 0%, #0b1821 100%);
+            --hero-surface: rgba(255, 255, 255, 0.04);
+            --hero-line: rgba(16, 207, 192, 0.22);
+            --button-primary-bg: #dff8f4;
+            --button-primary-text: #0a1a1c;
+            --button-primary-border: rgba(223, 248, 244, 0.35);
+            --button-secondary-bg: transparent;
+            --button-secondary-text: #0e262c;
+            --button-secondary-border: rgba(16, 126, 121, 0.24);
+            --shadow: 0 16px 36px rgba(6, 18, 24, 0.08);
+            --shadow-soft: 0 10px 22px rgba(6, 18, 24, 0.05);
+            --status-idle-bg: #eef6f7;
+            --status-idle-text: #43606b;
+            --status-running-bg: rgba(16, 207, 192, 0.14);
+            --status-running-text: #0c8c83;
+            --status-stopped-bg: #fff4e9;
+            --status-stopped-text: #b15c00;
+            --table-bg: #ffffff;
+            --table-head: #f1f8f9;
+            --table-text: #12242d;
         """
-        <style>
-            :root {
-                --page-bg: #f3f5f7;
-                --page-bg-soft: #eef2f6;
-                --surface: #ffffff;
-                --surface-soft: #f8fafc;
-                --surface-muted: #f4f7fa;
-                --text: #0f172a;
-                --text-strong: #111827;
-                --muted: #526071;
-                --line: #d7dee7;
-                --line-strong: #c2ccd8;
-                --accent: #16857f;
-                --accent-strong: #116c67;
-                --accent-soft: #e8f6f5;
-                --success-soft: #ecfdf3;
-                --warning: #b45309;
-                --warning-soft: #fff7ed;
-                --danger-soft: #fef2f2;
-                --radius-xl: 24px;
-                --radius-lg: 18px;
-                --radius-md: 14px;
-                --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.08);
-                --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.04);
-            }
+    else:
+        theme_vars = """
+            --page-bg: #06131a;
+            --page-bg-soft: #0a1820;
+            --surface: #0c1a22;
+            --surface-soft: #10222b;
+            --surface-elevated: #122733;
+            --panel: #0f202a;
+            --panel-soft: #142a35;
+            --text: #d4eef0;
+            --text-strong: #f6ffff;
+            --muted: #84afb1;
+            --line: rgba(17, 213, 196, 0.14);
+            --line-strong: rgba(17, 213, 196, 0.34);
+            --accent: #11d5c4;
+            --accent-strong: #0fb7a8;
+            --accent-soft: rgba(17, 213, 196, 0.12);
+            --navy: #08141b;
+            --navy-soft: #0d1f29;
+            --hero-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+            --hero-surface: rgba(255, 255, 255, 0.02);
+            --hero-line: rgba(17, 213, 196, 0.18);
+            --button-primary-bg: #dbf9f5;
+            --button-primary-text: #0a191d;
+            --button-primary-border: rgba(219, 249, 245, 0.36);
+            --button-secondary-bg: transparent;
+            --button-secondary-text: #9ec7c8;
+            --button-secondary-border: rgba(17, 213, 196, 0.18);
+            --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+            --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.18);
+            --status-idle-bg: rgba(235, 241, 245, 0.10);
+            --status-idle-text: #dfeef0;
+            --status-running-bg: rgba(17, 213, 196, 0.15);
+            --status-running-text: #8ff6ec;
+            --status-stopped-bg: rgba(255, 167, 38, 0.12);
+            --status-stopped-text: #ffd39c;
+            --table-bg: #0d1b23;
+            --table-head: #122733;
+            --table-text: #eaf8f8;
+        """
 
-            html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
-                background: linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
-                color: var(--text);
-            }
+    css = """
+    <style>
+        :root {
+%s
+            --radius-xl: 24px;
+            --radius-lg: 18px;
+            --radius-md: 14px;
+        }
 
-            [data-testid="stHeader"] {
-                background: transparent;
-            }
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+            background:
+                radial-gradient(circle at top center, rgba(17, 213, 196, 0.08), transparent 22%),
+                linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
+            color: var(--text);
+        }
 
-            #MainMenu, footer {
-                visibility: hidden;
-            }
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
 
+        #MainMenu, footer {
+            visibility: hidden;
+        }
+
+        .block-container {
+            max-width: 1180px;
+            padding-top: 1rem;
+            padding-bottom: 3rem;
+        }
+
+        .topbar-shell {
+            border: 1px solid var(--line);
+            background: var(--hero-bg);
+            border-radius: 18px;
+            padding: 14px 18px;
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 1rem;
+        }
+
+        .brand-lockup {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #f6ffff;
+        }
+
+        .brand-mark {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(17, 213, 196, 0.14);
+            border: 1px solid rgba(17, 213, 196, 0.22);
+            color: var(--accent);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .brand-copy {
+            min-width: 0;
+        }
+
+        .brand-title {
+            margin: 0;
+            color: #f6ffff;
+            font-size: 0.96rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-subtitle {
+            margin: 2px 0 0;
+            color: #7eb6b8;
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 22px;
+            min-height: 34px;
+            flex-wrap: wrap;
+            color: #8cc5c4;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .nav-links span {
+            opacity: 0.9;
+        }
+
+        .nav-links .is-active {
+            color: #f6ffff;
+            position: relative;
+        }
+
+        .nav-links .is-active::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -12px;
+            transform: translateX(-50%);
+            width: 72px;
+            height: 2px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .theme-slot-label {
+            color: #8cc5c4;
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 0 0 4px;
+            text-align: right;
+        }
+
+        .topbar-shell [data-testid="stWidgetLabel"] { display: none; }
+
+        .topbar-shell div[data-baseweb="select"] > div {
+            min-height: 42px;
+        }
+
+        .hero-shell,
+        .auth-shell,
+        .steps-shell,
+        .progress-shell,
+        .tool-shell,
+        .results-shell,
+        .download-shell {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            background: var(--surface);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .hero-shell,
+        .steps-shell,
+        .progress-shell,
+        .tool-shell {
+            background: var(--hero-bg);
+        }
+
+        .hero-shell {
+            padding: 26px 28px;
+            margin-bottom: 1rem;
+        }
+
+        .hero-badge,
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(17, 213, 196, 0.08);
+            border: 1px solid var(--hero-line);
+            color: var(--accent);
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .hero-shell h1,
+        .auth-shell h1,
+        .parser-heading h2 {
+            margin: 14px 0 0;
+            color: #f6ffff;
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            font-weight: 800;
+        }
+
+        .auth-shell h1 {
+            font-size: clamp(1.8rem, 4vw, 2.4rem);
+        }
+
+        .hero-copy,
+        .auth-copy,
+        .parser-copy {
+            margin: 12px 0 0;
+            max-width: 760px;
+            color: #8cc5c4;
+            line-height: 1.7;
+            font-size: 0.97rem;
+        }
+
+        .steps-shell {
+            padding: 28px;
+            margin-bottom: 1.2rem;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 22px;
+        }
+
+        .step-card {
+            position: relative;
+            min-height: 146px;
+            border-radius: 16px;
+            border: 1px solid var(--hero-line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            padding: 18px 16px 16px;
+        }
+
+        .step-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 72px;
+            height: 50px;
+            border-bottom-left-radius: 18px;
+            background: rgba(17, 213, 196, 0.05);
+        }
+
+        .step-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(17, 213, 196, 0.10);
+            border: 1px solid rgba(17, 213, 196, 0.15);
+            color: var(--accent);
+            margin-bottom: 18px;
+            position: relative;
+            z-index: 1;
+            font-weight: 800;
+        }
+
+        .step-kicker {
+            color: var(--accent);
+            font-size: 0.67rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .step-title {
+            color: #f6ffff;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.35;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-copy {
+            color: #8cc5c4;
+            font-size: 0.89rem;
+            line-height: 1.55;
+            max-width: 235px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .parser-intro {
+            text-align: center;
+            padding: 1rem 0 1.15rem;
+        }
+
+        .parser-heading {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.4fr);
+            gap: 16px;
+            align-items: start;
+            margin-bottom: 1.2rem;
+        }
+
+        .progress-shell {
+            padding: 18px;
+            min-height: 348px;
+        }
+
+        .progress-title {
+            color: #f6ffff;
+            font-size: 1rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .progress-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .progress-step {
+            display: grid;
+            grid-template-columns: 28px 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .progress-index {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            font-size: 0.8rem;
+            font-weight: 800;
+            border: 1px solid var(--hero-line);
+            color: #8cc5c4;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .progress-step.is-active .progress-index {
+            background: var(--accent);
+            color: #092023;
+            border-color: transparent;
+            box-shadow: 0 0 0 6px rgba(17, 213, 196, 0.10);
+        }
+
+        .progress-step-title {
+            color: #d8f7f4;
+            font-size: 0.92rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: 4px;
+        }
+
+        .progress-step-copy {
+            color: #6fa6a7;
+            font-size: 0.76rem;
+            line-height: 1.45;
+            margin-top: 4px;
+        }
+
+        .progress-divider {
+            height: 1px;
+            background: var(--hero-line);
+            margin: 18px 0 14px;
+        }
+
+        .progress-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            color: #7caeb0;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .mini-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            color: #567074;
+            font-size: 0.76rem;
+            font-weight: 800;
+            min-width: 66px;
+        }
+
+        .tool-shell {
+            padding: 16px;
+        }
+
+        .tool-card {
+            border: 1px solid var(--hero-line);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 14px 14px 12px;
+            margin-bottom: 12px;
+        }
+
+        .tool-card__head {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .tool-card__icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            background: rgba(17, 213, 196, 0.12);
+            border: 1px solid rgba(17, 213, 196, 0.16);
+            color: var(--accent);
+            font-size: 0.9rem;
+            flex: none;
+        }
+
+        .tool-card__title {
+            color: #f6ffff;
+            font-size: 0.94rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .tool-card__copy {
+            color: #74a4a6;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            margin-top: 2px;
+        }
+
+        .tool-card--actions {
+            padding-bottom: 4px;
+            margin-bottom: 0;
+        }
+
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="select"] > div {
+            min-height: 48px;
+            border-radius: 12px !important;
+            border: 1px solid var(--line-strong);
+            background: var(--panel-soft);
+            box-shadow: none;
+        }
+
+        div[data-baseweb="input"] > div:hover,
+        div[data-baseweb="select"] > div:hover {
+            border-color: rgba(17, 213, 196, 0.42);
+        }
+
+        div[data-baseweb="input"] > div:focus-within,
+        div[data-baseweb="select"] > div:focus-within {
+            border-color: rgba(17, 213, 196, 0.62);
+            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.12);
+        }
+
+        div[data-baseweb="input"] input,
+        div[data-baseweb="input"] textarea,
+        div[data-baseweb="select"] input,
+        div[data-baseweb="select"] span,
+        div[data-baseweb="select"] div {
+            color: var(--text-strong) !important;
+            -webkit-text-fill-color: var(--text-strong) !important;
+            opacity: 1 !important;
+        }
+
+        div[data-baseweb="input"] input::placeholder,
+        div[data-baseweb="input"] textarea::placeholder,
+        div[data-baseweb="select"] input::placeholder {
+            color: var(--muted) !important;
+            -webkit-text-fill-color: var(--muted) !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stWidgetLabel"] p,
+        div[data-testid="stMarkdownContainer"] p,
+        .stMarkdown,
+        .stText,
+        .stCaption {
+            color: var(--text);
+        }
+
+        .tool-shell [data-testid="stWidgetLabel"] p {
+            color: #cdebec;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        div[data-testid="stFileUploaderDropzone"] {
+            border: 1px dashed rgba(17, 213, 196, 0.26);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            min-height: 132px;
+            padding: 18px 20px;
+        }
+
+        div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
+        div[data-testid="stFileUploaderDropzone"] small,
+        div[data-testid="stFileUploaderDropzone"] span {
+            color: #8db6b7 !important;
+        }
+
+        div[data-testid="stFileUploader"] section button,
+        div.stButton > button,
+        div.stDownloadButton > button,
+        div[data-testid="stFormSubmitButton"] > button {
+            min-height: 46px;
+            border-radius: 12px;
+            font-weight: 800;
+            border: 1px solid var(--button-secondary-border);
+            background: var(--button-secondary-bg);
+            color: var(--button-secondary-text);
+            transition: 160ms ease;
+            box-shadow: none;
+        }
+
+        div.stButton > button:hover,
+        div.stDownloadButton > button:hover,
+        div[data-testid="stFormSubmitButton"] > button:hover,
+        div[data-testid="stFileUploader"] section button:hover {
+            border-color: rgba(17, 213, 196, 0.42);
+            color: var(--text-strong);
+            background: rgba(17, 213, 196, 0.04);
+        }
+
+        div.stButton > button[kind="primary"],
+        div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+            background: var(--button-primary-bg);
+            color: var(--button-primary-text);
+            border: 1px solid var(--button-primary-border);
+            box-shadow: 0 10px 22px rgba(17, 213, 196, 0.10);
+        }
+
+        div.stButton > button[kind="primary"]:hover,
+        div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+            filter: brightness(0.98);
+            background: var(--button-primary-bg);
+            color: var(--button-primary-text);
+        }
+
+        .file-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0.6rem 0 0.1rem;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--hero-line);
+            background: rgba(255, 255, 255, 0.03);
+            color: #dff6f5;
+            font-size: 0.84rem;
+            font-weight: 700;
+        }
+
+        .file-chip.is-encrypted {
+            color: #ffd59e;
+            border-color: rgba(255, 176, 66, 0.24);
+            background: rgba(255, 176, 66, 0.08);
+        }
+
+        .status-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--hero-line);
+            background: rgba(255, 255, 255, 0.03);
+            margin-top: 12px;
+        }
+
+        .status-card__group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-card__dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--accent);
+            box-shadow: 0 0 0 6px rgba(17, 213, 196, 0.12);
+        }
+
+        .status-card__title {
+            color: #82afb1;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .status-card__copy {
+            color: #f0fdfd;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 74px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .status-card.is-idle .status-pill {
+            background: var(--status-idle-bg);
+            color: var(--status-idle-text);
+        }
+
+        .status-card.is-running .status-pill {
+            background: var(--status-running-bg);
+            color: var(--status-running-text);
+        }
+
+        .status-card.is-stopped .status-card__dot {
+            background: #ffb066;
+            box-shadow: 0 0 0 6px rgba(255, 176, 102, 0.10);
+        }
+
+        .status-card.is-stopped .status-pill {
+            background: var(--status-stopped-bg);
+            color: var(--status-stopped-text);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .metric-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px 15px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .metric-card__label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .metric-card__value {
+            color: var(--text-strong);
+            font-size: 1.02rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .results-shell,
+        .download-shell {
+            padding: 18px 18px 16px;
+            margin-bottom: 1rem;
+        }
+
+        .section-head {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-title {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section-copy {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.6;
+        }
+
+        div[data-testid="stDataFrame"] {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            background: var(--table-bg);
+        }
+
+        div[data-testid="stDataFrame"] [role="grid"] {
+            background: var(--table-bg);
+            color: var(--table-text);
+        }
+
+        div[data-testid="stProgressBar"] > div > div {
+            background-color: rgba(17, 213, 196, 0.18);
+        }
+
+        div[data-testid="stProgressBar"] div[role="progressbar"] {
+            background-color: var(--accent);
+        }
+
+        div[data-testid="stAlert"] {
+            border-radius: 14px;
+            border: 1px solid var(--line);
+        }
+
+        .auth-shell {
+            max-width: 760px;
+            margin: 7vh auto 0;
+            padding: 24px 24px 20px;
+        }
+
+        .auth-shell__logo {
+            margin-bottom: 18px;
+        }
+
+        div[data-testid="stForm"] {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+            max-width: none;
+        }
+
+        .auth-footer-note {
+            margin-top: 12px;
+            color: var(--muted);
+            text-align: center;
+            font-size: 0.88rem;
+        }
+
+        @media (max-width: 980px) {
+            .steps-grid,
+            .workspace-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 760px) {
             .block-container {
-                max-width: 1160px;
-                padding-top: 1.35rem;
-                padding-bottom: 3rem;
+                padding-top: 0.8rem;
             }
 
-            .hero-shell, .auth-shell, .section-shell, .results-shell, .download-shell {
-                background: var(--surface);
-                border: 1px solid rgba(194, 204, 216, 0.85);
-                border-radius: var(--radius-xl);
-                box-shadow: var(--shadow-lg);
-                overflow: hidden;
-            }
-
+            .topbar-shell,
             .hero-shell,
+            .steps-shell,
+            .progress-shell,
+            .tool-shell,
+            .results-shell,
+            .download-shell,
             .auth-shell {
-                position: relative;
+                padding-left: 16px;
+                padding-right: 16px;
             }
 
-            .hero-shell::before,
-            .auth-shell::before {
-                content: "";
-                display: block;
-                height: 4px;
-                width: 100%;
-                background: linear-gradient(90deg, var(--accent) 0%, #49bdb4 100%);
+            .steps-grid,
+            .workspace-grid {
+                grid-template-columns: 1fr;
             }
 
-            .hero-shell {
-                margin-bottom: 1rem;
-            }
-
-            .hero-shell__header,
-            .auth-shell__header {
-                padding: 30px 34px 28px;
-                background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
-            }
-
-            .hero-shell__eyebrow,
-            .auth-shell__eyebrow {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 6px 12px;
-                border-radius: 999px;
-                border: 1px solid var(--line);
-                background: var(--surface-soft);
-                color: var(--muted);
-                font-size: 0.76rem;
-                font-weight: 800;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-                margin-bottom: 16px;
-            }
-
-            .hero-shell__row,
-            .auth-shell__row {
-                display: flex;
-                align-items: flex-start;
-                gap: 16px;
-                flex-wrap: wrap;
-            }
-
-            .hero-shell__icon,
-            .auth-shell__icon {
-                width: 52px;
-                height: 52px;
-                border-radius: 16px;
-                display: grid;
-                place-items: center;
-                background: var(--accent-soft);
-                color: var(--accent-strong);
-                font-size: 1.35rem;
-                flex: none;
-                border: 1px solid rgba(22, 133, 127, 0.14);
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-            }
-
-            .hero-shell__content,
-            .auth-shell__content {
-                min-width: 0;
-                flex: 1;
-            }
-
-            .hero-shell h1,
-            .auth-shell h1 {
-                margin: 0;
-                color: var(--text-strong);
-                font-size: clamp(1.95rem, 3.8vw, 3rem);
-                line-height: 1.06;
-                letter-spacing: -0.045em;
-                font-weight: 800;
-            }
-
-            .auth-shell h1 {
-                font-size: clamp(1.85rem, 4vw, 2.45rem);
-            }
-
-            .hero-shell__subtitle,
-            .auth-shell__subtitle {
-                margin: 10px 0 0;
-                color: var(--muted);
-                font-size: 0.99rem;
-                line-height: 1.7;
-                max-width: 720px;
-            }
-
-            .hero-shell__meta {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                margin-top: 18px;
-            }
-
-            .hero-chip {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 9px 12px;
-                border-radius: 999px;
-                border: 1px solid var(--line);
-                background: var(--surface-soft);
-                color: var(--text);
-                font-size: 0.9rem;
-                font-weight: 700;
-            }
-
-            .auth-shell {
-                max-width: 760px;
-                margin: 8vh auto 0;
-            }
-
-            .panel-label {
-                display: inline-flex;
-                align-items: center;
-                width: fit-content;
-                padding: 6px 11px;
-                border-radius: 999px;
-                background: var(--surface-soft);
-                border: 1px solid var(--line);
-                color: var(--muted);
-                font-size: 0.77rem;
-                font-weight: 800;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-            }
-
-            .section-shell, .results-shell, .download-shell {
-                padding: 1.2rem 1.3rem 1.3rem;
-                margin-bottom: 1rem;
-            }
-
-            .section-head {
-                display: flex;
-                flex-direction: column;
-                gap: 0.45rem;
-                padding-bottom: 0.95rem;
-                margin-bottom: 1rem;
-                border-bottom: 1px solid #edf1f5;
-            }
-
-            .section-title {
-                margin: 0;
-                color: var(--text-strong);
-                font-size: 1.12rem;
-                font-weight: 800;
-                letter-spacing: -0.02em;
-            }
-
-            .section-copy {
-                margin: 0;
-                color: var(--muted);
-                line-height: 1.65;
-                font-size: 0.95rem;
-            }
-
-            div[data-testid="stForm"] {
-                background: var(--surface);
-                border: 1px solid rgba(194, 204, 216, 0.85);
-                border-radius: var(--radius-xl);
-                box-shadow: var(--shadow-lg);
-                padding: 22px 22px 18px;
-                max-width: 760px;
-                margin: 0.85rem auto 0;
-            }
-
-            div[data-testid="stForm"] label p,
-            div[data-testid="stWidgetLabel"] p,
-            div[data-testid="stMarkdownContainer"] p,
-            .stMarkdown,
-            .stText,
-            .stCaption {
-                color: var(--text);
-            }
-
-            div[data-testid="stForm"] label p,
-            div[data-testid="stWidgetLabel"] p {
-                font-size: 0.94rem;
-                font-weight: 700;
-                letter-spacing: -0.01em;
-            }
-
-            div[data-baseweb="input"],
-            div[data-baseweb="select"] > div {
-                border-radius: var(--radius-md) !important;
-            }
-
-            div[data-baseweb="input"] > div,
-            div[data-baseweb="select"] > div {
-                min-height: 56px;
-                border: 1px solid var(--line);
-                background: #ffffff;
-                box-shadow: none;
-                transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
-            }
-
-            div[data-baseweb="input"] > div:hover,
-            div[data-baseweb="select"] > div:hover {
-                border-color: var(--line-strong);
-            }
-
-            div[data-baseweb="input"] > div:focus-within,
-            div[data-baseweb="select"] > div:focus-within {
-                border-color: rgba(22, 133, 127, 0.55);
-                box-shadow: 0 0 0 4px rgba(22, 133, 127, 0.12);
-                background: #ffffff;
-            }
-
-            div[data-baseweb="input"] input,
-            div[data-baseweb="input"] textarea,
-            div[data-baseweb="select"] input,
-            div[data-baseweb="select"] span,
-            div[data-baseweb="select"] div {
-                color: var(--text-strong) !important;
-                -webkit-text-fill-color: var(--text-strong) !important;
-                opacity: 1 !important;
-            }
-
-            div[data-baseweb="input"] input::placeholder,
-            div[data-baseweb="input"] textarea::placeholder,
-            div[data-baseweb="select"] input::placeholder {
-                color: #6b7280 !important;
-                -webkit-text-fill-color: #6b7280 !important;
-                opacity: 1 !important;
-            }
-
-            div[data-testid="stFileUploaderDropzone"] {
-                border: 1.5px dashed var(--line-strong);
-                border-radius: 18px;
-                background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-                padding: 20px 22px;
-            }
-
-            div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
-            div[data-testid="stFileUploaderDropzone"] small,
-            div[data-testid="stFileUploaderDropzone"] span {
-                color: var(--muted) !important;
-            }
-
-            div[data-testid="stFileUploader"] section button,
-            div.stButton > button,
-            div.stDownloadButton > button,
-            div[data-testid="stFormSubmitButton"] > button {
-                min-height: 48px;
-                border-radius: 14px;
-                font-weight: 700;
-                transition: 160ms ease;
-                border: 1px solid var(--line-strong);
-                background: #ffffff;
-                color: var(--text-strong);
-                box-shadow: none;
-            }
-
-            div.stButton > button:hover,
-            div.stDownloadButton > button:hover,
-            div[data-testid="stFormSubmitButton"] > button:hover,
-            div[data-testid="stFileUploader"] section button:hover {
-                background: var(--surface-soft);
-                border-color: #aeb9c6;
-                color: var(--text-strong);
-            }
-
-            div.stButton > button[kind="primary"],
-            div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
-                border: 1px solid var(--accent);
-                background: var(--accent);
-                color: #ffffff;
-                box-shadow: 0 10px 22px rgba(22, 133, 127, 0.2);
-            }
-
-            div.stButton > button[kind="primary"]:hover,
-            div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
-                border-color: var(--accent-strong);
-                background: var(--accent-strong);
-                color: #ffffff;
-            }
-
-            .status-card {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 16px;
-                padding: 18px 20px;
-                border-radius: 18px;
-                background: var(--surface-soft);
-                border: 1px solid var(--line);
-                color: var(--text-strong);
-            }
-
-            .status-card__group {
-                display: flex;
-                align-items: center;
+            .nav-links {
+                justify-content: flex-start;
                 gap: 14px;
-                min-width: 0;
+                margin-top: 8px;
             }
 
-            .status-card__dot {
-                width: 12px;
-                height: 12px;
-                border-radius: 999px;
-                background: var(--accent);
-                box-shadow: 0 0 0 8px rgba(22, 133, 127, 0.12);
-                flex: none;
+            .theme-slot-label {
+                text-align: left;
+                margin-top: 10px;
             }
+        }
+    </style>
+    """ % theme_vars
+    st.markdown(css, unsafe_allow_html=True)
 
-            .status-card__title {
-                font-size: 0.83rem;
-                font-weight: 800;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                color: var(--muted);
-                margin-bottom: 0.3rem;
-            }
 
-            .status-card__copy {
-                font-size: 0.96rem;
-                line-height: 1.5;
-                color: var(--text-strong);
-                font-weight: 700;
-            }
-
-            .status-pill {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                padding: 8px 12px;
-                border-radius: 999px;
-                font-size: 0.84rem;
-                font-weight: 800;
-                letter-spacing: 0.04em;
-                text-transform: uppercase;
-                border: 1px solid transparent;
-                white-space: nowrap;
-            }
-
-            .status-card.is-idle .status-card__dot {
-                background: #64748b;
-                box-shadow: 0 0 0 8px rgba(100, 116, 139, 0.12);
-            }
-
-            .status-card.is-idle .status-pill {
-                background: #f1f5f9;
-                color: #475569;
-                border-color: #d7dee7;
-            }
-
-            .status-card.is-running .status-pill {
-                background: var(--accent-soft);
-                color: var(--accent-strong);
-                border-color: rgba(22, 133, 127, 0.18);
-            }
-
-            .status-card.is-stopped .status-card__dot {
-                background: var(--warning);
-                box-shadow: 0 0 0 8px rgba(180, 83, 9, 0.12);
-            }
-
-            .status-card.is-stopped .status-pill {
-                background: var(--warning-soft);
-                color: #9a3412;
-                border-color: #fdba74;
-            }
-
-            .file-chip-row {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                margin: 0.9rem 0 0.1rem;
-            }
-
-            .file-chip {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 10px 13px;
-                border-radius: 14px;
-                background: var(--surface-soft);
-                border: 1px solid var(--line);
-                color: var(--text);
-                font-size: 0.9rem;
-                font-weight: 700;
-                box-shadow: var(--shadow-sm);
-            }
-
-            .file-chip.is-encrypted {
-                background: var(--warning-soft);
-                border-color: #fdba74;
-                color: #9a3412;
-            }
-
-            .metric-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-                gap: 14px;
-                margin-bottom: 1rem;
-            }
-
-            .metric-card {
-                background: var(--surface);
-                border: 1px solid var(--line);
-                border-radius: 18px;
-                padding: 16px 17px;
-                box-shadow: var(--shadow-sm);
-            }
-
-            .metric-card__label {
-                color: var(--muted);
-                font-size: 0.8rem;
-                font-weight: 800;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                margin-bottom: 0.55rem;
-            }
-
-            .metric-card__value {
-                color: var(--text-strong);
-                font-size: 1.08rem;
-                font-weight: 800;
-                letter-spacing: -0.02em;
-                line-height: 1.35;
-                word-break: break-word;
-            }
-
-            div[data-testid="stDataFrame"] {
-                background: #ffffff;
-                border: 1px solid var(--line);
-                border-radius: 18px;
-                padding: 0.35rem;
-                overflow: hidden;
-            }
-
-            div[data-testid="stDataFrame"] * {
-                color: var(--text-strong);
-            }
-
-            div[data-testid="stDataFrame"] [role="columnheader"] {
-                background: #f8fafc;
-            }
-
-            div[data-testid="stProgressBar"] > div > div {
-                background-color: rgba(22, 133, 127, 0.16);
-            }
-
-            div[data-testid="stProgressBar"] div[role="progressbar"] {
-                background: linear-gradient(90deg, var(--accent) 0%, #49bdb4 100%);
-            }
-
-            div[data-testid="stAlert"] {
-                border-radius: 16px;
-                border: 1px solid var(--line);
-                background: #ffffff;
-            }
-
-            div[data-testid="stAlert"] p,
-            div[data-testid="stAlert"] span,
-            div[data-testid="stAlert"] div {
-                color: var(--text-strong);
-            }
-
-            .auth-footer-note {
-                max-width: 760px;
-                margin: 0.85rem auto 0;
-                text-align: center;
-                color: var(--muted);
-                font-size: 0.92rem;
-            }
-
-            .auth-footer-note strong {
-                color: var(--text-strong);
-            }
-
-            @media (max-width: 760px) {
-                .block-container {
-                    padding-top: 1rem;
-                }
-
-                .hero-shell__header,
-                .auth-shell__header {
-                    padding: 24px 20px 22px;
-                }
-
-                .section-shell, .results-shell, .download-shell {
-                    padding: 1rem;
-                }
-
-                .status-card {
-                    flex-direction: column;
-                    align-items: flex-start;
-                }
-
-                .status-card__group {
-                    align-items: flex-start;
-                }
-            }
-        </style>
+def render_top_bar() -> None:
+    left, middle, right = st.columns([1.6, 1.5, 0.9], gap="small")
+    left.markdown(
+        """
+        <div class="topbar-shell">
+            <div class="brand-lockup">
+                <div class="brand-mark">✦</div>
+                <div class="brand-copy">
+                    <div class="brand-title">ParserLab</div>
+                    <div class="brand-subtitle">Financial parsing workspace</div>
+                </div>
+            </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
+    middle.markdown(
+        """
+        <div class="topbar-shell">
+            <div class="nav-links">
+                <span>How it works</span>
+                <span>Features</span>
+                <span class="is-active">Parser</span>
+                <span>Exports</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with right:
+        st.markdown('<div class="topbar-shell"><div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+        if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
+            st.selectbox("Appearance", ["Dark", "Light"], key="ui_theme_mode", label_visibility="collapsed")
+        else:
+            st.selectbox("Appearance", ["Dark", "Light"], key="ui_theme_mode")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_auth_shell() -> None:
     st.markdown(
         """
         <section class="auth-shell">
-            <div class="auth-shell__header">
-                <div class="auth-shell__eyebrow">Secure workspace</div>
-                <div class="auth-shell__row">
-                    <div class="auth-shell__icon">🔒</div>
-                    <div class="auth-shell__content">
-                        <h1>Login required</h1>
-                        <p class="auth-shell__subtitle">Sign in to continue to the bank statement parser workspace. Authentication stays unchanged — only the interface has been redesigned.</p>
-                    </div>
-                </div>
+            <div class="auth-shell__logo">
+                <span class="section-badge">Secure access</span>
             </div>
+            <h1>Access the parser workspace</h1>
+            <p class="auth-copy">Sign in to continue. The authentication logic stays the same — only the presentation has been redesigned around the dashboard style you requested.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -635,20 +981,131 @@ def render_app_hero() -> None:
     st.markdown(
         """
         <section class="hero-shell">
-            <div class="hero-shell__header">
-                <div class="hero-shell__eyebrow">Statement processing workspace</div>
-                <div class="hero-shell__row">
-                    <div class="hero-shell__icon">📄</div>
-                    <div class="hero-shell__content">
-                        <h1>Bank Statement Parser</h1>
-                        <p class="hero-shell__subtitle">A cleaner control surface for multi-file parsing, statement review, and report exports — while keeping the underlying parsing and summary logic exactly as-is.</p>
-                        <div class="hero-shell__meta">
-                            <span class="hero-chip">Secure auth layer</span>
-                            <span class="hero-chip">Multi-file PDF workflow</span>
-                            <span class="hero-chip">JSON and XLSX exports</span>
-                        </div>
-                    </div>
+            <span class="hero-badge">Parser workflow</span>
+            <h1>Four steps to financial clarity</h1>
+            <p class="hero-copy">Move from bank selection to parsed outputs in a cleaner workflow: choose the bank, upload the statement, process the file, then review the extracted results and export the report.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_steps_showcase() -> None:
+    st.markdown(
+        """
+        <section class="steps-shell">
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-icon">▣</div>
+                    <div class="step-kicker">Step 1</div>
+                    <div class="step-title">Select Your Bank</div>
+                    <div class="step-copy">Choose the bank that issued your statement from the supported list.</div>
                 </div>
+                <div class="step-card">
+                    <div class="step-icon">⤴</div>
+                    <div class="step-kicker">Step 2</div>
+                    <div class="step-title">Upload Statement</div>
+                    <div class="step-copy">Drag and drop or browse your PDF bank statement file.</div>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">∿</div>
+                    <div class="step-kicker">Step 3</div>
+                    <div class="step-title">Process & Analyse</div>
+                    <div class="step-copy">The engine extracts and structures the transaction data automatically.</div>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">▥</div>
+                    <div class="step-kicker">Step 4</div>
+                    <div class="step-title">View Results</div>
+                    <div class="step-copy">Inspect transactions, summaries, and export-ready outputs.</div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_parser_intro() -> None:
+    st.markdown(
+        """
+        <div class="parser-intro">
+            <div class="parser-heading">
+                <span class="section-badge">Parser engine</span>
+                <h2>Upload & Parse Your Statement</h2>
+                <p class="parser-copy">Select your bank, upload your PDF, and let the parser extract structured financial data automatically.</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_tool_card_header(icon: str, title: str, subtitle: str) -> None:
+    st.markdown(
+        f"""
+        <div class="tool-card">
+            <div class="tool-card__head">
+                <div class="tool-card__icon">{html.escape(icon)}</div>
+                <div>
+                    <div class="tool-card__title">{html.escape(title)}</div>
+                    <div class="tool-card__copy">{html.escape(subtitle)}</div>
+                </div>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def close_tool_card() -> None:
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _current_progress_step(uploaded_files: List, status: str, has_results: bool) -> int:
+    if has_results:
+        return 4
+    if str(status or "").lower() == "running":
+        return 3
+    if uploaded_files:
+        return 2
+    return 1
+
+
+def render_progress_panel(status: str, uploaded_files: List, has_results: bool) -> None:
+    current_step = _current_progress_step(uploaded_files, status, has_results)
+    status_key = str(status or "idle").strip().lower()
+    status_label = {"idle": "Idle", "running": "Running", "stopped": "Stopped"}.get(status_key, status.title())
+    steps = [
+        ("Select Your Bank", "Current step" if current_step == 1 else "Choose the parser format"),
+        ("Upload Statement", "Ready when PDF files are added"),
+        ("Process & Analyse", "Start the parser to extract data"),
+        ("View Results", "Review tables and download reports"),
+    ]
+
+    step_html = []
+    for idx, (title, copy) in enumerate(steps, start=1):
+        active_class = " is-active" if idx == current_step else ""
+        step_html.append(
+            f"""
+            <div class="progress-step{active_class}">
+                <div class="progress-index">{idx}</div>
+                <div>
+                    <div class="progress-step-title">{html.escape(title)}</div>
+                    <div class="progress-step-copy">{html.escape(copy)}</div>
+                </div>
+            </div>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <section class="progress-shell">
+            <div class="progress-title">Progress</div>
+            <div class="progress-steps">{"".join(step_html)}</div>
+            <div class="progress-divider"></div>
+            <div class="progress-footer">
+                <span>Status</span>
+                <span class="mini-pill">{html.escape(status_label)}</span>
             </div>
         </section>
         """,
@@ -660,7 +1117,7 @@ def render_section_header(label: str, title: str, subtitle: str) -> None:
     st.markdown(
         f"""
         <div class="section-head">
-            <div class="panel-label">{html.escape(label)}</div>
+            <span class="section-badge">{html.escape(label)}</span>
             <h2 class="section-title">{html.escape(title)}</h2>
             <p class="section-copy">{html.escape(subtitle)}</p>
         </div>
@@ -672,9 +1129,9 @@ def render_section_header(label: str, title: str, subtitle: str) -> None:
 def render_status_card(status: str) -> None:
     status_key = (status or "idle").strip().lower()
     status_copy = {
-        "idle": "Ready to process uploaded statements.",
-        "running": "Parsing uploaded PDFs and generating summaries.",
-        "stopped": "Processing paused. You can start again at any time.",
+        "idle": "Ready to accept uploads and begin parsing.",
+        "running": "Processing uploaded statements and generating outputs.",
+        "stopped": "Run paused. You can resume or reset the workspace.",
     }
     status_label = {
         "idle": "Idle",
@@ -688,7 +1145,7 @@ def render_status_card(status: str) -> None:
                 <span class="status-card__dot"></span>
                 <div>
                     <div class="status-card__title">Processing status</div>
-                    <div class="status-card__copy">{html.escape(status_copy.get(status_key, "Current application state updated."))}</div>
+                    <div class="status-card__copy">{html.escape(status_copy.get(status_key, "Workspace updated."))}</div>
                 </div>
             </div>
             <span class="status-pill">{html.escape(status_label)}</span>
@@ -780,7 +1237,7 @@ def require_basic_auth() -> None:
     with st.form("basic_auth_form"):
         entered_user = st.text_input("Username", placeholder="Enter your username")
         entered_pass = st.text_input("Password", type="password", placeholder="Enter your password")
-        submitted = form_submit_button_compat("Sign in", primary=True)
+        submitted = form_submit_button_compat("Sign in", primary=True, use_container_width=True)
 
     st.markdown(
         '<div class="auth-footer-note">Need access? Contact your administrator.</div>',
@@ -801,9 +1258,15 @@ def require_basic_auth() -> None:
 
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
-inject_global_styles()
+if "ui_theme_mode" not in st.session_state:
+    st.session_state.ui_theme_mode = "Dark"
+
+inject_global_styles(st.session_state.ui_theme_mode)
+render_top_bar()
 require_basic_auth()
 render_app_hero()
+render_steps_showcase()
+render_parser_intro()
 
 
 # -----------------------------
@@ -1643,96 +2106,116 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
 }
 
 
-st.markdown('<section class="section-shell">', unsafe_allow_html=True)
-render_section_header(
-    "Workspace",
-    "Configure parser input",
-    "Match the bank format, upload one or more PDF statements, and optionally override the detected company name.",
+has_existing_results = bool(
+    st.session_state.results
+    or st.session_state.affin_statement_totals
+    or st.session_state.ambank_statement_totals
+    or st.session_state.cimb_statement_totals
+    or st.session_state.rhb_statement_totals
+    or st.session_state.gx_statement_totals
 )
 
-control_left, control_right = st.columns([1.2, 1], gap="large")
-with control_left:
-    bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
-with control_right:
-    st.text_input("Company Name (optional override)", key="company_name_override")
+st.markdown('<div class="workspace-grid">', unsafe_allow_html=True)
 
-uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
-if uploaded_files:
-    uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
+workspace_left, workspace_right = st.columns([0.9, 1.45], gap="large")
 
-# Detect encrypted files
-encrypted_files: List[str] = []
-if uploaded_files:
-    for uf in uploaded_files:
-        try:
-            if is_pdf_encrypted(uf.getvalue()):
+with workspace_right:
+    st.markdown('<section class="tool-shell">', unsafe_allow_html=True)
+
+    render_tool_card_header("▣", "Select Bank", "Choose the issuing bank")
+    if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
+        bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()), label_visibility="collapsed")
+    else:
+        bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
+    close_tool_card()
+
+    render_tool_card_header("⤴", "Upload Statement", "PDF format, one or multiple files")
+    if _supports_streamlit_kwarg(st.file_uploader, "label_visibility"):
+        uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True, label_visibility="collapsed")
+    else:
+        uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
+    if uploaded_files:
+        uploaded_files = sorted(uploaded_files, key=lambda x: x.name)
+    close_tool_card()
+
+    # Detect encrypted files
+    encrypted_files: List[str] = []
+    if uploaded_files:
+        for uf in uploaded_files:
+            try:
+                if is_pdf_encrypted(uf.getvalue()):
+                    encrypted_files.append(uf.name)
+            except Exception:
                 encrypted_files.append(uf.name)
-        except Exception:
-            encrypted_files.append(uf.name)
 
-render_file_chips(uploaded_files, encrypted_files)
+    if uploaded_files:
+        render_file_chips(uploaded_files, encrypted_files)
 
-if encrypted_files:
-    st.warning(
-        "🔒 Encrypted PDF(s) detected. Enter the password once and it will be used for all encrypted files:\n\n"
-        + "\n".join([f"- {n}" for n in encrypted_files])
-    )
-    st.text_input("PDF Password", type="password", key="pdf_password")
+    if encrypted_files:
+        render_tool_card_header("🔒", "Encrypted PDFs", "Enter the password once and it will be used for all encrypted files")
+        st.warning(
+            "Encrypted PDF(s) detected:\n\n" + "\n".join([f"- {n}" for n in encrypted_files])
+        )
+        st.text_input("PDF Password", type="password", key="pdf_password")
+        close_tool_card()
 
-st.markdown('</section>', unsafe_allow_html=True)
+    render_tool_card_header("✎", "Company Override", "Optional manual company name if you want to override extraction")
+    st.text_input("Company Name (optional override)", key="company_name_override")
+    close_tool_card()
 
-st.markdown('<section class="section-shell">', unsafe_allow_html=True)
-render_section_header(
-    "Actions",
-    "Run parser workflow",
-    "Start processing when you are ready, stop an active run, or reset the current workspace state.",
-)
+    render_tool_card_header("▥", "Parser Actions", "Start processing, stop an active run, or reset the current workspace")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if button_compat("Start Parsing", primary=True, use_container_width=True):
+            st.session_state.status = "running"
+            st.session_state.affin_statement_totals = []
+            st.session_state.affin_file_transactions = {}
+            st.session_state.ambank_statement_totals = []
+            st.session_state.ambank_file_transactions = {}
+            st.session_state.cimb_statement_totals = []
+            st.session_state.rhb_statement_totals = []
+            st.session_state.gx_statement_totals = []
+            st.session_state.cimb_file_transactions = {}
+            st.session_state.rhb_file_transactions = {}
+            st.session_state.gx_file_transactions = {}
+            st.session_state.bank_islam_file_month = {}
+            st.session_state.file_company_name = {}
+            st.session_state.file_account_no = {}
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    if button_compat("▶️ Start Processing", primary=True, use_container_width=True):
-        st.session_state.status = "running"
-        st.session_state.affin_statement_totals = []
-        st.session_state.affin_file_transactions = {}
-        st.session_state.ambank_statement_totals = []
-        st.session_state.ambank_file_transactions = {}
-        st.session_state.cimb_statement_totals = []
-        st.session_state.rhb_statement_totals = []
-        st.session_state.gx_statement_totals = []
-        st.session_state.cimb_file_transactions = {}
-        st.session_state.rhb_file_transactions = {}
-        st.session_state.gx_file_transactions = {}
-        st.session_state.bank_islam_file_month = {}
-        st.session_state.file_company_name = {}
-        st.session_state.file_account_no = {}
+    with col2:
+        if button_compat("Stop", use_container_width=True):
+            st.session_state.status = "stopped"
 
-with col2:
-    if button_compat("⏹️ Stop", use_container_width=True):
-        st.session_state.status = "stopped"
+    with col3:
+        if button_compat("Reset", use_container_width=True):
+            st.session_state.status = "idle"
+            st.session_state.results = []
+            st.session_state.affin_statement_totals = []
+            st.session_state.affin_file_transactions = {}
+            st.session_state.ambank_statement_totals = []
+            st.session_state.ambank_file_transactions = {}
+            st.session_state.cimb_statement_totals = []
+            st.session_state.rhb_statement_totals = []
+            st.session_state.gx_statement_totals = []
+            st.session_state.cimb_file_transactions = {}
+            st.session_state.rhb_file_transactions = {}
+            st.session_state.gx_file_transactions = {}
+            st.session_state.bank_islam_file_month = {}
+            st.session_state.file_company_name = {}
+            st.session_state.file_account_no = {}
+            st.session_state.pdf_password = ""
+            st.session_state.company_name_override = ""
+            st.rerun()
 
-with col3:
-    if button_compat("🔄 Reset", use_container_width=True):
-        st.session_state.status = "idle"
-        st.session_state.results = []
-        st.session_state.affin_statement_totals = []
-        st.session_state.affin_file_transactions = {}
-        st.session_state.ambank_statement_totals = []
-        st.session_state.ambank_file_transactions = {}
-        st.session_state.cimb_statement_totals = []
-        st.session_state.rhb_statement_totals = []
-        st.session_state.gx_statement_totals = []
-        st.session_state.cimb_file_transactions = {}
-        st.session_state.rhb_file_transactions = {}
-        st.session_state.gx_file_transactions = {}
-        st.session_state.bank_islam_file_month = {}
-        st.session_state.file_company_name = {}
-        st.session_state.file_account_no = {}
-        st.session_state.pdf_password = ""
-        st.session_state.company_name_override = ""
-        st.rerun()
+    render_status_card(st.session_state.status)
+    close_tool_card()
+    st.markdown('</section>', unsafe_allow_html=True)
 
-render_status_card(st.session_state.status)
-st.markdown('</section>', unsafe_allow_html=True)
+with workspace_left:
+    render_progress_panel(st.session_state.status, uploaded_files or [], has_existing_results)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 all_tx: List[dict] = []
 
