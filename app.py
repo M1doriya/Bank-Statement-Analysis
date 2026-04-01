@@ -53,20 +53,20 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     is_light = str(theme_mode or "Dark").strip().lower() == "light"
     if is_light:
         theme_vars = """
-            --page-bg: #eef3f6;
-            --page-bg-soft: #f7fafc;
+            --page-bg: #edf2f5;
+            --page-bg-soft: #f6f9fb;
             --surface: #ffffff;
-            --surface-soft: #f5f8fb;
+            --surface-soft: #f7fafc;
             --surface-elevated: #ffffff;
             --panel: #ffffff;
             --panel-soft: #f3f7fa;
-            --text: #223541;
-            --text-strong: #0f1f29;
-            --muted: #526674;
-            --line: rgba(17, 39, 51, 0.12);
-            --line-strong: rgba(17, 39, 51, 0.22);
+            --text: #233845;
+            --text-strong: #0e2029;
+            --muted: #546a78;
+            --line: rgba(14, 32, 41, 0.14);
+            --line-strong: rgba(14, 32, 41, 0.26);
             --accent: #12c7b5;
-            --accent-strong: #0ea796;
+            --accent-strong: #0f988c;
             --accent-soft: rgba(18, 199, 181, 0.10);
             --navy: #0c1d27;
             --navy-soft: #132a35;
@@ -79,6 +79,32 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --hero-card-bg: rgba(255, 255, 255, 0.03);
             --hero-card-overlay: rgba(18, 199, 181, 0.08);
             --hero-ghost: rgba(255, 255, 255, 0.04);
+            --progress-bg: linear-gradient(180deg, #0c1d27 0%, #08171f 100%);
+            --progress-border: rgba(18, 199, 181, 0.22);
+            --progress-title: #f7ffff;
+            --progress-copy: #9bc2c4;
+            --progress-subtle: #eefbfb;
+            --progress-pill-bg: #ffffff;
+            --progress-pill-text: #3b5561;
+            --tool-bg: #ffffff;
+            --tool-border: rgba(14, 32, 41, 0.12);
+            --tool-card-bg: #f7fafc;
+            --tool-card-border: rgba(14, 32, 41, 0.10);
+            --tool-title: #0e2029;
+            --tool-copy: #607684;
+            --tool-icon-bg: rgba(18, 199, 181, 0.09);
+            --tool-icon-border: rgba(18, 199, 181, 0.18);
+            --tool-icon-text: #0f988c;
+            --tool-input-bg: #ffffff;
+            --tool-input-border: rgba(14, 32, 41, 0.18);
+            --tool-input-text: #10222c;
+            --tool-placeholder: #7f919d;
+            --tool-button-bg: #ffffff;
+            --tool-button-text: #10222c;
+            --tool-button-border: rgba(14, 32, 41, 0.18);
+            --tool-button-hover-bg: #f4f8fb;
+            --tool-primary-bg: #12c7b5;
+            --tool-primary-text: #082126;
             --shadow: 0 16px 36px rgba(10, 25, 32, 0.08);
             --shadow-soft: 0 10px 22px rgba(10, 25, 32, 0.05);
             --badge-bg: rgba(18, 199, 181, 0.08);
@@ -90,7 +116,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --auth-heading: #11222c;
             --auth-copy: #4e6470;
             --input-bg: #ffffff;
-            --input-border: rgba(17, 39, 51, 0.18);
+            --input-border: rgba(14, 32, 41, 0.22);
             --input-text: #10222c;
             --placeholder: #7b909b;
             --status-idle-bg: #edf3f6;
@@ -131,6 +157,32 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --hero-card-bg: rgba(255, 255, 255, 0.02);
             --hero-card-overlay: rgba(17, 213, 196, 0.05);
             --hero-ghost: rgba(255, 255, 255, 0.03);
+            --progress-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+            --progress-border: rgba(17, 213, 196, 0.18);
+            --progress-title: #f6ffff;
+            --progress-copy: #8cc5c4;
+            --progress-subtle: #d8f7f4;
+            --progress-pill-bg: rgba(255, 255, 255, 0.94);
+            --progress-pill-text: #39505b;
+            --tool-bg: #0d1d27;
+            --tool-border: rgba(17, 213, 196, 0.18);
+            --tool-card-bg: rgba(255, 255, 255, 0.02);
+            --tool-card-border: rgba(17, 213, 196, 0.18);
+            --tool-title: #f6ffff;
+            --tool-copy: #8cc5c4;
+            --tool-icon-bg: rgba(17, 213, 196, 0.12);
+            --tool-icon-border: rgba(17, 213, 196, 0.16);
+            --tool-icon-text: #11d5c4;
+            --tool-input-bg: rgba(255,255,255,0.03);
+            --tool-input-border: rgba(17, 213, 196, 0.18);
+            --tool-input-text: #f6ffff;
+            --tool-placeholder: #8cc5c4;
+            --tool-button-bg: rgba(255,255,255,0.04);
+            --tool-button-text: #d8f7f4;
+            --tool-button-border: rgba(17, 213, 196, 0.18);
+            --tool-button-hover-bg: rgba(255,255,255,0.07);
+            --tool-primary-bg: #11d5c4;
+            --tool-primary-text: #082126;
             --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
             --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.18);
             --badge-bg: rgba(17, 213, 196, 0.10);
@@ -183,13 +235,25 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .topbar-shell,
         .hero-shell,
-        .steps-shell,
-        .progress-shell,
-        .tool-shell {{
+        .steps-shell {{
             background: var(--hero-bg);
             border: 1px solid var(--hero-line);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
+        }}
+
+        .progress-shell {{
+            background: var(--progress-bg);
+            border: 1px solid var(--progress-border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-soft);
+        }}
+
+        .tool-shell {{
+            background: var(--tool-bg);
+            border: 1px solid var(--tool-border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
         }}
 
         .topbar-shell {{
@@ -289,25 +353,38 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .theme-switch-copy {{
-            color: var(--hero-text);
-            font-size: 0.95rem;
-            font-weight: 700;
-            line-height: 1.25;
+            color: var(--hero-subtle);
+            font-size: 0.82rem;
+            font-weight: 600;
+            line-height: 1.45;
+            margin-top: 2px;
         }}
 
-        .theme-toggle-shell [data-testid="stToggle"] {{
-            margin-top: 0.35rem;
+        div[data-testid="stToggle"] {{
+            width: 100%;
         }}
 
-        .theme-toggle-shell [data-testid="stWidgetLabel"] p,
-        .theme-toggle-shell label p {{
+        div[data-testid="stToggle"] > div:first-child {{
+            display: none;
+        }}
+
+        div[data-testid="stToggle"] > label,
+        div[data-testid="stCheckbox"] > label {{
+            width: 100%;
+            display: flex;
+            flex-direction: row-reverse;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin: 0;
+        }}
+
+        div[data-testid="stToggle"] label p,
+        div[data-testid="stCheckbox"] label p {{
             color: var(--hero-subtle) !important;
-            font-size: 0.9rem !important;
-            font-weight: 700 !important;
-        }}
-
-        .theme-toggle-shell [data-testid="stToggle"] label {{
-            gap: 10px;
+            font-size: 0.94rem !important;
+            font-weight: 800 !important;
+            margin: 0 !important;
         }}
 
         .hero-shell {{
@@ -473,7 +550,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .progress-title {{
-            color: var(--hero-text);
+            color: var(--progress-title);
             font-size: 1rem;
             font-weight: 800;
             margin-bottom: 16px;
@@ -500,8 +577,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             place-items: center;
             font-size: 0.82rem;
             font-weight: 800;
-            border: 1px solid var(--hero-line);
-            color: var(--hero-muted);
+            border: 1px solid var(--progress-border);
+            color: var(--progress-copy);
             background: var(--hero-ghost);
         }}
 
@@ -513,7 +590,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .progress-step-title {{
-            color: var(--hero-subtle);
+            color: var(--progress-subtle);
             font-size: 0.93rem;
             font-weight: 700;
             line-height: 1.2;
@@ -521,7 +598,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .progress-step-copy {{
-            color: var(--hero-muted);
+            color: var(--progress-copy);
             font-size: 0.78rem;
             line-height: 1.5;
             margin-top: 4px;
@@ -529,7 +606,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .progress-divider {{
             height: 1px;
-            background: var(--hero-line);
+            background: var(--progress-border);
             margin: 18px 0 14px;
         }}
 
@@ -538,7 +615,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            color: var(--hero-muted);
+            color: var(--progress-copy);
             font-size: 0.82rem;
             font-weight: 700;
         }}
@@ -549,8 +626,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             justify-content: center;
             padding: 6px 12px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.94);
-            color: #39505b;
+            background: var(--progress-pill-bg);
+            color: var(--progress-pill-text);
             font-size: 0.76rem;
             font-weight: 800;
             min-width: 72px;
@@ -561,8 +638,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .tool-card {{
-            border: 1px solid var(--hero-line);
-            background: var(--hero-card-bg);
+            border: 1px solid var(--tool-card-border);
+            background: var(--tool-card-bg);
             border-radius: 16px;
             padding: 14px 14px 12px;
             margin-bottom: 12px;
@@ -581,22 +658,22 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border-radius: 10px;
             display: grid;
             place-items: center;
-            background: rgba(17, 213, 196, 0.12);
-            border: 1px solid rgba(17, 213, 196, 0.16);
-            color: var(--accent);
+            background: var(--tool-icon-bg);
+            border: 1px solid var(--tool-icon-border);
+            color: var(--tool-icon-text);
             font-size: 0.9rem;
             flex: none;
         }}
 
         .tool-card__title {{
-            color: var(--hero-text);
+            color: var(--tool-title);
             font-size: 0.94rem;
             font-weight: 800;
             line-height: 1.2;
         }}
 
         .tool-card__copy {{
-            color: var(--hero-muted);
+            color: var(--tool-copy);
             font-size: 0.78rem;
             line-height: 1.45;
             margin-top: 2px;
@@ -815,6 +892,18 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 700;
         }}
 
+        .tool-shell div[data-testid="stWidgetLabel"] p {{
+            color: var(--tool-title) !important;
+            font-size: 0.92rem !important;
+            font-weight: 700 !important;
+        }}
+
+        .tool-shell [data-testid="stMarkdownContainer"] p,
+        .tool-shell small,
+        .tool-shell label {{
+            color: var(--tool-copy);
+        }}
+
         div[data-baseweb="input"],
         div[data-baseweb="select"] > div {{
             border-radius: var(--radius-md) !important;
@@ -856,19 +945,19 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .tool-shell div[data-baseweb="input"] > div,
         .tool-shell div[data-baseweb="select"] > div {{
-            background: rgba(255,255,255,0.03);
-            border-color: var(--hero-line);
+            background: var(--tool-input-bg);
+            border-color: var(--tool-input-border);
         }}
 
         .tool-shell div[data-baseweb="input"] input,
         .tool-shell div[data-baseweb="select"] input,
         .tool-shell div[data-baseweb="select"] span {{
-            color: var(--hero-text) !important;
-            -webkit-text-fill-color: var(--hero-text) !important;
+            color: var(--tool-input-text) !important;
+            -webkit-text-fill-color: var(--tool-input-text) !important;
         }}
 
         .tool-shell div[data-baseweb="input"] input::placeholder {{
-            color: var(--hero-muted) !important;
+            color: var(--tool-placeholder) !important;
         }}
 
         div[data-testid="stFileUploaderDropzone"] {{
@@ -879,8 +968,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .tool-shell div[data-testid="stFileUploaderDropzone"] {{
-            background: rgba(255,255,255,0.03);
-            border-color: var(--hero-line);
+            background: var(--tool-input-bg);
+            border-color: var(--tool-input-border);
         }}
 
         div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {{
@@ -888,7 +977,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .tool-shell div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {{
-            color: var(--hero-muted);
+            color: var(--tool-copy);
         }}
 
         div[data-testid="stFileUploader"] section button,
@@ -906,9 +995,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .tool-shell div.stButton > button,
         .tool-shell div[data-testid="stFileUploader"] section button {{
-            background: rgba(255,255,255,0.04);
-            color: var(--hero-subtle);
-            border-color: var(--hero-line);
+            background: var(--tool-button-bg);
+            color: var(--tool-button-text);
+            border-color: var(--tool-button-border);
         }}
 
         div.stButton > button:hover,
@@ -921,13 +1010,20 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .tool-shell div.stButton > button:hover,
         .tool-shell div[data-testid="stFileUploader"] section button:hover {{
-            color: var(--hero-text);
+            color: var(--tool-title);
+            background: var(--tool-button-hover-bg);
         }}
 
         div.stButton > button[kind="primary"],
         div[data-testid="stFormSubmitButton"] > button[kind="primary"] {{
             background: var(--accent);
             color: #082126;
+            border-color: transparent;
+        }}
+
+        .tool-shell div.stButton > button[kind="primary"] {{
+            background: var(--tool-primary-bg);
+            color: var(--tool-primary-text);
             border-color: transparent;
         }}
 
@@ -1032,15 +1128,15 @@ def render_top_bar() -> None:
     with right:
         theme_state = "Light mode" if st.session_state.get("ui_theme_light", False) else "Dark mode"
         st.markdown(
-            f"""
+            """
             <div class="theme-toggle-shell">
                 <div class="theme-slot-label">Appearance</div>
-                <div class="theme-switch-copy">{html.escape(theme_state)}</div>
+                <div class="theme-switch-copy">Use the switch to change the interface theme.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        toggle_compat("Light mode", key="ui_theme_light")
+        toggle_compat(theme_state, key="ui_theme_light")
 
 
 def render_auth_shell() -> None:
