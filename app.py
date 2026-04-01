@@ -8,6 +8,12 @@ from typing import Callable, Dict, List, Tuple, Optional
 
 import pandas as pd
 import streamlit as st
+from PIL import ImageEnhance, ImageOps
+
+try:
+    import pytesseract  # type: ignore
+except Exception:  # pragma: no cover
+    pytesseract = None
 
 from core_utils import (
     bytes_to_pdfplumber,
@@ -582,12 +588,93 @@ _CIMB_CLOSING_RE = re.compile(
     r"CLOSING\s+BALANCE\s*/\s*BAKI\s+PENUTUP\s+(-?[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
+_CIMB_MONTH_MAP = {
+    "JAN": "01",
+    "FEB": "02",
+    "MAR": "03",
+    "APR": "04",
+    "MAY": "05",
+    "JUN": "06",
+    "JUL": "07",
+    "AUG": "08",
+    "SEP": "09",
+    "OCT": "10",
+    "NOV": "11",
+    "DEC": "12",
+}
+_CIMB_TESSERACT_READY = None
 
 
 def _prev_month(yyyy: int, mm: int) -> Tuple[int, int]:
     if mm == 1:
         return (yyyy - 1, 12)
     return (yyyy, mm - 1)
+
+
+def _has_cimb_tesseract_binary() -> bool:
+    global _CIMB_TESSERACT_READY
+    if pytesseract is None:
+        _CIMB_TESSERACT_READY = False
+        return False
+    if _CIMB_TESSERACT_READY is not None:
+        return _CIMB_TESSERACT_READY
+    try:
+        pytesseract.get_tesseract_version()
+        _CIMB_TESSERACT_READY = True
+    except Exception:
+        _CIMB_TESSERACT_READY = False
+    return _CIMB_TESSERACT_READY
+
+
+def _infer_cimb_statement_month_from_ocr(pdf) -> Optional[str]:
+    if not getattr(pdf, "pages", None) or not _has_cimb_tesseract_binary():
+        return None
+    try:
+        img = pdf.pages[0].to_image(resolution=350).original
+        img = ImageOps.grayscale(img)
+        img = ImageEnhance.Contrast(img).enhance(2.0)
+        text = pytesseract.image_to_string(img, config="--psm 6") or ""
+    except Exception:
+        return None
+
+    m = _CIMB_STMT_DATE_RE.search(text)
+    if not m:
+        return None
+    mm = int(m.group(2))
+    yy_raw = m.group(3)
+    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+    if 1 <= mm <= 12 and 2000 <= yy <= 2100:
+        py, pm = _prev_month(yy, mm)
+        return f"{py:04d}-{pm:02d}"
+    return None
+
+
+def _infer_cimb_statement_month_from_filename(source_file: str) -> Optional[str]:
+    name = (source_file or "").upper().strip()
+    if not name:
+        return None
+
+    m = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s\-_]*(\d{2,4})\b", name)
+    if m:
+        mon = _CIMB_MONTH_MAP.get(m.group(1))
+        yy_raw = m.group(2)
+        yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+        if mon and 2000 <= yy <= 2100:
+            return f"{yy:04d}-{mon}"
+
+    m = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2,4})\b", name)
+    if m:
+        mon = _CIMB_MONTH_MAP.get(m.group(1))
+        yy_raw = m.group(2)
+        yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+        if mon and 2000 <= yy <= 2100:
+            return f"{yy:04d}-{mon}"
+
+    m = re.search(r"(20\d{2})[\s\-_](0[1-9]|1[0-2])", name)
+    if m:
+        return f"{int(m.group(1)):04d}-{m.group(2)}"
+
+    return None
 
 
 def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
@@ -612,6 +699,10 @@ def extract_cimb_statement_totals(pdf, source_file: str) -> dict:
         if 1 <= mm <= 12 and 2000 <= yy <= 2100:
             py, pm = _prev_month(yy, mm)
             stmt_month = f"{py:04d}-{pm:02d}"
+    if stmt_month is None:
+        stmt_month = _infer_cimb_statement_month_from_ocr(pdf)
+    if stmt_month is None:
+        stmt_month = _infer_cimb_statement_month_from_filename(source_file)
 
     closing_balance = None
     m = _CIMB_CLOSING_RE.search(full_text)

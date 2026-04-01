@@ -15,6 +15,13 @@
 import re
 from datetime import datetime
 
+try:
+    import pytesseract  # type: ignore
+except Exception:  # pragma: no cover
+    pytesseract = None
+
+from PIL import ImageEnhance, ImageOps
+
 
 # -----------------------------
 # Regex
@@ -33,6 +40,21 @@ _CLOSING_RE = re.compile(
 )
 
 _OPENING_LINE_RE = re.compile(r"^\s*OPENING\s+BALANCE\b", re.IGNORECASE)
+_MONTH_MAP = {
+    "JAN": "01",
+    "FEB": "02",
+    "MAR": "03",
+    "APR": "04",
+    "MAY": "05",
+    "JUN": "06",
+    "JUL": "07",
+    "AUG": "08",
+    "SEP": "09",
+    "OCT": "10",
+    "NOV": "11",
+    "DEC": "12",
+}
+_TESSERACT_READY = None
 
 
 # -----------------------------
@@ -142,6 +164,50 @@ def _prev_month(yyyy: int, mm: int):
     return (yyyy, mm - 1)
 
 
+def _has_tesseract_binary() -> bool:
+    global _TESSERACT_READY
+    if pytesseract is None:
+        _TESSERACT_READY = False
+        return False
+    if _TESSERACT_READY is not None:
+        return _TESSERACT_READY
+    try:
+        pytesseract.get_tesseract_version()
+        _TESSERACT_READY = True
+    except Exception:
+        _TESSERACT_READY = False
+    return _TESSERACT_READY
+
+
+def _extract_ocr_statement_month(pdf):
+    """
+    OCR fallback for scanned/image PDFs:
+    run OCR on page 1 and parse statement date in dd/mm/yyyy.
+    Returns 'YYYY-MM' (statement month = previous month) or None.
+    """
+    if not getattr(pdf, "pages", None) or not _has_tesseract_binary():
+        return None
+    try:
+        page = pdf.pages[0]
+        img = page.to_image(resolution=350).original
+        img = ImageOps.grayscale(img)
+        img = ImageEnhance.Contrast(img).enhance(2.0)
+        text = (pytesseract.image_to_string(img, config="--psm 6") or "").upper()
+    except Exception:
+        return None
+
+    m = _STMT_DATE_RE.search(text)
+    if not m:
+        return None
+    mm = int(m.group(2))
+    yy_raw = m.group(3)
+    yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+    if not (1 <= mm <= 12 and 2000 <= yy <= 2100):
+        return None
+    py, pm = _prev_month(yy, mm)
+    return f"{py:04d}-{pm:02d}"
+
+
 def _infer_statement_month_from_statement_date(full_text):
     """
     CIMB statement date is usually next month; statement month = previous month.
@@ -157,6 +223,41 @@ def _infer_statement_month_from_statement_date(full_text):
         return None
     py, pm = _prev_month(yy, mm)
     return f"{py:04d}-{pm:02d}"
+
+
+def _infer_statement_month_from_filename(source_filename):
+    """
+    Filename fallback for image/scan PDFs where statement date text is unavailable.
+    Supports examples:
+      - "Nov 24 CTC.pdf" -> 2024-11
+      - "Dec_2024.pdf" -> 2024-12
+      - "2024-11 report.pdf" -> 2024-11
+    """
+    name = clean_text(source_filename).upper()
+    if not name:
+        return None
+
+    m = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s\-_]*(\d{2,4})\b", name)
+    if m:
+        mon = _MONTH_MAP.get(m.group(1))
+        yy_raw = m.group(2)
+        yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+        if mon and 2000 <= yy <= 2100:
+            return f"{yy:04d}-{mon}"
+
+    m = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2,4})\b", name)
+    if m:
+        mon = _MONTH_MAP.get(m.group(1))
+        yy_raw = m.group(2)
+        yy = (2000 + int(yy_raw)) if len(yy_raw) == 2 else int(yy_raw)
+        if mon and 2000 <= yy <= 2100:
+            return f"{yy:04d}-{mon}"
+
+    m = re.search(r"(20\d{2})[\s\-_](0[1-9]|1[0-2])", name)
+    if m:
+        return f"{int(m.group(1)):04d}-{m.group(2)}"
+
+    return None
 
 
 def _dedupe_cimb(rows):
@@ -405,7 +506,11 @@ def parse_transactions_cimb(pdf, source_filename=""):
     full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
     closing_balance = extract_closing_balance_from_text(full_text)
     stmt_total_debit, stmt_total_credit = _extract_statement_totals_from_text(full_text)
-    stmt_month = _infer_statement_month_from_statement_date(full_text)
+    stmt_month = (
+        _infer_statement_month_from_statement_date(full_text)
+        or _extract_ocr_statement_month(pdf)
+        or _infer_statement_month_from_filename(source_filename)
+    )
 
     # Extract opening balance if present in table rows (often no date)
     opening_balance_value = None
