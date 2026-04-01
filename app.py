@@ -70,15 +70,23 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --accent-soft: rgba(16, 207, 192, 0.12);
             --navy: #0d1d27;
             --navy-soft: #17313e;
-            --hero-bg: linear-gradient(180deg, #10202a 0%, #0b1821 100%);
+            --hero-bg: linear-gradient(180deg, #10222d 0%, #0c1b24 100%);
             --hero-surface: rgba(255, 255, 255, 0.04);
-            --hero-line: rgba(16, 207, 192, 0.22);
-            --button-primary-bg: #dff8f4;
-            --button-primary-text: #0a1a1c;
-            --button-primary-border: rgba(223, 248, 244, 0.35);
-            --button-secondary-bg: transparent;
-            --button-secondary-text: #0e262c;
-            --button-secondary-border: rgba(16, 126, 121, 0.24);
+            --hero-line: rgba(16, 207, 192, 0.20);
+            --hero-text: #f4fcfc;
+            --hero-muted: #9fc2c4;
+            --hero-subtle: #d9f1f1;
+            --hero-card-bg: rgba(255, 255, 255, 0.035);
+            --hero-card-overlay: rgba(16, 207, 192, 0.06);
+            --hero-ghost: rgba(255, 255, 255, 0.02);
+            --hero-primary-bg: #19c4b3;
+            --hero-primary-text: #082126;
+            --button-primary-bg: #0f766e;
+            --button-primary-text: #ffffff;
+            --button-primary-border: transparent;
+            --button-secondary-bg: #ffffff;
+            --button-secondary-text: #12242d;
+            --button-secondary-border: rgba(18, 36, 45, 0.12);
             --shadow: 0 16px 36px rgba(6, 18, 24, 0.08);
             --shadow-soft: 0 10px 22px rgba(6, 18, 24, 0.05);
             --status-idle-bg: #eef6f7;
@@ -113,11 +121,19 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --hero-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
             --hero-surface: rgba(255, 255, 255, 0.02);
             --hero-line: rgba(17, 213, 196, 0.18);
-            --button-primary-bg: #dbf9f5;
-            --button-primary-text: #0a191d;
-            --button-primary-border: rgba(219, 249, 245, 0.36);
-            --button-secondary-bg: transparent;
-            --button-secondary-text: #9ec7c8;
+            --hero-text: #f6ffff;
+            --hero-muted: #8cc5c4;
+            --hero-subtle: #d8f7f4;
+            --hero-card-bg: rgba(255, 255, 255, 0.02);
+            --hero-card-overlay: rgba(17, 213, 196, 0.05);
+            --hero-ghost: rgba(255, 255, 255, 0.03);
+            --hero-primary-bg: #dbf9f5;
+            --hero-primary-text: #0a191d;
+            --button-primary-bg: #11d5c4;
+            --button-primary-text: #082126;
+            --button-primary-border: transparent;
+            --button-secondary-bg: rgba(255, 255, 255, 0.02);
+            --button-secondary-text: #c7e5e6;
             --button-secondary-border: rgba(17, 213, 196, 0.18);
             --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
             --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.18);
@@ -175,7 +191,7 @@ __THEME_VARS__
             display: flex;
             align-items: center;
             gap: 10px;
-            color: #f6ffff;
+            color: var(--hero-text);
         }
 
         .brand-mark {
@@ -197,7 +213,7 @@ __THEME_VARS__
 
         .brand-title {
             margin: 0;
-            color: #f6ffff;
+            color: var(--hero-text);
             font-size: 0.96rem;
             font-weight: 800;
             line-height: 1.1;
@@ -206,7 +222,7 @@ __THEME_VARS__
 
         .brand-subtitle {
             margin: 2px 0 0;
-            color: #7eb6b8;
+            color: var(--hero-muted);
             font-size: 0.78rem;
             line-height: 1.2;
         }
@@ -218,7 +234,7 @@ __THEME_VARS__
             gap: 22px;
             min-height: 34px;
             flex-wrap: wrap;
-            color: #8cc5c4;
+            color: var(--hero-muted);
             font-size: 0.88rem;
             font-weight: 600;
         }
@@ -228,7 +244,7 @@ __THEME_VARS__
         }
 
         .nav-links .is-active {
-            color: #f6ffff;
+            color: var(--hero-text);
             position: relative;
         }
 
@@ -245,7 +261,7 @@ __THEME_VARS__
         }
 
         .theme-slot-label {
-            color: #8cc5c4;
+            color: var(--hero-muted);
             font-size: 0.74rem;
             font-weight: 800;
             text-transform: uppercase;
@@ -293,7 +309,7 @@ __THEME_VARS__
             gap: 8px;
             padding: 7px 12px;
             border-radius: 999px;
-            background: rgba(17, 213, 196, 0.08);
+            background: var(--accent-soft);
             border: 1px solid var(--hero-line);
             color: var(--accent);
             font-size: 0.74rem;
@@ -306,7 +322,7 @@ __THEME_VARS__
         .auth-shell h1,
         .parser-heading h2 {
             margin: 14px 0 0;
-            color: #f6ffff;
+            color: var(--hero-text);
             font-size: clamp(2rem, 4vw, 3rem);
             line-height: 1.05;
             letter-spacing: -0.04em;
@@ -322,7 +338,7 @@ __THEME_VARS__
         .parser-copy {
             margin: 12px 0 0;
             max-width: 760px;
-            color: #8cc5c4;
+            color: var(--hero-muted);
             line-height: 1.7;
             font-size: 0.97rem;
         }
@@ -356,7 +372,7 @@ __THEME_VARS__
             width: 72px;
             height: 50px;
             border-bottom-left-radius: 18px;
-            background: rgba(17, 213, 196, 0.05);
+            background: var(--hero-card-overlay);
         }
 
         .step-icon {
@@ -365,7 +381,7 @@ __THEME_VARS__
             border-radius: 12px;
             display: grid;
             place-items: center;
-            background: rgba(17, 213, 196, 0.10);
+            background: rgba(17, 213, 196, 0.12);
             border: 1px solid rgba(17, 213, 196, 0.15);
             color: var(--accent);
             margin-bottom: 18px;
@@ -384,7 +400,7 @@ __THEME_VARS__
         }
 
         .step-title {
-            color: #f6ffff;
+            color: var(--hero-text);
             font-size: 1rem;
             font-weight: 800;
             line-height: 1.35;
@@ -394,7 +410,7 @@ __THEME_VARS__
         }
 
         .step-copy {
-            color: #8cc5c4;
+            color: var(--hero-muted);
             font-size: 0.89rem;
             line-height: 1.55;
             max-width: 235px;
@@ -428,7 +444,7 @@ __THEME_VARS__
         }
 
         .progress-title {
-            color: #f6ffff;
+            color: var(--hero-text);
             font-size: 1rem;
             font-weight: 800;
             margin-bottom: 16px;
@@ -456,8 +472,8 @@ __THEME_VARS__
             font-size: 0.8rem;
             font-weight: 800;
             border: 1px solid var(--hero-line);
-            color: #8cc5c4;
-            background: rgba(255, 255, 255, 0.03);
+            color: var(--hero-muted);
+            background: var(--hero-ghost);
         }
 
         .progress-step.is-active .progress-index {
@@ -468,7 +484,7 @@ __THEME_VARS__
         }
 
         .progress-step-title {
-            color: #d8f7f4;
+            color: var(--hero-subtle);
             font-size: 0.92rem;
             font-weight: 700;
             line-height: 1.2;
@@ -476,7 +492,7 @@ __THEME_VARS__
         }
 
         .progress-step-copy {
-            color: #6fa6a7;
+            color: var(--hero-muted);
             font-size: 0.76rem;
             line-height: 1.45;
             margin-top: 4px;
@@ -493,7 +509,7 @@ __THEME_VARS__
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            color: #7caeb0;
+            color: var(--hero-muted);
             font-size: 0.8rem;
             font-weight: 700;
         }
@@ -517,7 +533,7 @@ __THEME_VARS__
 
         .tool-card {
             border: 1px solid var(--hero-line);
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--hero-card-bg);
             border-radius: 16px;
             padding: 14px 14px 12px;
             margin-bottom: 12px;
@@ -544,14 +560,14 @@ __THEME_VARS__
         }
 
         .tool-card__title {
-            color: #f6ffff;
+            color: var(--hero-text);
             font-size: 0.94rem;
             font-weight: 800;
             line-height: 1.2;
         }
 
         .tool-card__copy {
-            color: #74a4a6;
+            color: var(--hero-muted);
             font-size: 0.78rem;
             line-height: 1.45;
             margin-top: 2px;
@@ -560,6 +576,53 @@ __THEME_VARS__
         .tool-card--actions {
             padding-bottom: 4px;
             margin-bottom: 0;
+        }
+
+        .tool-shell div[data-baseweb="input"] > div,
+        .tool-shell div[data-baseweb="select"] > div,
+        .topbar-shell div[data-baseweb="select"] > div {
+            background: var(--hero-card-bg);
+            border-color: var(--hero-line);
+        }
+
+        .tool-shell div[data-baseweb="input"] > div:hover,
+        .tool-shell div[data-baseweb="select"] > div:hover,
+        .topbar-shell div[data-baseweb="select"] > div:hover {
+            border-color: var(--line-strong);
+            background: var(--hero-card-bg);
+        }
+
+        .tool-shell div[data-baseweb="input"] > div:focus-within,
+        .tool-shell div[data-baseweb="select"] > div:focus-within,
+        .topbar-shell div[data-baseweb="select"] > div:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.14);
+            background: var(--hero-card-bg);
+        }
+
+        .tool-shell div[data-baseweb="input"] input,
+        .tool-shell div[data-baseweb="input"] textarea,
+        .tool-shell div[data-baseweb="select"] input,
+        .tool-shell div[data-baseweb="select"] span,
+        .tool-shell div[data-baseweb="select"] div,
+        .topbar-shell div[data-baseweb="select"] input,
+        .topbar-shell div[data-baseweb="select"] span,
+        .topbar-shell div[data-baseweb="select"] div {
+            color: var(--hero-text) !important;
+            -webkit-text-fill-color: var(--hero-text) !important;
+        }
+
+        .tool-shell div[data-baseweb="input"] input::placeholder,
+        .tool-shell div[data-baseweb="input"] textarea::placeholder,
+        .tool-shell div[data-baseweb="select"] input::placeholder,
+        .topbar-shell div[data-baseweb="select"] input::placeholder {
+            color: var(--hero-muted) !important;
+            -webkit-text-fill-color: var(--hero-muted) !important;
+        }
+
+        .tool-shell div[data-baseweb="select"] svg,
+        .topbar-shell div[data-baseweb="select"] svg {
+            fill: var(--hero-muted);
         }
 
         div[data-baseweb="input"] > div,
@@ -609,7 +672,7 @@ __THEME_VARS__
         }
 
         .tool-shell [data-testid="stWidgetLabel"] p {
-            color: #cdebec;
+            color: var(--hero-subtle);
             font-size: 0.88rem;
             font-weight: 700;
         }
@@ -617,7 +680,7 @@ __THEME_VARS__
         div[data-testid="stFileUploaderDropzone"] {
             border: 1px dashed rgba(17, 213, 196, 0.26);
             border-radius: 14px;
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--hero-ghost);
             min-height: 132px;
             padding: 18px 20px;
         }
@@ -625,7 +688,7 @@ __THEME_VARS__
         div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
         div[data-testid="stFileUploaderDropzone"] small,
         div[data-testid="stFileUploaderDropzone"] span {
-            color: #8db6b7 !important;
+            color: var(--hero-muted) !important;
         }
 
         div[data-testid="stFileUploader"] section button,
@@ -648,7 +711,7 @@ __THEME_VARS__
         div[data-testid="stFileUploader"] section button:hover {
             border-color: rgba(17, 213, 196, 0.42);
             color: var(--text-strong);
-            background: rgba(17, 213, 196, 0.04);
+            background: var(--hero-card-overlay);
         }
 
         div.stButton > button[kind="primary"],
@@ -656,7 +719,34 @@ __THEME_VARS__
             background: var(--button-primary-bg);
             color: var(--button-primary-text);
             border: 1px solid var(--button-primary-border);
-            box-shadow: 0 10px 22px rgba(17, 213, 196, 0.10);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .tool-shell div.stButton > button,
+        .tool-shell div[data-testid="stFileUploader"] section button {
+            background: var(--hero-ghost);
+            color: var(--hero-text);
+            border-color: var(--hero-line);
+        }
+
+        .tool-shell div.stButton > button:hover,
+        .tool-shell div[data-testid="stFileUploader"] section button:hover {
+            background: var(--hero-card-overlay);
+            color: var(--hero-text);
+            border-color: var(--line-strong);
+        }
+
+        .tool-shell div.stButton > button[kind="primary"] {
+            background: var(--hero-primary-bg);
+            color: var(--hero-primary-text);
+            border-color: transparent;
+            box-shadow: none;
+        }
+
+        .tool-shell div.stButton > button[kind="primary"]:hover {
+            filter: brightness(0.98);
+            background: var(--hero-primary-bg);
+            color: var(--hero-primary-text);
         }
 
         div.stButton > button[kind="primary"]:hover,
@@ -680,8 +770,8 @@ __THEME_VARS__
             padding: 9px 12px;
             border-radius: 12px;
             border: 1px solid var(--hero-line);
-            background: rgba(255, 255, 255, 0.03);
-            color: #dff6f5;
+            background: var(--hero-ghost);
+            color: var(--hero-subtle);
             font-size: 0.84rem;
             font-weight: 700;
         }
@@ -700,7 +790,7 @@ __THEME_VARS__
             padding: 14px 16px;
             border-radius: 14px;
             border: 1px solid var(--hero-line);
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--hero-ghost);
             margin-top: 12px;
         }
 
@@ -719,7 +809,7 @@ __THEME_VARS__
         }
 
         .status-card__title {
-            color: #82afb1;
+            color: var(--hero-muted);
             font-size: 0.72rem;
             font-weight: 800;
             letter-spacing: 0.08em;
@@ -728,7 +818,7 @@ __THEME_VARS__
         }
 
         .status-card__copy {
-            color: #f0fdfd;
+            color: var(--hero-text);
             font-size: 0.88rem;
             font-weight: 700;
             line-height: 1.35;
@@ -930,10 +1020,10 @@ def render_top_bar() -> None:
         """
         <div class="topbar-shell">
             <div class="brand-lockup">
-                <div class="brand-mark">✦</div>
+                <div class="brand-mark">PL</div>
                 <div class="brand-copy">
                     <div class="brand-title">ParserLab</div>
-                    <div class="brand-subtitle">Financial parsing workspace</div>
+                    <div class="brand-subtitle">Structured finance workspace</div>
                 </div>
             </div>
         </div>
@@ -970,7 +1060,7 @@ def render_auth_shell() -> None:
                 <span class="section-badge">Secure access</span>
             </div>
             <h1>Access the parser workspace</h1>
-            <p class="auth-copy">Sign in to continue. The authentication logic stays the same — only the presentation has been redesigned around the dashboard style you requested.</p>
+            <p class="auth-copy">Sign in to continue. Sign in to continue to the parser workspace. This update refines the visual system only, while keeping the existing authentication and app logic intact.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -983,7 +1073,7 @@ def render_app_hero() -> None:
         <section class="hero-shell">
             <span class="hero-badge">Parser workflow</span>
             <h1>Four steps to financial clarity</h1>
-            <p class="hero-copy">Move from bank selection to parsed outputs in a cleaner workflow: choose the bank, upload the statement, process the file, then review the extracted results and export the report.</p>
+            <p class="hero-copy">A structured workflow for statement parsing: choose the issuing bank, upload the PDF, process the file, then review clean extracted outputs and export the final report.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1033,7 +1123,7 @@ def render_parser_intro() -> None:
             <div class="parser-heading">
                 <span class="section-badge">Parser engine</span>
                 <h2>Upload & Parse Your Statement</h2>
-                <p class="parser-copy">Select your bank, upload your PDF, and let the parser extract structured financial data automatically.</p>
+                <p class="parser-copy">Select your bank, upload the PDF statement, and let the parser extract structured financial data into review-ready outputs.</p>
             </div>
         </div>
         """,
