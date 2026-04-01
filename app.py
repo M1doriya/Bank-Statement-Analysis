@@ -54,27 +54,28 @@ def inject_global_styles() -> None:
         <style>
             :root {
                 --bg: #f4f6f8;
-                --surface: rgba(255, 255, 255, 0.86);
+                --surface: rgba(255, 255, 255, 0.96);
                 --surface-strong: #ffffff;
-                --surface-soft: #f8fafc;
+                --surface-soft: #f5f8fb;
                 --text: #17202f;
-                --muted: #667085;
-                --line: #e6ebf1;
-                --line-strong: #d7dee8;
+                --text-strong: #101828;
+                --muted: #475467;
+                --line: #d6dee8;
+                --line-strong: #c3ceda;
                 --accent: #19b3a6;
                 --accent-strong: #129589;
                 --accent-soft: #e9f8f6;
-                --warning: #c78317;
+                --warning: #b45309;
                 --radius-xl: 28px;
                 --radius-lg: 18px;
                 --radius-md: 14px;
-                --shadow: 0 10px 30px rgba(23, 32, 47, 0.06);
+                --shadow: 0 12px 32px rgba(23, 32, 47, 0.08);
             }
 
             html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
                 background:
-                    linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
+                    linear-gradient(rgba(23, 32, 47, 0.045) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(23, 32, 47, 0.045) 1px, transparent 1px),
                     var(--bg);
                 background-size: 64px 64px;
                 color: var(--text);
@@ -95,8 +96,8 @@ def inject_global_styles() -> None:
             }
 
             .hero-shell, .auth-shell, .section-shell, .results-shell, .download-shell {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
+                background: var(--surface);
+                border: 1px solid rgba(215, 222, 232, 0.98);
                 border-radius: var(--radius-xl);
                 box-shadow: var(--shadow);
                 backdrop-filter: blur(8px);
@@ -109,7 +110,8 @@ def inject_global_styles() -> None:
 
             .hero-shell__header, .auth-shell__header {
                 padding: 34px 36px 18px;
-                border-bottom: 1px solid rgba(23, 32, 47, 0.06);
+                border-bottom: 1px solid rgba(23, 32, 47, 0.08);
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
             }
 
             .hero-shell__row, .auth-shell__row {
@@ -130,6 +132,7 @@ def inject_global_styles() -> None:
                 color: var(--accent-strong);
                 font-size: 1.5rem;
                 flex: none;
+                border: 1px solid rgba(25, 179, 166, 0.14);
             }
 
             .auth-shell__icon {
@@ -144,7 +147,7 @@ def inject_global_styles() -> None:
                 line-height: 1.05;
                 letter-spacing: -0.05em;
                 font-weight: 800;
-                color: var(--text);
+                color: var(--text-strong);
             }
 
             .auth-shell h1 {
@@ -183,7 +186,7 @@ def inject_global_styles() -> None:
 
             .section-title {
                 margin: 0;
-                color: var(--text);
+                color: var(--text-strong);
                 font-size: 1.15rem;
                 font-weight: 800;
                 letter-spacing: -0.02em;
@@ -201,8 +204,8 @@ def inject_global_styles() -> None:
             }
 
             div[data-testid="stForm"] {
-                background: rgba(255, 255, 255, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.7);
+                background: var(--surface);
+                border: 1px solid rgba(215, 222, 232, 0.98);
                 border-radius: var(--radius-xl);
                 box-shadow: var(--shadow);
                 backdrop-filter: blur(8px);
@@ -212,8 +215,16 @@ def inject_global_styles() -> None:
             }
 
             div[data-testid="stForm"] label p,
-            div[data-testid="stWidgetLabel"] p {
+            div[data-testid="stWidgetLabel"] p,
+            div[data-testid="stMarkdownContainer"] p,
+            .stMarkdown,
+            .stText,
+            .stCaption {
                 color: var(--text);
+            }
+
+            div[data-testid="stForm"] label p,
+            div[data-testid="stWidgetLabel"] p {
                 font-size: 0.95rem;
                 font-weight: 700;
                 letter-spacing: -0.01em;
@@ -228,27 +239,47 @@ def inject_global_styles() -> None:
             div[data-baseweb="select"] > div {
                 min-height: 56px;
                 border: 1px solid var(--line);
-                background: rgba(255, 255, 255, 0.96);
+                background: #ffffff;
                 box-shadow: none;
                 transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
             }
 
             div[data-baseweb="input"] > div:focus-within,
             div[data-baseweb="select"] > div:focus-within {
-                border-color: rgba(25, 179, 166, 0.5);
-                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.11);
+                border-color: rgba(25, 179, 166, 0.55);
+                box-shadow: 0 0 0 4px rgba(25, 179, 166, 0.14);
                 background: #fff;
+            }
+
+            div[data-baseweb="input"] input,
+            div[data-baseweb="input"] textarea,
+            div[data-baseweb="select"] input,
+            div[data-baseweb="select"] span,
+            div[data-baseweb="select"] div {
+                color: var(--text-strong) !important;
+                -webkit-text-fill-color: var(--text-strong) !important;
+                opacity: 1 !important;
+            }
+
+            div[data-baseweb="input"] input::placeholder,
+            div[data-baseweb="input"] textarea::placeholder,
+            div[data-baseweb="select"] input::placeholder {
+                color: #667085 !important;
+                -webkit-text-fill-color: #667085 !important;
+                opacity: 1 !important;
             }
 
             div[data-testid="stFileUploaderDropzone"] {
                 border: 1px solid var(--line);
                 border-radius: var(--radius-lg);
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+                background: linear-gradient(180deg, #ffffff, #f7fafc);
                 padding: 18px 20px;
             }
 
-            div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p {
-                color: var(--muted);
+            div[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"] p,
+            div[data-testid="stFileUploaderDropzone"] small,
+            div[data-testid="stFileUploaderDropzone"] span {
+                color: var(--muted) !important;
             }
 
             div[data-testid="stFileUploader"] section button,
@@ -260,8 +291,8 @@ def inject_global_styles() -> None:
                 font-weight: 700;
                 transition: 160ms ease;
                 border: 1px solid var(--line-strong);
-                background: #fff;
-                color: var(--text);
+                background: #ffffff;
+                color: var(--text-strong);
             }
 
             div.stButton > button:hover,
@@ -269,22 +300,22 @@ def inject_global_styles() -> None:
             div[data-testid="stFormSubmitButton"] > button:hover,
             div[data-testid="stFileUploader"] section button:hover {
                 background: var(--surface-soft);
-                border-color: var(--line-strong);
-                color: var(--text);
+                border-color: #aebbcb;
+                color: var(--text-strong);
             }
 
             div.stButton > button[kind="primary"],
             div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
                 border: none;
                 background: var(--accent);
-                color: #fff;
-                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.22);
+                color: #ffffff;
+                box-shadow: 0 8px 20px rgba(25, 179, 166, 0.24);
             }
 
             div.stButton > button[kind="primary"]:hover,
             div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
                 background: var(--accent-strong);
-                color: #fff;
+                color: #ffffff;
             }
 
             .status-card {
@@ -293,11 +324,12 @@ def inject_global_styles() -> None:
                 gap: 12px;
                 padding: 18px 20px;
                 border-radius: 18px;
-                background: rgba(255, 255, 255, 0.82);
+                background: #ffffff;
                 border: 1px solid var(--line);
                 font-size: 1rem;
                 font-weight: 700;
                 margin-bottom: 1rem;
+                color: var(--text-strong);
             }
 
             .status-card__dot {
@@ -305,17 +337,17 @@ def inject_global_styles() -> None:
                 height: 12px;
                 border-radius: 999px;
                 background: var(--accent);
-                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.12);
+                box-shadow: 0 0 0 8px rgba(25, 179, 166, 0.14);
                 flex: none;
             }
 
-            .status-card.is-idle .status-card__dot { background: #94a3b8; box-shadow: 0 0 0 8px rgba(148, 163, 184, 0.12); }
+            .status-card.is-idle .status-card__dot { background: #64748b; box-shadow: 0 0 0 8px rgba(100, 116, 139, 0.12); }
             .status-card.is-running .status-card__dot { background: var(--accent); }
-            .status-card.is-stopped .status-card__dot { background: var(--warning); box-shadow: 0 0 0 8px rgba(199, 131, 23, 0.12); }
+            .status-card.is-stopped .status-card__dot { background: var(--warning); box-shadow: 0 0 0 8px rgba(180, 83, 9, 0.14); }
 
             .status-card__label {
                 color: var(--muted);
-                font-weight: 600;
+                font-weight: 700;
                 margin-right: 6px;
             }
 
@@ -332,16 +364,16 @@ def inject_global_styles() -> None:
                 gap: 8px;
                 padding: 10px 14px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.95);
+                background: #ffffff;
                 border: 1px solid var(--line);
-                color: var(--text);
+                color: var(--text-strong);
                 font-size: 0.92rem;
                 font-weight: 600;
             }
 
             .file-chip.is-encrypted {
                 background: #fff7ed;
-                border-color: #fed7aa;
+                border-color: #fdba74;
                 color: #9a3412;
             }
 
@@ -353,7 +385,7 @@ def inject_global_styles() -> None:
             }
 
             .metric-card {
-                background: rgba(255, 255, 255, 0.86);
+                background: #ffffff;
                 border: 1px solid var(--line);
                 border-radius: 18px;
                 padding: 16px 18px;
@@ -369,7 +401,7 @@ def inject_global_styles() -> None:
             }
 
             .metric-card__value {
-                color: var(--text);
+                color: var(--text-strong);
                 font-size: 1.15rem;
                 font-weight: 800;
                 letter-spacing: -0.02em;
@@ -377,11 +409,15 @@ def inject_global_styles() -> None:
             }
 
             div[data-testid="stDataFrame"] {
-                background: rgba(255, 255, 255, 0.92);
+                background: #ffffff;
                 border: 1px solid var(--line);
                 border-radius: 20px;
                 padding: 0.35rem;
                 overflow: hidden;
+            }
+
+            div[data-testid="stDataFrame"] * {
+                color: var(--text-strong);
             }
 
             div[data-testid="stProgressBar"] > div > div {
@@ -390,6 +426,17 @@ def inject_global_styles() -> None:
 
             div[data-testid="stProgressBar"] div[role="progressbar"] {
                 background: var(--accent);
+            }
+
+            div[data-testid="stAlert"] {
+                border-radius: 16px;
+                border: 1px solid var(--line);
+            }
+
+            div[data-testid="stAlert"] p,
+            div[data-testid="stAlert"] span,
+            div[data-testid="stAlert"] div {
+                color: var(--text-strong);
             }
 
             .auth-footer-note {
