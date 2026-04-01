@@ -53,32 +53,33 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     is_light = str(theme_mode or "Dark").strip().lower() == "light"
     if is_light:
         theme_vars = """
-            --page-bg: #eef3f5;
-            --page-bg-soft: #f7fafb;
+            --page-bg: #ffffff;
+            --page-bg-soft: #f8fbfc;
+            --page-spotlight: rgba(16, 191, 174, 0.025);
             --surface: #ffffff;
-            --surface-soft: #f6f9fb;
+            --surface-soft: #f8fbfc;
             --surface-elevated: #ffffff;
             --panel: #ffffff;
-            --panel-soft: #f4f8fa;
-            --text: #233845;
+            --panel-soft: #f8fbfc;
+            --text: #1f3440;
             --text-strong: #0d1f29;
-            --muted: #5a7280;
-            --line: rgba(13, 31, 41, 0.12);
-            --line-strong: rgba(13, 31, 41, 0.22);
-            --accent: #10bfae;
-            --accent-strong: #0d8f84;
-            --accent-soft: rgba(16, 191, 174, 0.10);
+            --muted: #5f7481;
+            --line: rgba(13, 31, 41, 0.10);
+            --line-strong: rgba(13, 31, 41, 0.18);
+            --accent: #11bfae;
+            --accent-strong: #0c8c81;
+            --accent-soft: rgba(16, 191, 174, 0.08);
             --navy: #0c1d27;
             --navy-soft: #132a35;
-            --hero-bg: linear-gradient(180deg, #0d1d27 0%, #08171f 100%);
-            --hero-surface: rgba(255, 255, 255, 0.04);
-            --hero-line: rgba(16, 191, 174, 0.18);
-            --hero-text: #f7ffff;
-            --hero-muted: #a6c8ca;
-            --hero-subtle: #eefbfb;
-            --hero-card-bg: rgba(255, 255, 255, 0.03);
-            --hero-card-overlay: rgba(16, 191, 174, 0.08);
-            --hero-ghost: rgba(255, 255, 255, 0.04);
+            --hero-bg: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+            --hero-surface: #ffffff;
+            --hero-line: rgba(13, 31, 41, 0.10);
+            --hero-text: #0d1f29;
+            --hero-muted: #5d7380;
+            --hero-subtle: #10222c;
+            --hero-card-bg: #ffffff;
+            --hero-card-overlay: rgba(16, 191, 174, 0.04);
+            --hero-ghost: #f1f6f7;
             --topbar-bg: #ffffff;
             --topbar-border: rgba(13, 31, 41, 0.10);
             --topbar-text: #0d1f29;
@@ -86,58 +87,58 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --topbar-active: #0d1f29;
             --theme-card-bg: #ffffff;
             --theme-card-border: rgba(13, 31, 41, 0.10);
-            --theme-icon-bg: #f0f8f7;
+            --theme-icon-bg: #f1f8f7;
             --theme-icon-border: rgba(16, 191, 174, 0.18);
-            --theme-icon-text: #0d8f84;
-            --progress-bg: linear-gradient(180deg, #0d1d27 0%, #08171f 100%);
-            --progress-border: rgba(16, 191, 174, 0.18);
-            --progress-title: #f7ffff;
-            --progress-copy: #a6c8ca;
-            --progress-subtle: #eefbfb;
-            --progress-pill-bg: #ffffff;
-            --progress-pill-text: #415b68;
+            --theme-icon-text: #0c8c81;
+            --progress-bg: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+            --progress-border: rgba(13, 31, 41, 0.10);
+            --progress-title: #0d1f29;
+            --progress-copy: #607987;
+            --progress-subtle: #10222c;
+            --progress-pill-bg: #f1f5f7;
+            --progress-pill-text: #4f6673;
             --tool-bg: #ffffff;
             --tool-border: rgba(13, 31, 41, 0.10);
-            --tool-card-bg: #f7fafc;
+            --tool-card-bg: #ffffff;
             --tool-card-border: rgba(13, 31, 41, 0.10);
             --tool-title: #0d1f29;
-            --tool-copy: #526977;
-            --tool-icon-bg: rgba(16, 191, 174, 0.10);
+            --tool-copy: #5a707d;
+            --tool-icon-bg: rgba(16, 191, 174, 0.08);
             --tool-icon-border: rgba(16, 191, 174, 0.18);
-            --tool-icon-text: #0d8f84;
+            --tool-icon-text: #0c8c81;
             --tool-input-bg: #ffffff;
-            --tool-input-border: rgba(13, 31, 41, 0.18);
+            --tool-input-border: rgba(13, 31, 41, 0.16);
             --tool-input-text: #10222c;
-            --tool-placeholder: #718894;
+            --tool-placeholder: #6a808d;
             --tool-button-bg: #ffffff;
-            --tool-button-text: #10222c;
-            --tool-button-border: rgba(13, 31, 41, 0.16);
-            --tool-button-hover-bg: #f3f7fa;
-            --tool-primary-bg: #10bfae;
+            --tool-button-text: #17303c;
+            --tool-button-border: rgba(13, 31, 41, 0.14);
+            --tool-button-hover-bg: #f3f7f9;
+            --tool-primary-bg: #11bfae;
             --tool-primary-text: #082126;
-            --shadow: 0 16px 34px rgba(10, 25, 32, 0.08);
-            --shadow-soft: 0 10px 22px rgba(10, 25, 32, 0.05);
+            --shadow: 0 16px 32px rgba(10, 25, 32, 0.06);
+            --shadow-soft: 0 8px 18px rgba(10, 25, 32, 0.04);
             --badge-bg: rgba(16, 191, 174, 0.08);
-            --badge-border: rgba(16, 191, 174, 0.18);
-            --badge-text: #0d8f84;
-            --display-heading: #10222c;
-            --display-copy: #4f6774;
+            --badge-border: rgba(16, 191, 174, 0.20);
+            --badge-text: #0c8c81;
+            --display-heading: #0d1f29;
+            --display-copy: #546a77;
             --auth-bg: #ffffff;
             --auth-heading: #0d1f29;
-            --auth-copy: #4f6774;
+            --auth-copy: #546a77;
             --input-bg: #ffffff;
-            --input-border: rgba(13, 31, 41, 0.22);
+            --input-border: rgba(13, 31, 41, 0.20);
             --input-text: #10222c;
-            --placeholder: #718894;
-            --form-label: #223845;
-            --status-idle-bg: #edf3f6;
-            --status-idle-text: #4f6774;
+            --placeholder: #697f8c;
+            --form-label: #0d1f29;
+            --status-idle-bg: #f1f5f7;
+            --status-idle-text: #556b77;
             --status-running-bg: rgba(16, 191, 174, 0.12);
-            --status-running-text: #0d8f84;
+            --status-running-text: #0c8c81;
             --status-stopped-bg: #fff1e7;
             --status-stopped-text: #a85a10;
             --table-bg: #ffffff;
-            --table-head: #eef4f7;
+            --table-head: #f3f7f9;
             --table-text: #10222c;
         """
     else:
@@ -145,6 +146,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         theme_vars = """
             --page-bg: #06131a;
             --page-bg-soft: #0a1820;
+            --page-spotlight: rgba(17, 213, 196, 0.07);
             --surface: #0c1a22;
             --surface-soft: #10222b;
             --surface-elevated: #122733;
@@ -242,7 +244,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
             background:
-                radial-gradient(circle at top center, rgba(17, 213, 196, 0.07), transparent 24%),
+                radial-gradient(circle at top center, var(--page-spotlight), transparent 24%),
                 linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
             color: var(--text);
         }}
@@ -433,6 +435,17 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         .theme-toggle-button-wrap div.stButton > button p {{
             font-size: 1rem !important;
             line-height: 1 !important;
+        }}
+
+        .theme-toggle-button-stack {{
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding-top: 28px;
+        }}
+
+        .theme-toggle-button-stack div.stButton {{
+            width: 100%;
         }}
 
         .hero-shell {{
@@ -1185,31 +1198,25 @@ def render_top_bar() -> None:
     with right:
         is_light = st.session_state.get("ui_theme_light", False)
         theme_state = "Light mode" if is_light else "Dark mode"
-        theme_icon = "☀" if is_light else "☾"
-        st.markdown(
-            """
-            <div class="theme-toggle-shell">
-                <div class="theme-slot-label">Appearance</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        info_col, button_col = st.columns([4.2, 1], gap="small")
+        mode_icon = "☀" if is_light else "☾"
+        button_icon = "☾" if is_light else "☀"
+        info_col, button_col = st.columns([4.5, 1], gap="small")
         with info_col:
             st.markdown(
                 f"""
-                <div class="theme-toggle-row">
+                <div class="theme-toggle-shell">
+                    <div class="theme-slot-label">Appearance</div>
                     <div class="theme-mode-badge">
-                        <span class="theme-mode-icon">{theme_icon}</span>
-                        <span class="theme-mode-label">{html.escape(theme_state)}</span>
+                        <span class="theme-mode-icon">{{mode_icon}}</span>
+                        <span class="theme-mode-label">{{html.escape(theme_state)}}</span>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
         with button_col:
-            st.markdown('<div class="theme-toggle-button-wrap">', unsafe_allow_html=True)
-            if button_compat(theme_icon, key="theme_icon_toggle", use_container_width=True):
+            st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-stack">', unsafe_allow_html=True)
+            if button_compat(button_icon, key="theme_icon_toggle", use_container_width=True):
                 st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
                 st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
                 st.rerun()
