@@ -135,7 +135,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
     css = """
     <style>
         :root {
-%s
+__THEME_VARS__
             --radius-xl: 24px;
             --radius-lg: 18px;
             --radius-md: 14px;
@@ -920,7 +920,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             }
         }
     </style>
-    """ % theme_vars
+    """.replace("__THEME_VARS__", theme_vars)
     st.markdown(css, unsafe_allow_html=True)
 
 
