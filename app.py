@@ -298,6 +298,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         .topbar-shell {{
             padding: 14px 18px;
             margin-bottom: 1rem;
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+        }}
+
+        .topbar-shell--theme {{
+            display: block;
         }}
 
         .theme-toggle-shell {{
@@ -404,7 +411,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            margin: 0 0 6px;
+            margin: 0 0 8px;
         }}
 
         .theme-slot-label--topbar {{
@@ -420,6 +427,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 800;
             line-height: 1.2;
             white-space: nowrap;
+            margin-top: 0;
         }}
 
         .theme-mode-badge {{
@@ -485,6 +493,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .theme-toggle-button-wrap--left {{
             justify-content: flex-start;
+            height: 44px;
         }}
 
         .theme-toggle-button-wrap div.stButton {{
@@ -1235,7 +1244,7 @@ def render_top_bar() -> None:
             <div class="brand-lockup">
                 <div class="brand-mark">PL</div>
                 <div class="brand-copy">
-                    <div class="brand-title">ParserLab</div>
+                    <div class="brand-title">KreditLab</div>
                     <div class="brand-subtitle">Structured finance workspace</div>
                 </div>
             </div>
@@ -1261,20 +1270,22 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        st.markdown('<div class="theme-slot-label theme-slot-label--topbar">Appearance</div>', unsafe_allow_html=True)
-        icon_col, label_col = st.columns([0.9, 4.2], gap="small")
-        with icon_col:
+        st.markdown('<div class="topbar-shell topbar-shell--theme">', unsafe_allow_html=True)
+        st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+        theme_button_col, theme_label_col = st.columns([0.9, 3.6], gap="small")
+        with theme_button_col:
             st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
                 st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
                 st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
-        with label_col:
+        with theme_label_col:
             st.markdown(
                 f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
                 unsafe_allow_html=True,
             )
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_auth_shell() -> None:
