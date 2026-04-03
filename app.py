@@ -144,8 +144,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-bg: #ffffff;
             --table-head: #f8fafc;
             --table-text: #0b1220;
-            --select-menu-bg: #ffffff;
+            --select-menu-bg: #f8fafc;
             --select-menu-surface: #ffffff;
+            --select-menu-row-bg: #ffffff;
             --select-menu-text: #0f172a;
             --select-menu-border: rgba(15, 23, 42, 0.14);
             --select-menu-hover-bg: rgba(18, 184, 171, 0.12);
@@ -248,6 +249,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-text: #eaf8f8;
             --select-menu-bg: #08141b;
             --select-menu-surface: #0d1d27;
+            --select-menu-row-bg: #0d1d27;
             --select-menu-text: #eaf9fa;
             --select-menu-border: rgba(17, 213, 196, 0.16);
             --select-menu-hover-bg: rgba(17, 213, 196, 0.12);
@@ -310,9 +312,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .topbar-shell {{
-            padding: 16px 20px;
+            padding: 18px 22px;
             margin-bottom: 1rem;
-            min-height: 84px;
+            min-height: 86px;
             display: flex;
             align-items: center;
         }}
@@ -321,23 +323,42 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: block;
         }}
 
-        .topbar-row-anchor {{
+        .topbar-row-anchor,
+        .theme-topbar-anchor {{
             display: none;
         }}
 
-        div[data-testid="element-container"]:has(.topbar-row-anchor) + div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) {{
             background: var(--topbar-bg);
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
-            padding: 16px 18px;
-            min-height: 84px;
+            padding: 16px 20px;
+            min-height: 86px;
             margin-bottom: 1rem;
             box-sizing: border-box;
+            display: flex;
+            align-items: center;
         }}
 
-        div[data-testid="element-container"]:has(.topbar-row-anchor) + div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) [data-testid="stHorizontalBlock"] {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stVerticalBlock"] {{
+            width: 100%;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) div[data-testid="element-container"] {{
+            margin-bottom: 0 !important;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
+            align-items: center !important;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
+            display: flex;
             align-items: center;
+            justify-content: center;
         }}
 
         .theme-toggle-shell {{
@@ -475,7 +496,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .theme-inline-state--compact {{
             min-height: auto;
-            font-size: 0.98rem;
+            font-size: 1.02rem;
         }}
 
         .theme-state-stack {{
@@ -483,6 +504,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             flex-direction: column;
             justify-content: center;
             min-height: 44px;
+            width: 100%;
         }}
 
         .theme-state-stack__hint {{
@@ -523,7 +545,14 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-size: 1rem;
         }}
 
-        .theme-toggle-button-wrap div.stButton > button {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button {{
             min-width: 44px;
             width: 44px;
             height: 44px;
@@ -536,30 +565,15 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 800;
         }}
 
-        .theme-toggle-button-wrap div.stButton > button:hover {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button:hover {{
             background: var(--accent-soft);
             border-color: var(--accent);
             color: var(--accent-strong);
         }}
 
-        .theme-toggle-button-wrap div.stButton > button p {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button p {{
             font-size: 1rem !important;
             line-height: 1 !important;
-        }}
-
-        .theme-toggle-button-wrap {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-
-        .theme-toggle-button-wrap--left {{
-            justify-content: flex-start;
-            height: 44px;
-        }}
-
-        .theme-toggle-button-wrap div.stButton {{
-            margin: 0;
         }}
 
         .hero-shell {{
@@ -1190,27 +1204,45 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         body div[data-baseweb="popover"] > div,
         body div[data-baseweb="popover"] > div > div,
+        body div[data-baseweb="popover"] > div > div > div,
+        body div[data-baseweb="popover"] div[role="presentation"],
         body div[data-baseweb="menu"],
         body ul[role="listbox"],
         body div[role="listbox"] {{
             background: var(--select-menu-bg) !important;
+            background-color: var(--select-menu-bg) !important;
             border: 1px solid var(--select-menu-border) !important;
             border-radius: 16px !important;
             box-shadow: var(--select-menu-shadow) !important;
         }}
 
         body ul[role="listbox"],
-        body div[role="listbox"] {{
+        body div[role="listbox"],
+        body div[data-baseweb="menu"] {{
+            background: var(--select-menu-surface) !important;
+            background-color: var(--select-menu-surface) !important;
             padding: 8px !important;
+            overflow: hidden !important;
+        }}
+
+        body div[role="option"],
+        body li[role="option"] {{
+            background: var(--select-menu-row-bg) !important;
+            background-color: var(--select-menu-row-bg) !important;
+            border-radius: 12px !important;
+            margin: 2px 0 !important;
         }}
 
         body div[role="option"],
         body li[role="option"],
         body div[role="option"] *,
-        body li[role="option"] * {{
+        body li[role="option"] *,
+        body div[role="option"] span,
+        body li[role="option"] span,
+        body div[role="option"] p,
+        body li[role="option"] p {{
             color: var(--select-menu-text) !important;
             -webkit-text-fill-color: var(--select-menu-text) !important;
-            background: transparent !important;
             opacity: 1 !important;
         }}
 
@@ -1221,6 +1253,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         body div[role="option"][data-highlighted="true"],
         body li[role="option"][data-highlighted="true"] {{
             background: var(--select-menu-hover-bg) !important;
+            background-color: var(--select-menu-hover-bg) !important;
             color: var(--select-menu-hover-text) !important;
         }}
 
@@ -1232,7 +1265,6 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         body li[role="option"][data-highlighted="true"] * {{
             color: var(--select-menu-hover-text) !important;
             -webkit-text-fill-color: var(--select-menu-hover-text) !important;
-            background: transparent !important;
         }}
 
         body ul[role="listbox"]::-webkit-scrollbar,
@@ -1421,7 +1453,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 def render_top_bar() -> None:
     st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
-    left, middle, right = columns_compat([1.42, 1.62, 1.02], gap="large", vertical_alignment="center")
+    left, middle, right = columns_compat([1.44, 1.52, 1.14], gap="medium", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1454,14 +1486,13 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        theme_button_col, theme_label_col = columns_compat([0.34, 1.66], gap="small", vertical_alignment="center")
+        st.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
+        theme_button_col, theme_label_col = columns_compat([0.46, 1.54], gap="small", vertical_alignment="center")
         with theme_button_col:
-            st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
                 st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
                 st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
         with theme_label_col:
             st.markdown(
                 f"""
