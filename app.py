@@ -296,9 +296,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .topbar-shell {{
-            padding: 14px 18px;
+            padding: 16px 20px;
             margin-bottom: 1rem;
-            min-height: 70px;
+            min-height: 84px;
             display: flex;
             align-items: center;
         }}
@@ -380,12 +380,16 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 22px;
+            gap: 18px;
             min-height: 34px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             color: var(--topbar-muted);
-            font-size: 0.88rem;
-            font-weight: 600;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }}
+
+        .nav-links span {{
+            white-space: nowrap;
         }}
 
         .nav-links .is-active {{
@@ -751,18 +755,19 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .tool-card {{
-            border: 1px solid var(--tool-card-border);
-            background: var(--tool-card-bg);
-            border-radius: 16px;
-            padding: 14px 14px 12px;
-            margin-bottom: 12px;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            border-radius: 18px;
+            padding: 14px 16px;
+            margin: 0 0 0.55rem;
+            box-shadow: var(--shadow-soft);
         }}
 
         .tool-card__head {{
             display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            margin-bottom: 12px;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 0;
         }}
 
         .tool-card__icon {{
@@ -937,9 +942,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             flex-direction: column;
             gap: 6px;
-            padding-bottom: 12px;
-            margin-bottom: 14px;
-            border-bottom: 1px solid var(--line);
+            padding: 16px 18px;
+            margin: 0 0 14px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--surface);
+            box-shadow: var(--shadow-soft);
         }}
 
         .section-title {{
@@ -991,12 +999,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         div[data-testid="stForm"] {{
-            background: transparent;
-            border: 0;
-            box-shadow: none;
-            padding: 0;
-            margin: 0;
-            max-width: none;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow-soft);
+            padding: 20px 18px 18px;
+            margin: 1rem auto 0;
+            max-width: 760px;
+            border-radius: 22px;
         }}
 
         div[data-testid="stWidgetLabel"] p,
@@ -1082,8 +1091,80 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             color: var(--tool-placeholder) !important;
         }}
 
+        div[data-testid="stSelectbox"],
+        div[data-testid="stTextInput"],
+        div[data-testid="stTextArea"],
+        div[data-testid="stFileUploader"] {{
+            margin-bottom: 1rem;
+        }}
+
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="textarea"] > div {{
+            background: var(--surface) !important;
+            border-color: var(--line-strong) !important;
+            box-shadow: var(--shadow-soft);
+        }}
+
+        div[data-baseweb="select"] * {{
+            color: var(--input-text) !important;
+            -webkit-text-fill-color: var(--input-text) !important;
+            opacity: 1 !important;
+        }}
+
+        div[data-baseweb="select"] svg,
+        div[data-baseweb="select"] path {{
+            fill: var(--input-text) !important;
+            color: var(--input-text) !important;
+            stroke: var(--input-text) !important;
+            opacity: 0.78;
+        }}
+
+        div[data-baseweb="select"] > div > div {{
+            color: var(--input-text) !important;
+        }}
+
+        div[data-baseweb="popover"],
+        div[data-baseweb="menu"],
+        ul[role="listbox"] {{
+            background: var(--surface) !important;
+            border: 1px solid var(--line) !important;
+            border-radius: 14px !important;
+            box-shadow: var(--shadow) !important;
+        }}
+
+        div[role="option"],
+        li[role="option"] {{
+            color: var(--text-strong) !important;
+            background: transparent !important;
+        }}
+
+        div[role="option"][aria-selected="true"],
+        li[role="option"][aria-selected="true"] {{
+            background: var(--accent-soft) !important;
+            color: var(--accent-strong) !important;
+        }}
+
+        div[data-testid="stFileUploader"] > section {{
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: var(--shadow-soft);
+        }}
+
+        div[data-testid="stFileUploaderFileList"] {{
+            background: transparent;
+        }}
+
+        div[data-testid="stFileUploader"] small,
+        div[data-testid="stFileUploader"] span,
+        div[data-testid="stFileUploader"] p {{
+            color: var(--muted);
+        }}
+
         div[data-testid="stFileUploaderDropzone"] {{
-            border: 1px dashed var(--input-border);
+            border: 1.5px dashed var(--line-strong);
             border-radius: 16px;
             background: var(--input-bg);
             padding: 18px;
@@ -1130,7 +1211,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border: 1px solid var(--line-strong);
             background: var(--surface);
             color: var(--text-strong);
-            box-shadow: none;
+            box-shadow: var(--shadow-soft);
         }}
 
         .tool-shell div.stButton > button,
@@ -1228,7 +1309,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
             .nav-links {{
                 justify-content: flex-start;
-                gap: 16px;
+                gap: 14px;
+                flex-wrap: wrap;
             }}
         }}
     </style>
@@ -1237,7 +1319,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 
 def render_top_bar() -> None:
-    left, middle, right = columns_compat([1.55, 1.35, 1.3], gap="small", vertical_alignment="center")
+    left, middle, right = columns_compat([1.42, 1.65, 1.05], gap="large", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1271,7 +1353,7 @@ def render_top_bar() -> None:
         mode_icon = "☀" if is_light else "☾"
 
         st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([1.0, 2.2], gap="small", vertical_alignment="center")
+        theme_button_col, theme_label_col = columns_compat([0.62, 1.38], gap="small", vertical_alignment="center")
         with theme_button_col:
             st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
@@ -1376,13 +1458,14 @@ def render_tool_card_header(icon: str, title: str, subtitle: str) -> None:
                     <div class="tool-card__copy">{html.escape(subtitle)}</div>
                 </div>
             </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
 
 
 def close_tool_card() -> None:
-    st.markdown("</div>", unsafe_allow_html=True)
+    return None
 
 
 def _current_progress_step(uploaded_files: List, status: str, has_results: bool) -> int:
@@ -2439,12 +2522,9 @@ has_existing_results = bool(
     or st.session_state.gx_statement_totals
 )
 
-st.markdown('<div class="workspace-grid">', unsafe_allow_html=True)
-
 workspace_left, workspace_right = st.columns([0.9, 1.45], gap="large")
 
 with workspace_right:
-    st.markdown('<section class="tool-shell">', unsafe_allow_html=True)
 
     render_tool_card_header("▣", "Select Bank", "Choose the issuing bank")
     if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
@@ -2533,12 +2613,9 @@ with workspace_right:
 
     render_status_card(st.session_state.status)
     close_tool_card()
-    st.markdown('</section>', unsafe_allow_html=True)
 
 with workspace_left:
     render_progress_panel(st.session_state.status, uploaded_files or [], has_existing_results)
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 
 all_tx: List[dict] = []
@@ -3266,7 +3343,6 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         ]
     )
 
-    st.markdown('<section class="results-shell">', unsafe_allow_html=True)
     render_section_header(
         "Results",
         "Extracted transactions",
@@ -3291,10 +3367,8 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         st.dataframe(df[display_cols], use_container_width=True)
     else:
         st.info("No line-item transactions extracted.")
-    st.markdown('</section>', unsafe_allow_html=True)
 
     if monthly_summary:
-        st.markdown('<section class="results-shell">', unsafe_allow_html=True)
         render_section_header(
             "Summary",
             "Monthly summary (standardized)",
@@ -3316,9 +3390,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         ]
         summary_df = summary_df[[c for c in desired_cols if c in summary_df.columns]]
         st.dataframe(summary_df, use_container_width=True)
-        st.markdown('</section>', unsafe_allow_html=True)
-
-    st.markdown('<section class="download-shell">', unsafe_allow_html=True)
+    
     render_section_header(
         "Exports",
         "Download options",
@@ -3381,7 +3453,6 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-    st.markdown('</section>', unsafe_allow_html=True)
 
 else:
     if uploaded_files:
