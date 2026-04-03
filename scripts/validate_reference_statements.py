@@ -23,6 +23,7 @@ from bank_rakyat import parse_bank_rakyat
 from cimb import parse_transactions_cimb
 from hong_leong import parse_hong_leong
 from maybank import parse_transactions_maybank
+from mbsb import parse_transactions_mbsb
 from ocbc import parse_transactions_ocbc
 from public_bank import parse_transactions_pbb
 from rhb import parse_transactions_rhb
@@ -48,6 +49,7 @@ PARSERS: Dict[str, Callable[[Path, str], List[dict]]] = {
     "CIMB": lambda p, n: _with_pdfplumber(parse_transactions_cimb, p, n),
     "HongLeong": lambda p, n: _with_pdfplumber(parse_hong_leong, p, n),
     "Maybank": lambda p, n: parse_transactions_maybank(p.read_bytes(), n),
+    "MBSB": lambda p, n: _with_pdfplumber(parse_transactions_mbsb, p, n),
     "OCBC": lambda p, n: parse_transactions_ocbc(p.read_bytes(), n),
     "PublicBank": lambda p, n: _with_pdfplumber(parse_transactions_pbb, p, n),
     "RHB": lambda p, n: parse_transactions_rhb(p.read_bytes(), n),

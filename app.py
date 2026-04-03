@@ -37,6 +37,7 @@ from affin_bank import parse_affin_bank, extract_affin_statement_totals
 from agro_bank import parse_agro_bank
 from ocbc import parse_transactions_ocbc
 from gx_bank import parse_transactions_gx_bank
+from mbsb import parse_transactions_mbsb
 
 # ✅ UOB Bank parser
 from uob import parse_transactions_uob
@@ -2643,6 +2644,7 @@ PARSERS: Dict[str, Callable[[bytes, str], List[dict]]] = {
     "CIMB Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_cimb, b, f),
     "Hong Leong": lambda b, f: _parse_with_pdfplumber(parse_hong_leong, b, f),
     "Maybank": lambda b, f: parse_transactions_maybank(b, f),
+    "MBSB Bank": lambda b, f: _parse_with_pdfplumber(parse_transactions_mbsb, b, f),
     "Public Bank (PBB)": lambda b, f: _parse_with_pdfplumber(parse_transactions_pbb, b, f),
     "RHB Bank": lambda b, f: parse_transactions_rhb(b, f),
     "OCBC Bank": lambda b, f: parse_transactions_ocbc(b, f),
