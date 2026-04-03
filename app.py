@@ -91,6 +91,14 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --theme-icon-bg: #f0fdfa;
             --theme-icon-border: rgba(18, 184, 171, 0.24);
             --theme-icon-text: #0d8f85;
+            --native-color-scheme: light;
+            --select-menu-bg: #ffffff;
+            --select-menu-row-bg: #ffffff;
+            --select-menu-row-hover: #effcfb;
+            --select-menu-row-selected: #dff8f5;
+            --select-menu-text: #0b1220;
+            --select-menu-border: rgba(15, 23, 42, 0.12);
+            --select-menu-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
             --progress-bg: #ffffff;
             --progress-border: rgba(15, 23, 42, 0.10);
             --progress-title: #0b1220;
@@ -144,14 +152,6 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-bg: #ffffff;
             --table-head: #f8fafc;
             --table-text: #0b1220;
-            --select-menu-bg: #f8fafc;
-            --select-menu-surface: #ffffff;
-            --select-menu-row-bg: #ffffff;
-            --select-menu-text: #0f172a;
-            --select-menu-border: rgba(15, 23, 42, 0.14);
-            --select-menu-hover-bg: rgba(18, 184, 171, 0.12);
-            --select-menu-hover-text: #0d8f85;
-            --select-menu-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
 
         """
     else:
@@ -194,6 +194,14 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --theme-icon-bg: rgba(17, 213, 196, 0.10);
             --theme-icon-border: rgba(17, 213, 196, 0.18);
             --theme-icon-text: #11d5c4;
+            --native-color-scheme: dark;
+            --select-menu-bg: #08131b;
+            --select-menu-row-bg: #08131b;
+            --select-menu-row-hover: rgba(17, 213, 196, 0.10);
+            --select-menu-row-selected: rgba(17, 213, 196, 0.14);
+            --select-menu-text: #d8f7f4;
+            --select-menu-border: rgba(17, 213, 196, 0.18);
+            --select-menu-shadow: 0 20px 42px rgba(0, 0, 0, 0.40);
             --progress-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
             --progress-border: rgba(17, 213, 196, 0.18);
             --progress-title: #f6ffff;
@@ -247,15 +255,16 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-bg: #0d1b23;
             --table-head: #122733;
             --table-text: #eaf8f8;
-            --select-menu-bg: #08141b;
-            --select-menu-surface: #0d1d27;
-            --select-menu-row-bg: #0d1d27;
-            --select-menu-text: #eaf9fa;
-            --select-menu-border: rgba(17, 213, 196, 0.16);
-            --select-menu-hover-bg: rgba(17, 213, 196, 0.12);
-            --select-menu-hover-text: #8ff6ec;
-            --select-menu-shadow: 0 22px 40px rgba(0, 0, 0, 0.34);
         """
+
+    theme_toggle_pill_bg = "linear-gradient(180deg, #ffffff 0%, #fafafa 100%)" if is_light else "linear-gradient(180deg, #0d1d27 0%, #09161d 100%)"
+    theme_toggle_pill_hover_bg = "#f8fafc" if is_light else "rgba(255,255,255,0.06)"
+    theme_toggle_pill_border = "rgba(15, 23, 42, 0.12)" if is_light else "rgba(17, 213, 196, 0.18)"
+    theme_toggle_pill_text = "#0b1220" if is_light else "#f6ffff"
+    theme_toggle_pill_icon = '"☾"' if is_light else '"☀"'
+    theme_toggle_pill_icon_bg = "rgba(91, 168, 255, 0.12)" if is_light else "rgba(245, 179, 66, 0.16)"
+    theme_toggle_pill_icon_border = "rgba(91, 168, 255, 0.24)" if is_light else "rgba(245, 179, 66, 0.26)"
+    theme_toggle_pill_icon_text = "#4f9cf3" if is_light else "#f5b342"
 
     css = f"""
     <style>
@@ -264,6 +273,14 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --radius-xl: 24px;
             --radius-lg: 18px;
             --radius-md: 14px;
+            --theme-toggle-pill-bg: {theme_toggle_pill_bg};
+            --theme-toggle-pill-hover-bg: {theme_toggle_pill_hover_bg};
+            --theme-toggle-pill-border: {theme_toggle_pill_border};
+            --theme-toggle-pill-text: {theme_toggle_pill_text};
+            --theme-toggle-pill-icon: {theme_toggle_pill_icon};
+            --theme-toggle-pill-icon-bg: {theme_toggle_pill_icon_bg};
+            --theme-toggle-pill-icon-border: {theme_toggle_pill_icon_border};
+            --theme-toggle-pill-icon-text: {theme_toggle_pill_icon_text};
         }}
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
@@ -271,6 +288,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
                 radial-gradient(circle at top center, var(--page-spotlight), transparent 24%),
                 linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
             color: var(--text);
+            color-scheme: var(--native-color-scheme);
         }}
 
         [data-testid="stHeader"] {{ background: transparent; }}
@@ -312,9 +330,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .topbar-shell {{
-            padding: 18px 22px;
+            padding: 14px 18px;
             margin-bottom: 1rem;
-            min-height: 86px;
+            min-height: 70px;
             display: flex;
             align-items: center;
         }}
@@ -323,66 +341,93 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: block;
         }}
 
-        .topbar-row-anchor,
-        .theme-topbar-anchor {{
+        .theme-pill-anchor {{
             display: none;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) {{
-            background: var(--topbar-bg);
-            border: 1px solid var(--topbar-border);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-soft);
-            padding: 16px 20px;
-            min-height: 86px;
-            margin-bottom: 1rem;
-            box-sizing: border-box;
+        div[data-testid="column"]:has(.theme-pill-anchor) {{
             display: flex;
-            align-items: center;
+            align-items: flex-start;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
-        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stVerticalBlock"] {{
+        div[data-testid="column"]:has(.theme-pill-anchor) > div,
+        div[data-testid="column"]:has(.theme-pill-anchor) > div > div,
+        div[data-testid="column"]:has(.theme-pill-anchor) [data-testid="stVerticalBlock"] {{
             width: 100%;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) div[data-testid="element-container"] {{
-            margin-bottom: 0 !important;
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton {{
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            margin: 0 0 1rem;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
-            align-items: center !important;
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button {{
+            width: 100%;
+            max-width: 166px;
+            min-height: 70px;
+            padding: 0 20px 0 68px;
+            border-radius: 999px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            background: var(--theme-toggle-pill-bg) !important;
+            border: 1px solid var(--theme-toggle-pill-border) !important;
+            color: var(--theme-toggle-pill-text) !important;
+            box-shadow: var(--shadow-soft);
+            transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button::before {{
+            content: var(--theme-toggle-pill-icon);
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
             display: flex;
             align-items: center;
             justify-content: center;
+            background: var(--theme-toggle-pill-icon-bg);
+            border: 1px solid var(--theme-toggle-pill-icon-border);
+            color: var(--theme-toggle-pill-icon-text);
+            font-size: 1rem;
+            line-height: 1;
+            box-sizing: border-box;
         }}
 
-        .theme-toggle-shell {{
-            background: var(--theme-card-bg);
-            border: 1px solid var(--theme-card-border);
-            border-radius: 18px;
-            padding: 12px 14px;
-            box-shadow: var(--shadow-soft);
-            margin-bottom: 0.55rem;
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button:hover {{
+            background: var(--theme-toggle-pill-hover-bg) !important;
+            border-color: var(--accent) !important;
+            color: var(--theme-toggle-pill-text) !important;
+            transform: translateY(-1px);
         }}
 
-        .theme-toggle-shell__row {{
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button:focus,
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button:focus-visible {{
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px rgba(17, 213, 196, 0.14) !important;
+            outline: none;
+        }}
+
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button [data-testid="stMarkdownContainer"] {{
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 12px;
         }}
 
-        .theme-toggle-shell [data-testid="stHorizontalBlock"] {{
-            align-items: center;
-        }}
-
-        .theme-toggle-shell__copy {{
-            min-width: 0;
+        div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button p {{
+            margin: 0 !important;
+            color: var(--theme-toggle-pill-text) !important;
+            font-size: 1rem !important;
+            font-weight: 800 !important;
+            line-height: 1 !important;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
         }}
 
         .results-shell,
@@ -434,16 +479,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 18px;
+            gap: 22px;
             min-height: 34px;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
             color: var(--topbar-muted);
-            font-size: 0.86rem;
-            font-weight: 700;
-        }}
-
-        .nav-links span {{
-            white-space: nowrap;
+            font-size: 0.88rem;
+            font-weight: 600;
         }}
 
         .nav-links .is-active {{
@@ -488,32 +529,6 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin-top: 0;
         }}
 
-        .theme-slot-label--compact {{
-            margin: 0 0 4px;
-            font-size: 0.70rem;
-            letter-spacing: 0.10em;
-        }}
-
-        .theme-inline-state--compact {{
-            min-height: auto;
-            font-size: 1.02rem;
-        }}
-
-        .theme-state-stack {{
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 44px;
-            width: 100%;
-        }}
-
-        .theme-state-stack__hint {{
-            color: var(--topbar-muted);
-            font-size: 0.74rem;
-            line-height: 1.25;
-            margin-top: 4px;
-        }}
-
         .theme-mode-badge {{
             display: inline-flex;
             align-items: center;
@@ -545,14 +560,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-size: 1rem;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-        }}
-
-        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button {{
+        .theme-toggle-button-wrap div.stButton > button {{
             min-width: 44px;
             width: 44px;
             height: 44px;
@@ -565,15 +573,30 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 800;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button:hover {{
+        .theme-toggle-button-wrap div.stButton > button:hover {{
             background: var(--accent-soft);
             border-color: var(--accent);
             color: var(--accent-strong);
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button p {{
+        .theme-toggle-button-wrap div.stButton > button p {{
             font-size: 1rem !important;
             line-height: 1 !important;
+        }}
+
+        .theme-toggle-button-wrap {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+
+        .theme-toggle-button-wrap--left {{
+            justify-content: flex-start;
+            height: 44px;
+        }}
+
+        .theme-toggle-button-wrap div.stButton {{
+            margin: 0;
         }}
 
         .hero-shell {{
@@ -827,19 +850,18 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .tool-card {{
-            border: 1px solid var(--line);
-            background: var(--surface);
-            border-radius: 18px;
-            padding: 14px 16px;
-            margin: 0 0 0.55rem;
-            box-shadow: var(--shadow-soft);
+            border: 1px solid var(--tool-card-border);
+            background: var(--tool-card-bg);
+            border-radius: 16px;
+            padding: 14px 14px 12px;
+            margin-bottom: 12px;
         }}
 
         .tool-card__head {{
             display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 0;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
         }}
 
         .tool-card__icon {{
@@ -1014,12 +1036,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             flex-direction: column;
             gap: 6px;
-            padding: 16px 18px;
-            margin: 0 0 14px;
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            background: var(--surface);
-            box-shadow: var(--shadow-soft);
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid var(--line);
         }}
 
         .section-title {{
@@ -1071,13 +1090,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         div[data-testid="stForm"] {{
-            background: var(--surface);
-            border: 1px solid var(--line);
-            box-shadow: var(--shadow-soft);
-            padding: 20px 18px 18px;
-            margin: 1rem auto 0;
-            max-width: 760px;
-            border-radius: 22px;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+            max-width: none;
         }}
 
         div[data-testid="stWidgetLabel"] p,
@@ -1163,141 +1181,81 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             color: var(--tool-placeholder) !important;
         }}
 
-        div[data-testid="stSelectbox"],
-        div[data-testid="stTextInput"],
-        div[data-testid="stTextArea"],
-        div[data-testid="stFileUploader"] {{
-            margin-bottom: 1rem;
-        }}
-
-        div[data-baseweb="select"] > div,
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="textarea"] > div {{
-            background: var(--surface) !important;
-            border-color: var(--line-strong) !important;
-            box-shadow: var(--shadow-soft);
-        }}
-
-        div[data-baseweb="select"] *,
-        div[data-baseweb="input"] *,
-        div[data-baseweb="textarea"] * {{
-            color: var(--input-text) !important;
-            -webkit-text-fill-color: var(--input-text) !important;
-            opacity: 1 !important;
-        }}
-
-        div[data-baseweb="select"] svg,
-        div[data-baseweb="select"] path {{
-            fill: var(--input-text) !important;
-            color: var(--input-text) !important;
-            stroke: var(--input-text) !important;
-            opacity: 0.78;
-        }}
-
-        div[data-baseweb="select"] > div > div {{
-            color: var(--input-text) !important;
-        }}
-
-        body div[data-baseweb="popover"] {{
+        body [data-baseweb="popover"] {{
             background: transparent !important;
         }}
 
-        body div[data-baseweb="popover"] > div,
-        body div[data-baseweb="popover"] > div > div,
-        body div[data-baseweb="popover"] > div > div > div,
-        body div[data-baseweb="popover"] div[role="presentation"],
-        body div[data-baseweb="menu"],
-        body ul[role="listbox"],
-        body div[role="listbox"] {{
+        body [data-baseweb="popover"] > div,
+        body [data-baseweb="popover"] > div > div,
+        body [data-baseweb="menu"] {{
             background: var(--select-menu-bg) !important;
-            background-color: var(--select-menu-bg) !important;
-            border: 1px solid var(--select-menu-border) !important;
             border-radius: 16px !important;
             box-shadow: var(--select-menu-shadow) !important;
         }}
 
+        body [data-baseweb="popover"] [role="listbox"],
+        body [data-baseweb="popover"] ul,
         body ul[role="listbox"],
-        body div[role="listbox"],
-        body div[data-baseweb="menu"] {{
-            background: var(--select-menu-surface) !important;
-            background-color: var(--select-menu-surface) !important;
-            padding: 8px !important;
-            overflow: hidden !important;
+        body div[role="listbox"] {{
+            background: var(--select-menu-bg) !important;
+            border: 1px solid var(--select-menu-border) !important;
+            border-radius: 16px !important;
+            box-shadow: var(--select-menu-shadow) !important;
+            color: var(--select-menu-text) !important;
+            padding: 6px !important;
         }}
 
-        body div[role="option"],
-        body li[role="option"] {{
+        body [data-baseweb="popover"] [role="option"],
+        body [data-baseweb="popover"] li,
+        body ul[role="listbox"] li,
+        body div[role="listbox"] [role="option"] {{
             background: var(--select-menu-row-bg) !important;
-            background-color: var(--select-menu-row-bg) !important;
-            border-radius: 12px !important;
-            margin: 2px 0 !important;
-        }}
-
-        body div[role="option"],
-        body li[role="option"],
-        body div[role="option"] *,
-        body li[role="option"] *,
-        body div[role="option"] span,
-        body li[role="option"] span,
-        body div[role="option"] p,
-        body li[role="option"] p {{
             color: var(--select-menu-text) !important;
             -webkit-text-fill-color: var(--select-menu-text) !important;
-            opacity: 1 !important;
+            border-radius: 10px !important;
         }}
 
-        body div[role="option"]:hover,
-        body li[role="option"]:hover,
-        body div[role="option"][aria-selected="true"],
-        body li[role="option"][aria-selected="true"],
-        body div[role="option"][data-highlighted="true"],
-        body li[role="option"][data-highlighted="true"] {{
-            background: var(--select-menu-hover-bg) !important;
-            background-color: var(--select-menu-hover-bg) !important;
-            color: var(--select-menu-hover-text) !important;
+        body [data-baseweb="popover"] [role="option"] *,
+        body [data-baseweb="popover"] li *,
+        body ul[role="listbox"] li *,
+        body div[role="listbox"] [role="option"] * {{
+            color: var(--select-menu-text) !important;
+            -webkit-text-fill-color: var(--select-menu-text) !important;
         }}
 
-        body div[role="option"]:hover *,
-        body li[role="option"]:hover *,
-        body div[role="option"][aria-selected="true"] *,
-        body li[role="option"][aria-selected="true"] *,
-        body div[role="option"][data-highlighted="true"] *,
-        body li[role="option"][data-highlighted="true"] * {{
-            color: var(--select-menu-hover-text) !important;
-            -webkit-text-fill-color: var(--select-menu-hover-text) !important;
+        body [data-baseweb="popover"] [role="option"]:hover,
+        body [data-baseweb="popover"] li:hover,
+        body ul[role="listbox"] li:hover,
+        body div[role="listbox"] [role="option"]:hover {{
+            background: var(--select-menu-row-hover) !important;
         }}
 
+        body [data-baseweb="popover"] [role="option"][aria-selected="true"],
+        body [data-baseweb="popover"] li[aria-selected="true"],
+        body ul[role="listbox"] li[aria-selected="true"],
+        body div[role="listbox"] [role="option"][aria-selected="true"] {{
+            background: var(--select-menu-row-selected) !important;
+        }}
+
+        body [data-baseweb="popover"] [role="listbox"]::-webkit-scrollbar,
+        body [data-baseweb="popover"] ul::-webkit-scrollbar,
         body ul[role="listbox"]::-webkit-scrollbar,
         body div[role="listbox"]::-webkit-scrollbar {{
             width: 10px;
         }}
 
+        body [data-baseweb="popover"] [role="listbox"]::-webkit-scrollbar-thumb,
+        body [data-baseweb="popover"] ul::-webkit-scrollbar-thumb,
         body ul[role="listbox"]::-webkit-scrollbar-thumb,
         body div[role="listbox"]::-webkit-scrollbar-thumb {{
-            background: var(--line-strong);
+            background: rgba(100, 116, 139, 0.45);
             border-radius: 999px;
-        }}
-
-        div[data-testid="stFileUploader"] > section {{
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 14px 16px;
-            box-shadow: var(--shadow-soft);
-        }}
-
-        div[data-testid="stFileUploaderFileList"] {{
-            background: transparent;
-        }}
-
-        div[data-testid="stFileUploader"] small,
-        div[data-testid="stFileUploader"] span,
-        div[data-testid="stFileUploader"] p {{
-            color: var(--muted);
+            border: 2px solid transparent;
+            background-clip: padding-box;
         }}
 
         div[data-testid="stFileUploaderDropzone"] {{
-            border: 1.5px dashed var(--line-strong);
+            border: 1px dashed var(--input-border);
             border-radius: 16px;
             background: var(--input-bg);
             padding: 18px;
@@ -1344,7 +1302,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border: 1px solid var(--line-strong);
             background: var(--surface);
             color: var(--text-strong);
-            box-shadow: var(--shadow-soft);
+            box-shadow: none;
         }}
 
         .tool-shell div.stButton > button,
@@ -1430,6 +1388,16 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
                 padding: 16px;
             }}
 
+            div[data-testid="column"]:has(.theme-pill-anchor) div.stButton {{
+                justify-content: stretch;
+            }}
+
+            div[data-testid="column"]:has(.theme-pill-anchor) div.stButton > button {{
+                max-width: none;
+                min-height: 60px;
+                padding-left: 64px;
+            }}
+
             .steps-grid,
             .workspace-grid {{
                 grid-template-columns: 1fr;
@@ -1442,8 +1410,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
             .nav-links {{
                 justify-content: flex-start;
-                gap: 14px;
-                flex-wrap: wrap;
+                gap: 16px;
             }}
         }}
     </style>
@@ -1452,8 +1419,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 
 def render_top_bar() -> None:
-    st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
-    left, middle, right = columns_compat([1.44, 1.52, 1.14], gap="medium", vertical_alignment="center")
+    left, middle, right = columns_compat([1.55, 1.55, 0.82], gap="small", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1483,27 +1449,18 @@ def render_top_bar() -> None:
     )
     with right:
         is_light = st.session_state.get("ui_theme_light", False)
-        theme_state = "Light mode" if is_light else "Dark mode"
-        mode_icon = "☀" if is_light else "☾"
+        next_theme_label = "Dark" if is_light else "Light"
 
-        st.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([0.46, 1.54], gap="small", vertical_alignment="center")
-        with theme_button_col:
-            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
-                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                st.rerun()
-        with theme_label_col:
-            st.markdown(
-                f"""
-                <div class="theme-state-stack">
-                    <div class="theme-slot-label theme-slot-label--compact">Appearance</div>
-                    <div class="theme-inline-state theme-inline-state--compact">{html.escape(theme_state)}</div>
-                    <div class="theme-state-stack__hint">Toggle interface theme</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        st.markdown('<div class="theme-pill-anchor"></div>', unsafe_allow_html=True)
+        if button_compat(
+            next_theme_label,
+            key="theme_pill_toggle",
+            use_container_width=False,
+            help=f"Switch to {next_theme_label.lower()} mode",
+        ):
+            st.session_state.ui_theme_light = not is_light
+            st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
+            st.rerun()
 
 
 def render_auth_shell() -> None:
@@ -1596,14 +1553,13 @@ def render_tool_card_header(icon: str, title: str, subtitle: str) -> None:
                     <div class="tool-card__copy">{html.escape(subtitle)}</div>
                 </div>
             </div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
 
 
 def close_tool_card() -> None:
-    return None
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _current_progress_step(uploaded_files: List, status: str, has_results: bool) -> int:
@@ -2660,9 +2616,12 @@ has_existing_results = bool(
     or st.session_state.gx_statement_totals
 )
 
+st.markdown('<div class="workspace-grid">', unsafe_allow_html=True)
+
 workspace_left, workspace_right = st.columns([0.9, 1.45], gap="large")
 
 with workspace_right:
+    st.markdown('<section class="tool-shell">', unsafe_allow_html=True)
 
     render_tool_card_header("▣", "Select Bank", "Choose the issuing bank")
     if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
@@ -2751,9 +2710,12 @@ with workspace_right:
 
     render_status_card(st.session_state.status)
     close_tool_card()
+    st.markdown('</section>', unsafe_allow_html=True)
 
 with workspace_left:
     render_progress_panel(st.session_state.status, uploaded_files or [], has_existing_results)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 
 all_tx: List[dict] = []
@@ -3481,6 +3443,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         ]
     )
 
+    st.markdown('<section class="results-shell">', unsafe_allow_html=True)
     render_section_header(
         "Results",
         "Extracted transactions",
@@ -3505,8 +3468,10 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         st.dataframe(df[display_cols], use_container_width=True)
     else:
         st.info("No line-item transactions extracted.")
+    st.markdown('</section>', unsafe_allow_html=True)
 
     if monthly_summary:
+        st.markdown('<section class="results-shell">', unsafe_allow_html=True)
         render_section_header(
             "Summary",
             "Monthly summary (standardized)",
@@ -3528,7 +3493,9 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
         ]
         summary_df = summary_df[[c for c in desired_cols if c in summary_df.columns]]
         st.dataframe(summary_df, use_container_width=True)
-    
+        st.markdown('</section>', unsafe_allow_html=True)
+
+    st.markdown('<section class="download-shell">', unsafe_allow_html=True)
     render_section_header(
         "Exports",
         "Download options",
@@ -3591,6 +3558,7 @@ if st.session_state.results or (bank_choice == "Affin Bank" and st.session_state
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
+    st.markdown('</section>', unsafe_allow_html=True)
 
 else:
     if uploaded_files:
