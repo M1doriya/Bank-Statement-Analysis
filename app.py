@@ -1270,7 +1270,6 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        st.markdown('<div class="topbar-shell topbar-shell--theme">', unsafe_allow_html=True)
         st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
         theme_button_col, theme_label_col = st.columns([0.9, 3.6], gap="small")
         with theme_button_col:
@@ -1285,7 +1284,6 @@ def render_top_bar() -> None:
                 f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
                 unsafe_allow_html=True,
             )
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_auth_shell() -> None:
