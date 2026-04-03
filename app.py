@@ -1237,7 +1237,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 
 def render_top_bar() -> None:
-    left, middle, right = st.columns([1.6, 1.45, 1.1], gap="small")
+    left, middle, right = columns_compat([1.55, 1.35, 1.3], gap="small", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1271,7 +1271,7 @@ def render_top_bar() -> None:
         mode_icon = "☀" if is_light else "☾"
 
         st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = st.columns([0.9, 3.6], gap="small")
+        theme_button_col, theme_label_col = columns_compat([1.0, 2.2], gap="small", vertical_alignment="center")
         with theme_button_col:
             st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
@@ -1485,6 +1485,13 @@ def _supports_streamlit_kwarg(func, name: str) -> bool:
         return name in inspect.signature(func).parameters
     except Exception:
         return False
+
+
+def columns_compat(spec, **kwargs):
+    call_kwargs = dict(kwargs)
+    if "vertical_alignment" in call_kwargs and not _supports_streamlit_kwarg(st.columns, "vertical_alignment"):
+        call_kwargs.pop("vertical_alignment", None)
+    return st.columns(spec, **call_kwargs)
 
 
 def button_compat(label: str, primary: bool = False, **kwargs):
