@@ -407,6 +407,21 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin: 0 0 6px;
         }}
 
+        .theme-slot-label--topbar {{
+            margin-top: 10px;
+        }}
+
+        .theme-inline-state {{
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            color: var(--topbar-text);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.2;
+            white-space: nowrap;
+        }}
+
         .theme-mode-badge {{
             display: inline-flex;
             align-items: center;
@@ -1246,8 +1261,7 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        st.markdown('<div class="theme-toggle-shell">', unsafe_allow_html=True)
-        st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+        st.markdown('<div class="theme-slot-label theme-slot-label--topbar">Appearance</div>', unsafe_allow_html=True)
         icon_col, label_col = st.columns([0.9, 4.2], gap="small")
         with icon_col:
             st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
@@ -1258,16 +1272,9 @@ def render_top_bar() -> None:
             st.markdown('</div>', unsafe_allow_html=True)
         with label_col:
             st.markdown(
-                f"""
-                <div class="theme-toggle-shell__copy theme-toggle-shell__copy--inline">
-                    <div class="theme-mode-badge theme-mode-badge--label-only">
-                        <span class="theme-mode-label">{html.escape(theme_state)}</span>
-                    </div>
-                </div>
-                """,
+                f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
                 unsafe_allow_html=True,
             )
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_auth_shell() -> None:
