@@ -321,10 +321,34 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             flex-direction: column;
             justify-content: center;
+            overflow: hidden;
         }}
 
         div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) > div[data-testid="stHorizontalBlock"] {{
             align-items: center;
+            gap: 0.35rem;
+        }}
+
+        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) div[data-testid="stVerticalBlock"] {{
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            min-height: auto !important;
+            margin: 0 !important;
+        }}
+
+        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) div[data-testid="stHorizontalBlock"] {{
+            align-items: center !important;
+        }}
+
+        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) div[data-testid="stColumn"] {{
+            display: flex;
+            align-items: center;
+        }}
+
+        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) [data-testid="column"] {{
+            padding: 0 !important;
         }}
 
 
@@ -432,7 +456,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            margin: 0 0 8px;
+            margin: 0 0 6px;
             line-height: 1.1;
         }}
 
@@ -444,6 +468,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             align-items: center;
             min-height: 44px;
+            justify-content: flex-start;
             color: var(--topbar-text);
             font-size: 1rem;
             font-weight: 800;
@@ -1292,22 +1317,21 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        with st.container():
-            st.markdown('<div class="theme-card-anchor"></div>', unsafe_allow_html=True)
-            st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
-            theme_button_col, theme_label_col = st.columns([0.9, 3.6], gap="small")
-            with theme_button_col:
-                st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
-                if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
-                    st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                    st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-            with theme_label_col:
-                st.markdown(
-                    f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
-                    unsafe_allow_html=True,
-                )
+        st.markdown('<div class="theme-card-anchor"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+        theme_button_col, theme_label_col = st.columns([0.72, 2.6], gap="small")
+        with theme_button_col:
+            st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
+            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
+                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
+                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        with theme_label_col:
+            st.markdown(
+                f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 def render_auth_shell() -> None:
