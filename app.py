@@ -144,6 +144,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-bg: #ffffff;
             --table-head: #f8fafc;
             --table-text: #0b1220;
+            --select-menu-bg: #ffffff;
+            --select-menu-surface: #ffffff;
+            --select-menu-text: #0f172a;
+            --select-menu-border: rgba(15, 23, 42, 0.14);
+            --select-menu-hover-bg: rgba(18, 184, 171, 0.12);
+            --select-menu-hover-text: #0d8f85;
+            --select-menu-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
 
         """
     else:
@@ -239,6 +246,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --table-bg: #0d1b23;
             --table-head: #122733;
             --table-text: #eaf8f8;
+            --select-menu-bg: #08141b;
+            --select-menu-surface: #0d1d27;
+            --select-menu-text: #eaf9fa;
+            --select-menu-border: rgba(17, 213, 196, 0.16);
+            --select-menu-hover-bg: rgba(17, 213, 196, 0.12);
+            --select-menu-hover-text: #8ff6ec;
+            --select-menu-shadow: 0 22px 40px rgba(0, 0, 0, 0.34);
         """
 
     css = f"""
@@ -305,6 +319,25 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .topbar-shell--theme {{
             display: block;
+        }}
+
+        .topbar-row-anchor {{
+            display: none;
+        }}
+
+        div[data-testid="element-container"]:has(.topbar-row-anchor) + div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
+            background: var(--topbar-bg);
+            border: 1px solid var(--topbar-border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-soft);
+            padding: 16px 18px;
+            min-height: 84px;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+        }}
+
+        div[data-testid="element-container"]:has(.topbar-row-anchor) + div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) [data-testid="stHorizontalBlock"] {{
+            align-items: center;
         }}
 
         .theme-toggle-shell {{
@@ -432,6 +465,31 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             line-height: 1.2;
             white-space: nowrap;
             margin-top: 0;
+        }}
+
+        .theme-slot-label--compact {{
+            margin: 0 0 4px;
+            font-size: 0.70rem;
+            letter-spacing: 0.10em;
+        }}
+
+        .theme-inline-state--compact {{
+            min-height: auto;
+            font-size: 0.98rem;
+        }}
+
+        .theme-state-stack {{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 44px;
+        }}
+
+        .theme-state-stack__hint {{
+            color: var(--topbar-muted);
+            font-size: 0.74rem;
+            line-height: 1.25;
+            margin-top: 4px;
         }}
 
         .theme-mode-badge {{
@@ -1106,7 +1164,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             box-shadow: var(--shadow-soft);
         }}
 
-        div[data-baseweb="select"] * {{
+        div[data-baseweb="select"] *,
+        div[data-baseweb="input"] *,
+        div[data-baseweb="textarea"] * {{
             color: var(--input-text) !important;
             -webkit-text-fill-color: var(--input-text) !important;
             opacity: 1 !important;
@@ -1124,25 +1184,66 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             color: var(--input-text) !important;
         }}
 
-        div[data-baseweb="popover"],
-        div[data-baseweb="menu"],
-        ul[role="listbox"] {{
-            background: var(--surface) !important;
-            border: 1px solid var(--line) !important;
-            border-radius: 14px !important;
-            box-shadow: var(--shadow) !important;
-        }}
-
-        div[role="option"],
-        li[role="option"] {{
-            color: var(--text-strong) !important;
+        body div[data-baseweb="popover"] {{
             background: transparent !important;
         }}
 
-        div[role="option"][aria-selected="true"],
-        li[role="option"][aria-selected="true"] {{
-            background: var(--accent-soft) !important;
-            color: var(--accent-strong) !important;
+        body div[data-baseweb="popover"] > div,
+        body div[data-baseweb="popover"] > div > div,
+        body div[data-baseweb="menu"],
+        body ul[role="listbox"],
+        body div[role="listbox"] {{
+            background: var(--select-menu-bg) !important;
+            border: 1px solid var(--select-menu-border) !important;
+            border-radius: 16px !important;
+            box-shadow: var(--select-menu-shadow) !important;
+        }}
+
+        body ul[role="listbox"],
+        body div[role="listbox"] {{
+            padding: 8px !important;
+        }}
+
+        body div[role="option"],
+        body li[role="option"],
+        body div[role="option"] *,
+        body li[role="option"] * {{
+            color: var(--select-menu-text) !important;
+            -webkit-text-fill-color: var(--select-menu-text) !important;
+            background: transparent !important;
+            opacity: 1 !important;
+        }}
+
+        body div[role="option"]:hover,
+        body li[role="option"]:hover,
+        body div[role="option"][aria-selected="true"],
+        body li[role="option"][aria-selected="true"],
+        body div[role="option"][data-highlighted="true"],
+        body li[role="option"][data-highlighted="true"] {{
+            background: var(--select-menu-hover-bg) !important;
+            color: var(--select-menu-hover-text) !important;
+        }}
+
+        body div[role="option"]:hover *,
+        body li[role="option"]:hover *,
+        body div[role="option"][aria-selected="true"] *,
+        body li[role="option"][aria-selected="true"] *,
+        body div[role="option"][data-highlighted="true"] *,
+        body li[role="option"][data-highlighted="true"] * {{
+            color: var(--select-menu-hover-text) !important;
+            -webkit-text-fill-color: var(--select-menu-hover-text) !important;
+            background: transparent !important;
+        }}
+
+        body ul[role="listbox"]::-webkit-scrollbar,
+        body div[role="listbox"]::-webkit-scrollbar {{
+            width: 10px;
+        }}
+
+        body ul[role="listbox"]::-webkit-scrollbar-thumb,
+        body div[role="listbox"]::-webkit-scrollbar-thumb {{
+            background: var(--line-strong);
+            border-radius: 999px;
         }}
 
         div[data-testid="stFileUploader"] > section {{
@@ -1319,7 +1420,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 
 def render_top_bar() -> None:
-    left, middle, right = columns_compat([1.42, 1.65, 1.05], gap="large", vertical_alignment="center")
+    st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
+    left, middle, right = columns_compat([1.42, 1.62, 1.02], gap="large", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1352,8 +1454,7 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([0.62, 1.38], gap="small", vertical_alignment="center")
+        theme_button_col, theme_label_col = columns_compat([0.34, 1.66], gap="small", vertical_alignment="center")
         with theme_button_col:
             st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
@@ -1363,7 +1464,13 @@ def render_top_bar() -> None:
             st.markdown('</div>', unsafe_allow_html=True)
         with theme_label_col:
             st.markdown(
-                f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
+                f"""
+                <div class="theme-state-stack">
+                    <div class="theme-slot-label theme-slot-label--compact">Appearance</div>
+                    <div class="theme-inline-state theme-inline-state--compact">{html.escape(theme_state)}</div>
+                    <div class="theme-state-stack__hint">Toggle interface theme</div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
