@@ -294,6 +294,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow);
         }}
+
         .topbar-shell {{
             padding: 14px 18px;
             margin-bottom: 1rem;
@@ -302,6 +303,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             align-items: center;
         }}
 
+        .topbar-shell--theme {{
+            display: block;
+        }}
         .theme-card-anchor {{
             display: none;
         }}
@@ -315,52 +319,168 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             min-height: 70px;
             margin-bottom: 1rem;
             display: flex;
+            flex-direction: column;
             justify-content: center;
         }}
 
         div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) > div[data-testid="stHorizontalBlock"] {{
-            align-items: center !important;
-            gap: 0.4rem;
+            align-items: center;
         }}
 
-        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) div[data-testid="stVerticalBlock"] {{
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            min-height: auto !important;
-            margin: 0 !important;
+
+        .theme-toggle-shell {{
+            background: var(--theme-card-bg);
+            border: 1px solid var(--theme-card-border);
+            border-radius: 18px;
+            padding: 12px 14px;
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 0.55rem;
         }}
 
-        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) div[data-testid="stColumn"],
-        div[data-testid="stVerticalBlock"]:has(.theme-card-anchor) [data-testid="column"] {{
+        .theme-toggle-shell__row {{
             display: flex;
             align-items: center;
-            padding: 0 !important;
+            justify-content: space-between;
+            gap: 12px;
+        }}
+
+        .theme-toggle-shell [data-testid="stHorizontalBlock"] {{
+            align-items: center;
+        }}
+
+        .theme-toggle-shell__copy {{
+            min-width: 0;
+        }}
+
+        .results-shell,
+        .download-shell,
+        .auth-shell {{
+            background: var(--auth-bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+        }}
+
+        .brand-lockup {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--topbar-text);
+        }}
+
+        .brand-mark {{
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(17, 213, 196, 0.14);
+            border: 1px solid rgba(17, 213, 196, 0.22);
+            color: var(--accent);
+            font-size: 1rem;
+            font-weight: 800;
+        }}
+
+        .brand-title {{
+            margin: 0;
+            color: var(--topbar-text);
+            font-size: 0.96rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }}
+
+        .brand-subtitle {{
+            margin: 2px 0 0;
+            color: var(--topbar-muted);
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }}
+
+        .nav-links {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 22px;
+            min-height: 34px;
+            flex-wrap: wrap;
+            color: var(--topbar-muted);
+            font-size: 0.88rem;
+            font-weight: 600;
+        }}
+
+        .nav-links .is-active {{
+            color: var(--topbar-active);
+            position: relative;
+        }}
+
+        .nav-links .is-active::after {{
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -12px;
+            transform: translateX(-50%);
+            width: 68px;
+            height: 2px;
+            border-radius: 999px;
+            background: var(--accent);
+        }}
+
+        .theme-slot-label {{
+            color: var(--topbar-muted);
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 0 0 8px;
+            line-height: 1.1;
+        }}
+
+        .theme-slot-label--topbar {{
+            margin-top: 10px;
         }}
 
         .theme-inline-state {{
             display: flex;
             align-items: center;
             min-height: 44px;
-            justify-content: flex-start;
             color: var(--topbar-text);
             font-size: 1rem;
             font-weight: 800;
             line-height: 1.2;
             white-space: nowrap;
-            margin: 0;
+            margin-top: 0;
         }}
 
-        .theme-toggle-button-wrap {{
-            display: flex;
+        .theme-mode-badge {{
+            display: inline-flex;
             align-items: center;
-            justify-content: flex-start;
-            height: 44px;
+            gap: 10px;
+            color: var(--topbar-text);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.2;
         }}
 
-        .theme-toggle-button-wrap div.stButton {{
-            margin: 0;
+        .theme-mode-badge--label-only {{
+            gap: 0;
+        }}
+
+        .theme-mode-label {{
+            color: var(--topbar-text);
+            white-space: nowrap;
+        }}
+
+        .theme-mode-icon {{
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: var(--theme-icon-bg);
+            border: 1px solid var(--theme-icon-border);
+            color: var(--theme-icon-text);
+            font-size: 1rem;
         }}
 
         .theme-toggle-button-wrap div.stButton > button {{
@@ -385,6 +505,21 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         .theme-toggle-button-wrap div.stButton > button p {{
             font-size: 1rem !important;
             line-height: 1 !important;
+        }}
+
+        .theme-toggle-button-wrap {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+
+        .theme-toggle-button-wrap--left {{
+            justify-content: flex-start;
+            height: 44px;
+        }}
+
+        .theme-toggle-button-wrap div.stButton {{
+            margin: 0;
         }}
 
         .hero-shell {{
@@ -1157,21 +1292,22 @@ def render_top_bar() -> None:
         theme_state = "Light mode" if is_light else "Dark mode"
         mode_icon = "☀" if is_light else "☾"
 
-        st.markdown('<div class="theme-card-anchor"></div>', unsafe_allow_html=True)
-
-        theme_button_col, theme_label_col = st.columns([0.72, 2.6], gap="small")
-        with theme_button_col:
-            st.markdown('<div class="theme-toggle-button-wrap">', unsafe_allow_html=True)
-            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
-                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        with theme_label_col:
-            st.markdown(
-                f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
-                unsafe_allow_html=True,
-            )
+        with st.container():
+            st.markdown('<div class="theme-card-anchor"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="theme-slot-label">Appearance</div>', unsafe_allow_html=True)
+            theme_button_col, theme_label_col = st.columns([0.9, 3.6], gap="small")
+            with theme_button_col:
+                st.markdown('<div class="theme-toggle-button-wrap theme-toggle-button-wrap--left">', unsafe_allow_html=True)
+                if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
+                    st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
+                    st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            with theme_label_col:
+                st.markdown(
+                    f'<div class="theme-inline-state">{html.escape(theme_state)}</div>',
+                    unsafe_allow_html=True,
+                )
 
 
 def render_auth_shell() -> None:
