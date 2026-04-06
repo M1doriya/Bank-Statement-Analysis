@@ -1,0 +1,146 @@
+<!-- SECTION:topbar_brand -->
+<div class="topbar-shell">
+  <div class="brand-lockup">
+    <div class="brand-mark">✶</div>
+    <div class="brand-copy">
+      <div class="brand-title">KreditLab</div>
+      <div class="brand-subtitle">Bank statement parser</div>
+    </div>
+  </div>
+</div>
+<!-- ENDSECTION:topbar_brand -->
+
+<!-- SECTION:topbar_nav -->
+<div class="topbar-shell">
+  <div class="nav-links">
+    <span>How it works</span>
+    <span>Features</span>
+    <span>FAQ</span>
+    <span class="is-active">Contact</span>
+  </div>
+</div>
+<!-- ENDSECTION:topbar_nav -->
+
+<!-- SECTION:topbar_appearance -->
+<div class="topbar-shell appearance-shell">
+  <div class="appearance-shell__copy">
+    <p class="appearance-shell__kicker">Appearance · {theme_state}</p>
+    <p class="appearance-shell__title">Get Started</p>
+    <p class="appearance-shell__hint">Upload a statement and run parser</p>
+  </div>
+</div>
+<!-- ENDSECTION:topbar_appearance -->
+
+<!-- SECTION:auth_shell -->
+<section class="auth-shell">
+  <div class="auth-shell__logo">
+    <span class="section-badge">Secure access</span>
+  </div>
+  <h1>Access the parser workspace</h1>
+  <p class="auth-copy">Sign in to continue to the parser workspace. The visual design is refreshed, while the authentication and parser functionality remain unchanged.</p>
+</section>
+<!-- ENDSECTION:auth_shell -->
+
+<!-- SECTION:app_hero -->
+<section class="hero-shell">
+  <span class="hero-badge">Bank statement parser · Powered by KreditLab</span>
+  <h1>Turn Bank Statements Into <span class="accent">Clear Financial Insights</span></h1>
+  <p class="hero-copy">Upload any bank statement PDF and get structured transaction data, summaries, and export-ready reports in seconds.</p>
+  <div class="hero-actions">
+    <span class="hero-btn primary">⇪&nbsp; Get Started — Upload Now</span>
+    <span class="hero-btn ghost">See How It Works →</span>
+  </div>
+  <div class="hero-benefits">
+    <div class="hero-benefit"><strong>Multi-Bank Support</strong>Parse statements from all major Malaysian banks instantly.</div>
+    <div class="hero-benefit"><strong>Secure Processing</strong>Bank-grade handling with privacy-first processing.</div>
+    <div class="hero-benefit"><strong>Instant Insights</strong>Extract key financial patterns and cash-flow trends quickly.</div>
+  </div>
+</section>
+<!-- ENDSECTION:app_hero -->
+
+<!-- SECTION:steps_showcase -->
+<section class="steps-shell">
+  <div class="steps-head">
+    <span class="section-badge">How it works</span>
+    <h2>Four steps to financial clarity</h2>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card"><div class="step-icon">▣</div><div class="step-kicker">Step 1</div><div class="step-title">Select Your Bank</div><div class="step-copy">Choose the bank that issued your statement from the supported list.</div></div>
+    <div class="step-card"><div class="step-icon">⤴</div><div class="step-kicker">Step 2</div><div class="step-title">Upload Statement</div><div class="step-copy">Drag and drop or browse your PDF bank statement file.</div></div>
+    <div class="step-card"><div class="step-icon">∿</div><div class="step-kicker">Step 3</div><div class="step-title">Process & Analyse</div><div class="step-copy">The engine extracts and structures the transaction data automatically.</div></div>
+    <div class="step-card"><div class="step-icon">▥</div><div class="step-kicker">Step 4</div><div class="step-title">View Results</div><div class="step-copy">Inspect transactions, summaries, and export-ready outputs.</div></div>
+  </div>
+</section>
+<!-- ENDSECTION:steps_showcase -->
+
+<!-- SECTION:parser_intro -->
+<div class="parser-intro">
+  <div class="parser-heading">
+    <span class="section-badge">Parser engine</span>
+    <h2>Upload & Parse Your Statement</h2>
+    <p class="parser-copy">Select your bank, upload the PDF statement, and let the parser extract structured financial data into review-ready outputs.</p>
+  </div>
+</div>
+<!-- ENDSECTION:parser_intro -->
+
+<!-- SECTION:tool_card_header -->
+<div class="tool-card">
+  <div class="tool-card__head">
+    <div class="tool-card__icon">{icon}</div>
+    <div>
+      <div class="tool-card__title">{title}</div>
+      <div class="tool-card__copy">{subtitle}</div>
+    </div>
+  </div>
+</div>
+<!-- ENDSECTION:tool_card_header -->
+
+<!-- SECTION:progress_step -->
+<div class="progress-step{active_class}"><div class="progress-index">{idx}</div><div><div class="progress-step-title">{title}</div><div class="progress-step-copy">{copy}</div></div></div>
+<!-- ENDSECTION:progress_step -->
+
+<!-- SECTION:progress_panel -->
+<section class="progress-shell">
+  <div class="progress-title">Progress</div>
+  <div class="progress-steps">{steps_html}</div>
+  <div class="progress-divider"></div>
+  <div class="progress-footer"><span>Status</span><span class="mini-pill">{status_label}</span></div>
+</section>
+<!-- ENDSECTION:progress_panel -->
+
+<!-- SECTION:section_header -->
+<div class="section-head">
+  <span class="section-badge">{label}</span>
+  <h2 class="section-title">{title}</h2>
+  <p class="section-copy">{subtitle}</p>
+</div>
+<!-- ENDSECTION:section_header -->
+
+<!-- SECTION:status_card -->
+<div class="status-card is-{status_key}">
+  <div class="status-card__group">
+    <span class="status-card__dot"></span>
+    <div>
+      <div class="status-card__title">Processing status</div>
+      <div class="status-card__copy">{status_copy}</div>
+    </div>
+  </div>
+  <span class="status-pill">{status_label}</span>
+</div>
+<!-- ENDSECTION:status_card -->
+
+<!-- SECTION:file_chip -->
+<span class="file-chip{extra_class}">{icon} {name}</span>
+<!-- ENDSECTION:file_chip -->
+
+<!-- SECTION:file_chip_row -->
+<div class="file-chip-row">{chips_html}</div>
+<!-- ENDSECTION:file_chip_row -->
+
+<!-- SECTION:metric_card -->
+<div class="metric-card"><div class="metric-card__label">{label}</div><div class="metric-card__value">{value}</div></div>
+<!-- ENDSECTION:metric_card -->
+
+<!-- SECTION:metric_grid -->
+<div class="metric-grid">{cards_html}</div>
+<!-- ENDSECTION:metric_grid -->
