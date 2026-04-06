@@ -333,20 +333,20 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin-bottom: 1rem;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div[data-testid="stVerticalBlock"] {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div > div {{
             background: var(--topbar-bg);
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
-            padding: 16px 20px;
+            padding: 18px 20px;
             min-height: 86px;
             box-sizing: border-box;
             display: flex;
             align-items: center;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stVerticalBlock"] {{
             width: 100%;
         }}
@@ -358,7 +358,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
             align-items: center !important;
             justify-content: flex-start;
-            gap: 8px;
+            gap: 12px;
+            min-height: 46px;
+            width: 100%;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
@@ -378,6 +380,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             align-items: center;
             justify-content: flex-start;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child [data-testid="stVerticalBlock"] {{
+            display: flex;
+            align-items: center;
+            min-height: 46px;
         }}
 
         .theme-toggle-shell {{
@@ -523,7 +531,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             flex-direction: column;
             justify-content: center;
             align-self: center;
-            min-height: 44px;
+            min-height: 46px;
             width: 100%;
         }}
 
@@ -533,6 +541,51 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             line-height: 1.25;
             margin-top: 4px;
             margin-bottom: 0;
+        }}
+
+        .appearance-shell {{
+            margin-bottom: 0.35rem;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }}
+
+        .appearance-shell__copy {{
+            min-width: 0;
+        }}
+
+        .appearance-shell__kicker {{
+            color: var(--topbar-muted);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin: 0 0 4px;
+        }}
+
+        .appearance-shell__title {{
+            color: var(--topbar-text);
+            font-size: 1.02rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin: 0;
+        }}
+
+        .appearance-shell__hint {{
+            color: var(--topbar-muted);
+            font-size: 0.76rem;
+            line-height: 1.25;
+            margin: 4px 0 0;
+        }}
+
+        div[data-testid="column"]:has(.appearance-shell) div[data-testid="stToggle"] {{
+            margin-top: -54px;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: flex-end;
+            padding-right: 6px;
         }}
 
         .theme-mode-badge {{
@@ -1474,7 +1527,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 def render_top_bar() -> None:
     st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
-    left, middle, right = columns_compat([1.44, 1.52, 1.14], gap="medium", vertical_alignment="center")
+    left, middle, right = columns_compat([1.18, 1.20, 0.88], gap="medium", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1505,26 +1558,23 @@ def render_top_bar() -> None:
     with right:
         is_light = st.session_state.get("ui_theme_light", False)
         theme_state = "Light mode" if is_light else "Dark mode"
-        mode_icon = "☀" if is_light else "☾"
-
-        st.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([0.40, 1.60], gap="small", vertical_alignment="center")
-        with theme_button_col:
-            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
-                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                st.rerun()
-        with theme_label_col:
-            st.markdown(
-                f"""
-                <div class="theme-state-stack">
-                    <div class="theme-slot-label theme-slot-label--compact">Appearance</div>
-                    <div class="theme-inline-state theme-inline-state--compact">{html.escape(theme_state)}</div>
-                    <div class="theme-state-stack__hint">Toggle interface theme</div>
+        st.markdown(
+            f"""
+            <div class="topbar-shell appearance-shell">
+                <div class="appearance-shell__copy">
+                    <p class="appearance-shell__kicker">Appearance</p>
+                    <p class="appearance-shell__title">{html.escape(theme_state)}</p>
+                    <p class="appearance-shell__hint">Toggle interface theme</p>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        toggled = st.toggle("Theme mode", value=is_light, key="theme_toggle_switch", label_visibility="collapsed")
+        if toggled != is_light:
+            st.session_state.ui_theme_light = toggled
+            st.session_state.ui_theme_mode = "Light" if toggled else "Dark"
+            st.rerun()
 
 
 def render_auth_shell() -> None:
