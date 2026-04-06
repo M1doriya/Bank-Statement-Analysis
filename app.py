@@ -269,10 +269,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
             background:
-                linear-gradient(rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(23, 32, 47, 0.035) 1px, transparent 1px),
-                var(--page-bg);
-            background-size: 64px 64px;
+                radial-gradient(circle at top center, var(--page-spotlight), transparent 24%),
+                linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
             color: var(--text);
         }}
 
@@ -280,8 +278,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         #MainMenu, footer {{ visibility: hidden; }}
 
         .block-container {{
-            max-width: 1120px;
-            padding-top: 1.25rem;
+            max-width: 1180px;
+            padding-top: 1rem;
             padding-bottom: 3rem;
         }}
 
@@ -644,7 +642,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .hero-shell {{
-            padding: 34px 36px;
+            padding: 28px 30px;
             margin-bottom: 1rem;
         }}
 
@@ -697,7 +695,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .steps-shell {{
-            padding: 28px 36px;
+            padding: 28px;
             margin-bottom: 1.2rem;
         }}
 
@@ -1525,10 +1523,10 @@ def render_top_bar() -> None:
         """
         <div class="topbar-shell">
             <div class="brand-lockup">
-                <div class="brand-mark">UW</div>
+                <div class="brand-mark">PL</div>
                 <div class="brand-copy">
-                    <div class="brand-title">Underwrite</div>
-                    <div class="brand-subtitle">Statement decision workspace</div>
+                    <div class="brand-title">KreditLab</div>
+                    <div class="brand-subtitle">Structured finance workspace</div>
                 </div>
             </div>
         </div>
@@ -1539,8 +1537,8 @@ def render_top_bar() -> None:
         """
         <div class="topbar-shell">
             <div class="nav-links">
-                <span>Overview</span>
-                <span>Data Quality</span>
+                <span>How it works</span>
+                <span>Features</span>
                 <span class="is-active">Parser</span>
                 <span>Exports</span>
             </div>
@@ -1576,8 +1574,8 @@ def render_auth_shell() -> None:
             <div class="auth-shell__logo">
                 <span class="section-badge">Secure access</span>
             </div>
-            <h1>Access Underwrite parser</h1>
-            <p class="auth-copy">Sign in to continue to the statement parser workspace. This interface refresh keeps all parser behavior and app functionality unchanged.</p>
+            <h1>Access the parser workspace</h1>
+            <p class="auth-copy">Sign in to continue to the parser workspace. The visual design is refreshed, while the authentication and parser functionality remain unchanged.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1588,9 +1586,9 @@ def render_app_hero() -> None:
     st.markdown(
         """
         <section class="hero-shell">
-            <span class="hero-badge">Underwrite parser</span>
-            <h1>Upload. Parse. Decide.</h1>
-            <p class="hero-copy">A clean statement parsing interface: choose the issuing bank, upload PDF statements, process transactions, and review export-ready outputs.</p>
+            <span class="hero-badge">Parser workflow</span>
+            <h1>Four steps to financial clarity</h1>
+            <p class="hero-copy">A structured workflow for statement parsing: choose the issuing bank, upload the PDF, process the file, then review clean extracted outputs and export the final report.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1605,13 +1603,13 @@ def render_steps_showcase() -> None:
                 <div class="step-card">
                     <div class="step-icon">▣</div>
                     <div class="step-kicker">Step 1</div>
-                    <div class="step-title">Choose Bank</div>
+                    <div class="step-title">Select Your Bank</div>
                     <div class="step-copy">Choose the bank that issued your statement from the supported list.</div>
                 </div>
                 <div class="step-card">
                     <div class="step-icon">⤴</div>
                     <div class="step-kicker">Step 2</div>
-                    <div class="step-title">Upload PDF</div>
+                    <div class="step-title">Upload Statement</div>
                     <div class="step-copy">Drag and drop or browse your PDF bank statement file.</div>
                 </div>
                 <div class="step-card">
@@ -1623,7 +1621,7 @@ def render_steps_showcase() -> None:
                 <div class="step-card">
                     <div class="step-icon">▥</div>
                     <div class="step-kicker">Step 4</div>
-                    <div class="step-title">Review Output</div>
+                    <div class="step-title">View Results</div>
                     <div class="step-copy">Inspect transactions, summaries, and export-ready outputs.</div>
                 </div>
             </div>
@@ -1639,8 +1637,8 @@ def render_parser_intro() -> None:
         <div class="parser-intro">
             <div class="parser-heading">
                 <span class="section-badge">Parser engine</span>
-                <h2>Statement Parser</h2>
-                <p class="parser-copy">Select the issuing bank, upload statements, and extract structured transaction data for rapid underwriting review.</p>
+                <h2>Upload & Parse Your Statement</h2>
+                <p class="parser-copy">Select your bank, upload the PDF statement, and let the parser extract structured financial data into review-ready outputs.</p>
             </div>
         </div>
         """,
@@ -1866,7 +1864,7 @@ def require_basic_auth() -> None:
 
 st.set_page_config(page_title="Bank Statement Parser", layout="wide")
 if "ui_theme_light" not in st.session_state:
-    st.session_state.ui_theme_light = True
+    st.session_state.ui_theme_light = False
 st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
 
 inject_global_styles(st.session_state.ui_theme_mode)
