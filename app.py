@@ -340,7 +340,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
-            padding: 18px 20px;
+            padding: 18px 22px;
             min-height: 86px;
             box-sizing: border-box;
             display: flex;
@@ -359,8 +359,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             align-items: center !important;
             justify-content: flex-start;
             gap: 12px;
-            min-height: 46px;
-            width: 100%;
+            min-height: 50px;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
@@ -385,7 +384,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child [data-testid="stVerticalBlock"] {{
             display: flex;
             align-items: center;
-            min-height: 46px;
+            min-height: 50px;
         }}
 
         .theme-toggle-shell {{
@@ -531,7 +530,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             flex-direction: column;
             justify-content: center;
             align-self: center;
-            min-height: 46px;
+            min-height: 50px;
             width: 100%;
         }}
 
@@ -544,12 +543,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .appearance-shell {{
-            margin-bottom: 0.35rem;
-            padding: 14px 16px;
+            margin-bottom: 1rem;
+            padding: 16px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 16px;
         }}
 
         .appearance-shell__copy {{
@@ -575,17 +574,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .appearance-shell__hint {{
             color: var(--topbar-muted);
-            font-size: 0.76rem;
+            font-size: 0.8rem;
             line-height: 1.25;
             margin: 4px 0 0;
-        }}
-
-        div[data-testid="column"]:has(.appearance-shell) div[data-testid="stToggle"] {{
-            margin-top: -54px;
-            margin-bottom: 2px;
-            display: flex;
-            justify-content: flex-end;
-            padding-right: 6px;
         }}
 
         .theme-mode-badge {{
@@ -1527,7 +1518,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 def render_top_bar() -> None:
     st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
-    left, middle, right = columns_compat([1.18, 1.20, 0.88], gap="medium", vertical_alignment="center")
+    left, middle, right = columns_compat([1.32, 1.38, 1.30], gap="medium", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
@@ -1555,26 +1546,25 @@ def render_top_bar() -> None:
         """,
         unsafe_allow_html=True,
     )
-    with right:
-        is_light = st.session_state.get("ui_theme_light", False)
-        theme_state = "Light mode" if is_light else "Dark mode"
-        st.markdown(
-            f"""
-            <div class="topbar-shell appearance-shell">
-                <div class="appearance-shell__copy">
-                    <p class="appearance-shell__kicker">Appearance</p>
-                    <p class="appearance-shell__title">{html.escape(theme_state)}</p>
-                    <p class="appearance-shell__hint">Toggle interface theme</p>
-                </div>
+    is_light = st.session_state.get("ui_theme_light", False)
+    theme_state = "Light mode" if is_light else "Dark mode"
+    st.markdown(
+        f"""
+        <div class="topbar-shell appearance-shell">
+            <div class="appearance-shell__copy">
+                <p class="appearance-shell__kicker">Appearance</p>
+                <p class="appearance-shell__title">{html.escape(theme_state)}</p>
+                <p class="appearance-shell__hint">Toggle interface theme</p>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        toggled = st.toggle("Theme mode", value=is_light, key="theme_toggle_switch", label_visibility="collapsed")
-        if toggled != is_light:
-            st.session_state.ui_theme_light = toggled
-            st.session_state.ui_theme_mode = "Light" if toggled else "Dark"
-            st.rerun()
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    toggled = st.toggle("Light interface", value=is_light, key="theme_toggle_switch")
+    if toggled != is_light:
+        st.session_state.ui_theme_light = toggled
+        st.session_state.ui_theme_mode = "Light" if toggled else "Dark"
+        st.rerun()
 
 
 def render_auth_shell() -> None:
