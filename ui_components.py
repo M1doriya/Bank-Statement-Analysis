@@ -223,6 +223,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
             background:
+                repeating-linear-gradient(0deg, rgba(17, 213, 196, 0.06) 0, rgba(17, 213, 196, 0.06) 1px, transparent 1px, transparent 42px),
+                repeating-linear-gradient(90deg, rgba(17, 213, 196, 0.05) 0, rgba(17, 213, 196, 0.05) 1px, transparent 1px, transparent 42px),
                 radial-gradient(circle at top center, var(--page-spotlight), transparent 24%),
                 linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
             color: var(--text);
@@ -596,8 +598,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .hero-shell {{
-            padding: 28px 30px;
+            padding: 34px 30px;
             margin-bottom: 1rem;
+            text-align: center;
         }}
 
         .hero-badge {{
@@ -634,18 +637,79 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         .steps-shell h1 {{
             margin: 14px 0 0;
             color: var(--hero-text);
-            font-size: clamp(2rem, 4vw, 3rem);
+            font-size: clamp(2.3rem, 5vw, 4rem);
             line-height: 1.05;
             letter-spacing: -0.04em;
             font-weight: 800;
         }}
 
+        .hero-shell h1 .accent {{
+            color: var(--accent);
+        }}
+
         .hero-copy {{
-            margin: 12px 0 0;
+            margin: 18px auto 0;
             max-width: 760px;
             color: var(--hero-muted);
             line-height: 1.7;
-            font-size: 0.97rem;
+            font-size: 1.02rem;
+        }}
+
+        .hero-actions {{
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }}
+
+        .hero-btn {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 46px;
+            padding: 0 24px;
+            border-radius: 12px;
+            border: 1px solid var(--tool-border);
+            font-weight: 800;
+            font-size: 0.95rem;
+        }}
+
+        .hero-btn.primary {{
+            background: var(--accent);
+            border-color: transparent;
+            color: #062027;
+        }}
+
+        .hero-btn.ghost {{
+            background: rgba(8, 20, 27, 0.36);
+            color: var(--accent);
+        }}
+
+        .hero-benefits {{
+            margin: 24px auto 2px;
+            max-width: 860px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }}
+
+        .hero-benefit {{
+            border: 1px solid var(--hero-line);
+            border-radius: 14px;
+            padding: 14px 15px;
+            text-align: left;
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--hero-muted);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }}
+
+        .hero-benefit strong {{
+            display: block;
+            color: var(--hero-text);
+            margin-bottom: 3px;
+            font-size: 0.95rem;
         }}
 
         .steps-shell {{
@@ -653,9 +717,22 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin-bottom: 1.2rem;
         }}
 
+        .steps-head {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+
+        .steps-head h2 {{
+            margin: 14px 0 0;
+            color: var(--hero-text);
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            letter-spacing: -0.03em;
+            line-height: 1.06;
+        }}
+
         .steps-grid {{
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 4px;
         }}
@@ -1430,6 +1507,10 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             .workspace-grid {{
                 grid-template-columns: 1fr 1fr;
             }}
+
+            .hero-benefits {{
+                grid-template-columns: 1fr;
+            }}
         }}
 
         @media (max-width: 760px) {{
@@ -1477,10 +1558,10 @@ def render_top_bar() -> None:
         """
         <div class="topbar-shell">
             <div class="brand-lockup">
-                <div class="brand-mark">PL</div>
+                <div class="brand-mark">✶</div>
                 <div class="brand-copy">
                     <div class="brand-title">KreditLab</div>
-                    <div class="brand-subtitle">Structured finance workspace</div>
+                    <div class="brand-subtitle">Bank statement parser</div>
                 </div>
             </div>
         </div>
@@ -1493,8 +1574,8 @@ def render_top_bar() -> None:
             <div class="nav-links">
                 <span>How it works</span>
                 <span>Features</span>
-                <span class="is-active">Parser</span>
-                <span>Exports</span>
+                <span>FAQ</span>
+                <span class="is-active">Contact</span>
             </div>
         </div>
         """,
@@ -1502,13 +1583,13 @@ def render_top_bar() -> None:
     )
     is_light = st.session_state.get("ui_theme_light", False)
     theme_state = "Light mode" if is_light else "Dark mode"
-    st.markdown(
+    right.markdown(
         f"""
         <div class="topbar-shell appearance-shell">
             <div class="appearance-shell__copy">
-                <p class="appearance-shell__kicker">Appearance</p>
-                <p class="appearance-shell__title">{html.escape(theme_state)}</p>
-                <p class="appearance-shell__hint">Toggle interface theme</p>
+                <p class="appearance-shell__kicker">Appearance · {html.escape(theme_state)}</p>
+                <p class="appearance-shell__title">Get Started</p>
+                <p class="appearance-shell__hint">Upload a statement and run parser</p>
             </div>
         </div>
         """,
@@ -1540,9 +1621,18 @@ def render_app_hero() -> None:
     st.markdown(
         """
         <section class="hero-shell">
-            <span class="hero-badge">Parser workflow</span>
-            <h1>Four steps to financial clarity</h1>
-            <p class="hero-copy">A structured workflow for statement parsing: choose the issuing bank, upload the PDF, process the file, then review clean extracted outputs and export the final report.</p>
+            <span class="hero-badge">Bank statement parser · Powered by KreditLab</span>
+            <h1>Turn Bank Statements Into <span class="accent">Clear Financial Insights</span></h1>
+            <p class="hero-copy">Upload any bank statement PDF and get structured transaction data, summaries, and export-ready reports in seconds.</p>
+            <div class="hero-actions">
+                <span class="hero-btn primary">⇪&nbsp; Get Started — Upload Now</span>
+                <span class="hero-btn ghost">See How It Works →</span>
+            </div>
+            <div class="hero-benefits">
+                <div class="hero-benefit"><strong>Multi-Bank Support</strong>Parse statements from all major Malaysian banks instantly.</div>
+                <div class="hero-benefit"><strong>Secure Processing</strong>Bank-grade handling with privacy-first processing.</div>
+                <div class="hero-benefit"><strong>Instant Insights</strong>Extract key financial patterns and cash-flow trends quickly.</div>
+            </div>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1553,6 +1643,10 @@ def render_steps_showcase() -> None:
     st.markdown(
         """
         <section class="steps-shell">
+            <div class="steps-head">
+                <span class="section-badge">How it works</span>
+                <h2>Four steps to financial clarity</h2>
+            </div>
             <div class="steps-grid">
                 <div class="step-card">
                     <div class="step-icon">▣</div>
@@ -1773,4 +1867,3 @@ def render_metric_cards(items: List[Tuple[str, str]]) -> None:
         for label, value in items
     )
     st.markdown(f'<div class="metric-grid">{cards_html}</div>', unsafe_allow_html=True)
-
