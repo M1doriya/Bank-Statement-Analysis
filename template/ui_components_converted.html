@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KreditLab - Bank Statement Parser</title>
+  <style>
+    body[data-theme="light"] {
+      --page-bg: #ffffff;
+--page-bg-soft: #ffffff;
+--page-spotlight: rgba(18, 184, 171, 0.00);
+--surface: #ffffff;
+--surface-soft: #ffffff;
+--surface-elevated: #ffffff;
+--panel: #ffffff;
+--panel-soft: #ffffff;
+--text: #111827;
+--text-strong: #0b1220;
+--muted: #475569;
+--line: rgba(15, 23, 42, 0.10);
+--line-strong: rgba(15, 23, 42, 0.16);
+--accent: #12b8ab;
+--accent-strong: #0d8f85;
+--accent-soft: rgba(18, 184, 171, 0.10);
+--navy: #0f172a;
+--navy-soft: #1e293b;
+--hero-bg: #ffffff;
+--hero-surface: #ffffff;
+--hero-line: rgba(15, 23, 42, 0.10);
+--hero-text: #0b1220;
+--hero-muted: #475569;
+--hero-subtle: #0b1220;
+--hero-card-bg: #ffffff;
+--hero-card-overlay: rgba(18, 184, 171, 0.05);
+--hero-ghost: #f8fafc;
+--topbar-bg: #ffffff;
+--topbar-border: rgba(15, 23, 42, 0.10);
+--topbar-text: #0b1220;
+--topbar-muted: #475569;
+--topbar-active: #0b1220;
+--theme-card-bg: #ffffff;
+--theme-card-border: rgba(15, 23, 42, 0.10);
+--theme-icon-bg: #f0fdfa;
+--theme-icon-border: rgba(18, 184, 171, 0.24);
+--theme-icon-text: #0d8f85;
+--progress-bg: #ffffff;
+--progress-border: rgba(15, 23, 42, 0.10);
+--progress-title: #0b1220;
+--progress-copy: #475569;
+--progress-subtle: #0b1220;
+--progress-pill-bg: #f8fafc;
+--progress-pill-text: #475569;
+--tool-bg: #ffffff;
+--tool-border: rgba(15, 23, 42, 0.10);
+--tool-card-bg: #ffffff;
+--tool-card-border: rgba(15, 23, 42, 0.10);
+--tool-title: #0b1220;
+--tool-copy: #475569;
+--tool-icon-bg: rgba(18, 184, 171, 0.10);
+--tool-icon-border: rgba(18, 184, 171, 0.20);
+--tool-icon-text: #0d8f85;
+--tool-input-bg: #ffffff;
+--tool-input-border: rgba(15, 23, 42, 0.16);
+--tool-input-text: #0b1220;
+--tool-placeholder: #64748b;
+--tool-button-bg: #ffffff;
+--tool-button-text: #0b1220;
+--tool-button-border: rgba(15, 23, 42, 0.12);
+--tool-button-hover-bg: #f8fafc;
+--tool-primary-bg: #14b8a6;
+--tool-primary-text: #ffffff;
+--tool-uploader-shell-bg: #ffffff;
+--tool-uploader-shell-border: rgba(15, 23, 42, 0.10);
+--tool-uploader-copy: #475569;
+--shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+--shadow-soft: 0 6px 16px rgba(15, 23, 42, 0.04);
+--badge-bg: rgba(18, 184, 171, 0.10);
+--badge-border: rgba(18, 184, 171, 0.20);
+--badge-text: #0d8f85;
+--display-heading: #0b1220;
+--display-copy: #475569;
+--auth-bg: #ffffff;
+--auth-heading: #0b1220;
+--auth-copy: #475569;
+--input-bg: #ffffff;
+--input-border: rgba(15, 23, 42, 0.18);
+--input-text: #0b1220;
+--placeholder: #64748b;
+--form-label: #0b1220;
+--status-idle-bg: #f8fafc;
+--status-idle-text: #475569;
+--status-running-bg: rgba(18, 184, 171, 0.12);
+--status-running-text: #0d8f85;
+--status-stopped-bg: #fff1e7;
+--status-stopped-text: #a85a10;
+--table-bg: #ffffff;
+--table-head: #f8fafc;
+--table-text: #0b1220;
+--select-menu-bg: #f8fafc;
+--select-menu-surface: #ffffff;
+--select-menu-row-bg: #ffffff;
+--select-menu-text: #0f172a;
+--select-menu-border: rgba(15, 23, 42, 0.14);
+--select-menu-hover-bg: rgba(18, 184, 171, 0.12);
+--select-menu-hover-text: #0d8f85;
+--select-menu-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    body[data-theme="dark"] {
+      --page-bg: #06131a;
+--page-bg-soft: #0a1820;
+--page-spotlight: rgba(17, 213, 196, 0.07);
+--surface: #0c1a22;
+--surface-soft: #10222b;
+--surface-elevated: #122733;
+--panel: #0f202a;
+--panel-soft: #142a35;
+--text: #d4eef0;
+--text-strong: #f6ffff;
+--muted: #84afb1;
+--line: rgba(17, 213, 196, 0.14);
+--line-strong: rgba(17, 213, 196, 0.32);
+--accent: #11d5c4;
+--accent-strong: #0fb7a8;
+--accent-soft: rgba(17, 213, 196, 0.12);
+--navy: #08141b;
+--navy-soft: #0d1f29;
+--hero-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+--hero-surface: rgba(255, 255, 255, 0.02);
+--hero-line: rgba(17, 213, 196, 0.18);
+--hero-text: #f6ffff;
+--hero-muted: #8cc5c4;
+--hero-subtle: #d8f7f4;
+--hero-card-bg: rgba(255, 255, 255, 0.02);
+--hero-card-overlay: rgba(17, 213, 196, 0.05);
+--hero-ghost: rgba(255, 255, 255, 0.03);
+--topbar-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+--topbar-border: rgba(17, 213, 196, 0.18);
+--topbar-text: #f6ffff;
+--topbar-muted: #8cc5c4;
+--topbar-active: #f6ffff;
+--theme-card-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+--theme-card-border: rgba(17, 213, 196, 0.18);
+--theme-icon-bg: rgba(17, 213, 196, 0.10);
+--theme-icon-border: rgba(17, 213, 196, 0.18);
+--theme-icon-text: #11d5c4;
+--progress-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
+--progress-border: rgba(17, 213, 196, 0.18);
+--progress-title: #f6ffff;
+--progress-copy: #8cc5c4;
+--progress-subtle: #d8f7f4;
+--progress-pill-bg: rgba(255, 255, 255, 0.94);
+--progress-pill-text: #39505b;
+--tool-bg: #0d1d27;
+--tool-border: rgba(17, 213, 196, 0.18);
+--tool-card-bg: rgba(255, 255, 255, 0.02);
+--tool-card-border: rgba(17, 213, 196, 0.18);
+--tool-title: #f6ffff;
+--tool-copy: #8cc5c4;
+--tool-icon-bg: rgba(17, 213, 196, 0.12);
+--tool-icon-border: rgba(17, 213, 196, 0.16);
+--tool-icon-text: #11d5c4;
+--tool-input-bg: rgba(255,255,255,0.03);
+--tool-input-border: rgba(17, 213, 196, 0.18);
+--tool-input-text: #f6ffff;
+--tool-placeholder: #8cc5c4;
+--tool-button-bg: rgba(255,255,255,0.04);
+--tool-button-text: #d8f7f4;
+--tool-button-border: rgba(17, 213, 196, 0.18);
+--tool-button-hover-bg: rgba(255,255,255,0.07);
+--tool-primary-bg: #11d5c4;
+--tool-primary-text: #082126;
+--tool-uploader-shell-bg: #101922;
+--tool-uploader-shell-border: rgba(17, 213, 196, 0.12);
+--tool-uploader-copy: #9db8bb;
+--shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+--shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.18);
+--badge-bg: rgba(17, 213, 196, 0.10);
+--badge-border: rgba(17, 213, 196, 0.20);
+--badge-text: #7ef1e6;
+--display-heading: #eaf9fa;
+--display-copy: #8db4b6;
+--auth-bg: #0d1d27;
+--auth-heading: #f6ffff;
+--auth-copy: #94c4c6;
+--input-bg: #0f202a;
+--input-border: rgba(17, 213, 196, 0.18);
+--input-text: #eaf8f8;
+--placeholder: #7ea6a8;
+--form-label: #d9f0f1;
+--status-idle-bg: rgba(235, 241, 245, 0.10);
+--status-idle-text: #dfeef0;
+--status-running-bg: rgba(17, 213, 196, 0.15);
+--status-running-text: #8ff6ec;
+--status-stopped-bg: rgba(255, 167, 38, 0.12);
+--status-stopped-text: #ffd39c;
+--table-bg: #0d1b23;
+--table-head: #122733;
+--table-text: #eaf8f8;
+--select-menu-bg: #08141b;
+--select-menu-surface: #0d1d27;
+--select-menu-row-bg: #0d1d27;
+--select-menu-text: #eaf9fa;
+--select-menu-border: rgba(17, 213, 196, 0.16);
+--select-menu-hover-bg: rgba(17, 213, 196, 0.12);
+--select-menu-hover-text: #8ff6ec;
+--select-menu-shadow: 0 22px 40px rgba(0, 0, 0, 0.34);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:
+        repeating-linear-gradient(0deg, rgba(17, 213, 196, 0.06) 0, rgba(17, 213, 196, 0.06) 1px, transparent 1px, transparent 42px),
+        repeating-linear-gradient(90deg, rgba(17, 213, 196, 0.05) 0, rgba(17, 213, 196, 0.05) 1px, transparent 1px, transparent 42px),
+        radial-gradient(circle at top center, var(--page-spotlight), transparent 24%),
+        linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-soft) 100%);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 16px 16px 48px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1.32fr 1.38fr 1.3fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-bottom: 16px;
+    }
+
+    .topbar-shell,
+    .hero-shell,
+    .steps-shell,
+    .progress-shell,
+    .tool-shell,
+    .results-shell,
+    .download-shell,
+    .auth-shell {
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .topbar-shell {
+      background: var(--topbar-bg);
+      border-color: var(--topbar-border);
+      padding: 18px 22px;
+      min-height: 86px;
+      display: flex;
+      align-items: center;
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--topbar-text);
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(17, 213, 196, 0.14);
+      border: 1px solid rgba(17, 213, 196, 0.22);
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .brand-title {
+      margin: 0;
+      color: var(--topbar-text);
+      font-size: 0.96rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      margin: 2px 0 0;
+      color: var(--topbar-muted);
+      font-size: 0.78rem;
+      line-height: 1.2;
+    }
+
+    .nav-links {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      color: var(--topbar-muted);
+      font-size: 0.86rem;
+      font-weight: 700;
+      flex-wrap: wrap;
+    }
+
+    .nav-links span {
+      white-space: nowrap;
+    }
+
+    .nav-links .is-active {
+      color: var(--topbar-active);
+      position: relative;
+    }
+
+    .nav-links .is-active::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -12px;
+      transform: translateX(-50%);
+      width: 68px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .appearance-shell {
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .appearance-shell__kicker {
+      color: var(--topbar-muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 0 0 4px;
+    }
+
+    .appearance-shell__title {
+      color: var(--topbar-text);
+      font-size: 1.02rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .appearance-shell__hint {
+      color: var(--topbar-muted);
+      font-size: 0.8rem;
+      line-height: 1.25;
+      margin: 4px 0 0;
+    }
+
+    .theme-toggle {
+      min-height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--theme-icon-border);
+      background: var(--theme-icon-bg);
+      color: var(--theme-icon-text);
+      font-weight: 800;
+      cursor: pointer;
+      padding: 0 14px;
+      white-space: nowrap;
+    }
+
+    .hero-shell, .steps-shell {
+      background: var(--hero-bg);
+      border-color: var(--hero-line);
+    }
+
+    .hero-shell {
+      padding: 34px 30px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .hero-badge, .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: var(--badge-text);
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero-shell h1, .steps-head h2 {
+      margin: 14px 0 0;
+      color: var(--hero-text);
+      font-size: clamp(2.3rem, 5vw, 4rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+    }
+
+    .hero-shell h1 .accent {
+      color: var(--accent);
+    }
+
+    .hero-copy {
+      margin: 18px auto 0;
+      max-width: 760px;
+      color: var(--hero-muted);
+      line-height: 1.7;
+      font-size: 1.02rem;
+    }
+
+    .hero-actions {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .hero-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 24px;
+      border-radius: 12px;
+      border: 1px solid var(--tool-border);
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .hero-btn.primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: #062027;
+    }
+
+    .hero-btn.ghost {
+      background: rgba(8, 20, 27, 0.12);
+      color: var(--accent);
+    }
+
+    .hero-benefits {
+      margin: 24px auto 2px;
+      max-width: 860px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .hero-benefit {
+      border: 1px solid var(--hero-line);
+      border-radius: 14px;
+      padding: 14px 15px;
+      text-align: left;
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--hero-muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .hero-benefit strong {
+      display: block;
+      color: var(--hero-text);
+      margin-bottom: 3px;
+      font-size: 0.95rem;
+    }
+
+    .steps-shell {
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    .steps-head {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 4px;
+    }
+
+    .step-card {
+      position: relative;
+      min-height: 152px;
+      border-radius: 16px;
+      border: 1px solid var(--hero-line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+      padding: 18px 16px 16px;
+    }
+
+    .step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(17, 213, 196, 0.10);
+      border: 1px solid rgba(17, 213, 196, 0.16);
+      color: var(--accent);
+      font-size: 0.88rem;
+      margin-bottom: 14px;
+    }
+
+    .step-kicker {
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .step-title {
+      color: var(--hero-text);
+      font-size: 0.98rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .step-copy {
+      color: var(--hero-muted);
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    .parser-intro {
+      text-align: center;
+      padding: 16px 0 20px;
+    }
+
+    .parser-heading h2 {
+      margin: 14px 0 0;
+      color: var(--display-heading);
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.06;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+    }
+
+    .parser-copy {
+      margin: 12px auto 0;
+      max-width: 760px;
+      color: var(--display-copy);
+      line-height: 1.75;
+      font-size: 0.97rem;
+    }
+
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.4fr);
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 20px;
+    }
+
+    .progress-shell {
+      background: var(--progress-bg);
+      border-color: var(--progress-border);
+      padding: 18px;
+      min-height: 350px;
+    }
+
+    .progress-title {
+      color: var(--progress-title);
+      font-size: 1rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .progress-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .progress-step {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .progress-index {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-size: 0.82rem;
+      font-weight: 800;
+      border: 1px solid var(--progress-border);
+      color: var(--progress-copy);
+      background: var(--hero-ghost);
+    }
+
+    .progress-step.is-active .progress-index {
+      background: var(--accent);
+      color: #082126;
+      border-color: transparent;
+      box-shadow: 0 0 0 6px rgba(17, 213, 196, 0.10);
+    }
+
+    .progress-step-title {
+      color: var(--progress-subtle);
+      font-size: 0.93rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-top: 4px;
+    }
+
+    .progress-step-copy {
+      color: var(--progress-copy);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+
+    .progress-divider {
+      height: 1px;
+      background: var(--progress-border);
+      margin: 18px 0 14px;
+    }
+
+    .progress-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--progress-copy);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .mini-pill, .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .tool-shell {
+      background: var(--tool-bg);
+      border-color: var(--tool-border);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .tool-card {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 14px 16px;
+      margin: 0 0 12px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .tool-card__head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .tool-card__icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--tool-icon-bg);
+      border: 1px solid var(--tool-icon-border);
+      color: var(--tool-icon-text);
+      font-size: 0.9rem;
+      flex: none;
+    }
+
+    .tool-card__title {
+      color: var(--tool-title);
+      font-size: 0.94rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .tool-card__copy {
+      color: var(--tool-copy);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      margin-top: 2px;
+    }
+
+    .status-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      margin-bottom: 16px;
+    }
+
+    .status-card__group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-card__dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--muted);
+      box-shadow: 0 0 0 7px rgba(82,102,116,0.10);
+      flex: none;
+    }
+
+    .status-card__title {
+      color: var(--text-strong);
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+
+    .status-card__copy {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      margin-top: 2px;
+    }
+
+    .status-idle .status-pill {
+      background: var(--status-idle-bg);
+      color: var(--status-idle-text);
+    }
+
+    .status-running .status-pill {
+      background: var(--status-running-bg);
+      color: var(--status-running-text);
+    }
+
+    .status-stopped .status-pill {
+      background: var(--status-stopped-bg);
+      color: var(--status-stopped-text);
+    }
+
+    .status-running .status-card__dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 7px rgba(17,213,196,0.12);
+    }
+
+    .status-stopped .status-card__dot {
+      background: #f0a24b;
+      box-shadow: 0 0 0 7px rgba(240,162,75,0.12);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      color: var(--tool-title);
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    select, input[type="file"], textarea {
+      width: 100%;
+      min-height: 52px;
+      border: 1px solid var(--tool-input-border);
+      background: var(--tool-input-bg);
+      color: var(--tool-input-text);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    textarea {
+      min-height: 108px;
+      resize: vertical;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .btn {
+      min-height: 46px;
+      border-radius: 12px;
+      font-weight: 700;
+      border: 1px solid var(--tool-button-border);
+      background: var(--tool-button-bg);
+      color: var(--tool-button-text);
+      box-shadow: var(--shadow-soft);
+      padding: 0 18px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--tool-primary-bg);
+      color: var(--tool-primary-text);
+      border-color: transparent;
+    }
+
+    .file-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 18px;
+    }
+
+    .file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.94);
+      color: #1d323d;
+      border: 1px solid rgba(17,39,51,0.10);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 15px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .metric-card__label {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .metric-card__value {
+      color: var(--text-strong);
+      font-size: 1.02rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .section-head {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px 18px;
+      margin: 0 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .section-title {
+      margin: 0;
+      color: var(--text-strong);
+      font-size: 1.08rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .section-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .results-shell, .download-shell {
+      background: var(--auth-bg);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--table-bg);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      color: var(--table-text);
+    }
+
+    thead {
+      background: var(--table-head);
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    .download-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .grid-3,
+      .workspace-grid,
+      .form-grid,
+      .steps-grid,
+      .hero-benefits {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="container">
+    <div class="grid-3">
+      <div class="topbar-shell">
+        <div class="brand-lockup">
+          <div class="brand-mark">✶</div>
+          <div>
+            <div class="brand-title">KreditLab</div>
+            <div class="brand-subtitle">Bank statement parser</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-shell">
+        <div class="nav-links">
+          <span>How it works</span>
+          <span>Features</span>
+          <span>FAQ</span>
+          <span class="is-active">Contact</span>
+        </div>
+      </div>
+
+      <div class="topbar-shell appearance-shell">
+        <div>
+          <p class="appearance-shell__kicker">Appearance · <span id="theme-label">Dark mode</span></p>
+          <p class="appearance-shell__title">Get Started</p>
+          <p class="appearance-shell__hint">Upload a statement and run parser</p>
+        </div>
+        <button class="theme-toggle" id="themeToggle">🌙 Dark mode</button>
+      </div>
+    </div>
+
+    <section class="hero-shell">
+    <span class="hero-badge">Bank statement parser · Powered by KreditLab</span>
+    <h1>Turn Bank Statements Into <span class="accent">Clear Financial Insights</span></h1>
+    <p class="hero-copy">Upload any bank statement PDF and get structured transaction data, summaries, and export-ready reports in seconds.</p>
+    <div class="hero-actions">
+        <span class="hero-btn primary">⇪&nbsp; Get Started — Upload Now</span>
+        <span class="hero-btn ghost">See How It Works →</span>
+    </div>
+    <div class="hero-benefits">
+        <div class="hero-benefit"><strong>Multi-Bank Support</strong>Parse statements from all major Malaysian banks instantly.</div>
+        <div class="hero-benefit"><strong>Secure Processing</strong>Bank-grade handling with privacy-first processing.</div>
+        <div class="hero-benefit"><strong>Instant Insights</strong>Extract key financial patterns and cash-flow trends quickly.</div>
+    </div>
+</section>
+    <section class="steps-shell">
+    <div class="steps-head">
+        <span class="section-badge">How it works</span>
+        <h2>Four steps to financial clarity</h2>
+    </div>
+    <div class="steps-grid">
+        <div class="step-card">
+            <div class="step-icon">▣</div>
+            <div class="step-kicker">Step 1</div>
+            <div class="step-title">Select Your Bank</div>
+            <div class="step-copy">Choose the bank that issued your statement from the supported list.</div>
+        </div>
+        <div class="step-card">
+            <div class="step-icon">⤴</div>
+            <div class="step-kicker">Step 2</div>
+            <div class="step-title">Upload Statement</div>
+            <div class="step-copy">Drag and drop or browse your PDF bank statement file.</div>
+        </div>
+        <div class="step-card">
+            <div class="step-icon">∿</div>
+            <div class="step-kicker">Step 3</div>
+            <div class="step-title">Process & Analyse</div>
+            <div class="step-copy">The engine extracts and structures the transaction data automatically.</div>
+        </div>
+        <div class="step-card">
+            <div class="step-icon">▥</div>
+            <div class="step-kicker">Step 4</div>
+            <div class="step-title">View Results</div>
+            <div class="step-copy">Inspect transactions, summaries, and export-ready outputs.</div>
+        </div>
+    </div>
+</section>
+    <div class="parser-intro">
+    <div class="parser-heading">
+        <span class="section-badge">Parser engine</span>
+        <h2>Upload & Parse Your Statement</h2>
+        <p class="parser-copy">Select your bank, upload the PDF statement, and let the parser extract structured financial data into review-ready outputs.</p>
+    </div>
+</div>
+
+    <div class="workspace-grid">
+      <section class="progress-shell">
+        <div class="progress-title">Progress</div>
+        <div class="progress-steps" id="progressSteps">
+          <div class="progress-step is-active" data-step="1">
+            <div class="progress-index">1</div>
+            <div>
+              <div class="progress-step-title">Select Your Bank</div>
+              <div class="progress-step-copy">Choose the parser format</div>
+            </div>
+          </div>
+          <div class="progress-step" data-step="2">
+            <div class="progress-index">2</div>
+            <div>
+              <div class="progress-step-title">Upload Statement</div>
+              <div class="progress-step-copy">Ready when PDF files are added</div>
+            </div>
+          </div>
+          <div class="progress-step" data-step="3">
+            <div class="progress-index">3</div>
+            <div>
+              <div class="progress-step-title">Process & Analyse</div>
+              <div class="progress-step-copy">Start the parser to extract data</div>
+            </div>
+          </div>
+          <div class="progress-step" data-step="4">
+            <div class="progress-index">4</div>
+            <div>
+              <div class="progress-step-title">View Results</div>
+              <div class="progress-step-copy">Review tables and download reports</div>
+            </div>
+          </div>
+        </div>
+        <div class="progress-divider"></div>
+        <div class="progress-footer">
+          <span>Status</span>
+          <span class="mini-pill" id="progressStatus">Idle</span>
+        </div>
+      </section>
+
+      <section class="tool-shell">
+        <div class="tool-card">
+          <div class="tool-card__head">
+            <div class="tool-card__icon">⚙</div>
+            <div>
+              <div class="tool-card__title">Parser workspace</div>
+              <div class="tool-card__copy">Converted from Streamlit components into standalone HTML.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-card status-idle" id="statusCard">
+          <div class="status-card__group">
+            <span class="status-card__dot"></span>
+            <div>
+              <div class="status-card__title">Processing status</div>
+              <div class="status-card__copy" id="statusCopy">Ready to accept uploads and begin parsing.</div>
+            </div>
+          </div>
+          <span class="status-pill" id="statusPill">Idle</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="bankSelect">Select bank</label>
+            <select id="bankSelect">
+              <option>Maybank</option>
+              <option>CIMB</option>
+              <option>Public Bank</option>
+              <option>RHB</option>
+              <option>Hong Leong Bank</option>
+              <option>Bank Islam</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="statementFiles">Upload statement PDF</label>
+            <input id="statementFiles" type="file" accept=".pdf" multiple>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="notes">Operator notes</label>
+          <textarea id="notes" placeholder="Optional notes about parser options, account holder, or validation status."></textarea>
+        </div>
+
+        <div class="button-row">
+          <button class="btn primary" id="runBtn">Run parser</button>
+          <button class="btn" id="stopBtn">Stop</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+
+        <div class="file-chip-row" id="fileChips"></div>
+      </section>
+    </div>
+
+    <section class="results-shell">
+      <div class="section-head">
+        <span class="section-badge">Results</span>
+        <h2 class="section-title">Summary metrics</h2>
+        <p class="section-copy">Frontend sample values are shown here. Connect your backend parser to replace these with live outputs.</p>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-card__label">Bank</div>
+          <div class="metric-card__value" id="metricBank">Maybank</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card__label">Files selected</div>
+          <div class="metric-card__value" id="metricFiles">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card__label">Transactions</div>
+          <div class="metric-card__value" id="metricTransactions">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card__label">Net flow</div>
+          <div class="metric-card__value" id="metricNetFlow">—</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Debit</th>
+              <th>Credit</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTable">
+            <tr>
+              <td colspan="5" class="muted">No parsed data yet. Click "Run parser" to simulate results in this HTML prototype.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="download-shell">
+      <div class="section-head">
+        <span class="section-badge">Exports</span>
+        <h2 class="section-title">Download-ready actions</h2>
+        <p class="section-copy">These buttons currently export placeholder content from the static HTML version.</p>
+      </div>
+      <div class="download-actions">
+        <button class="btn" id="downloadCsv">Download CSV</button>
+        <button class="btn" id="downloadJson">Download JSON</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const body = document.body;
+    const themeToggle = document.getElementById("themeToggle");
+    const themeLabel = document.getElementById("theme-label");
+    const fileInput = document.getElementById("statementFiles");
+    const fileChips = document.getElementById("fileChips");
+    const runBtn = document.getElementById("runBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const progressStatus = document.getElementById("progressStatus");
+    const statusCard = document.getElementById("statusCard");
+    const statusPill = document.getElementById("statusPill");
+    const statusCopy = document.getElementById("statusCopy");
+    const metricBank = document.getElementById("metricBank");
+    const metricFiles = document.getElementById("metricFiles");
+    const metricTransactions = document.getElementById("metricTransactions");
+    const metricNetFlow = document.getElementById("metricNetFlow");
+    const bankSelect = document.getElementById("bankSelect");
+    const resultsTable = document.getElementById("resultsTable");
+
+    function setTheme(theme) {
+      body.setAttribute("data-theme", theme);
+      const isLight = theme === "light";
+      themeLabel.textContent = isLight ? "Light mode" : "Dark mode";
+      themeToggle.textContent = isLight ? "☀️ Light mode" : "🌙 Dark mode";
+    }
+
+    themeToggle.addEventListener("click", () => {
+      const next = body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      setTheme(next);
+    });
+
+    function setProgress(step) {
+      document.querySelectorAll(".progress-step").forEach(el => {
+        el.classList.toggle("is-active", Number(el.dataset.step) === step);
+      });
+    }
+
+    function setStatus(state) {
+      statusCard.classList.remove("status-idle", "status-running", "status-stopped");
+      statusCard.classList.add(`status-${state}`);
+      progressStatus.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+      statusPill.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+
+      if (state === "idle") {
+        statusCopy.textContent = "Ready to accept uploads and begin parsing.";
+      } else if (state === "running") {
+        statusCopy.textContent = "Processing uploaded statements and generating outputs.";
+      } else {
+        statusCopy.textContent = "Run paused. You can resume or reset the workspace.";
+      }
+    }
+
+    function renderFileChips() {
+      fileChips.innerHTML = "";
+      const files = Array.from(fileInput.files || []);
+      metricFiles.textContent = String(files.length);
+      if (files.length > 0) {
+        setProgress(2);
+      } else {
+        setProgress(1);
+      }
+      files.forEach(file => {
+        const chip = document.createElement("span");
+        chip.className = "file-chip";
+        chip.textContent = `📎 ${file.name}`;
+        fileChips.appendChild(chip);
+      });
+    }
+
+    fileInput.addEventListener("change", renderFileChips);
+    bankSelect.addEventListener("change", () => {
+      metricBank.textContent = bankSelect.value;
+    });
+
+    runBtn.addEventListener("click", () => {
+      const files = Array.from(fileInput.files || []);
+      setStatus("running");
+      setProgress(files.length ? 3 : 1);
+      if (!files.length) return;
+
+      setTimeout(() => {
+        metricTransactions.textContent = "128";
+        metricNetFlow.textContent = "RM 4,230.55";
+        resultsTable.innerHTML = `
+          <tr><td>2026-03-01</td><td>Salary Credit</td><td>—</td><td>5,500.00</td><td>8,240.13</td></tr>
+          <tr><td>2026-03-03</td><td>Card Purchase - Groceries</td><td>245.60</td><td>—</td><td>7,994.53</td></tr>
+          <tr><td>2026-03-05</td><td>DuitNow Transfer</td><td>1,000.00</td><td>—</td><td>6,994.53</td></tr>
+          <tr><td>2026-03-10</td><td>ATM Cash Deposit</td><td>—</td><td>300.00</td><td>7,294.53</td></tr>
+        `;
+        setProgress(4);
+      }, 350);
+    });
+
+    stopBtn.addEventListener("click", () => {
+      setStatus("stopped");
+      if (fileInput.files.length) setProgress(2);
+    });
+
+    resetBtn.addEventListener("click", () => {
+      fileInput.value = "";
+      document.getElementById("notes").value = "";
+      resultsTable.innerHTML = '<tr><td colspan="5" class="muted">No parsed data yet. Click "Run parser" to simulate results in this HTML prototype.</td></tr>';
+      metricFiles.textContent = "0";
+      metricTransactions.textContent = "—";
+      metricNetFlow.textContent = "—";
+      fileChips.innerHTML = "";
+      setStatus("idle");
+      setProgress(1);
+    });
+
+    function downloadText(filename, text, type) {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("downloadCsv").addEventListener("click", () => {
+      downloadText("sample_transactions.csv", "date,description,debit,credit,balance\n2026-03-01,Salary Credit,,5500.00,8240.13\n2026-03-03,Card Purchase - Groceries,245.60,,7994.53", "text/csv");
+    });
+
+    document.getElementById("downloadJson").addEventListener("click", () => {
+      downloadText("sample_transactions.json", JSON.stringify([
+        {"date":"2026-03-01","description":"Salary Credit","debit":null,"credit":5500.00,"balance":8240.13},
+        {"date":"2026-03-03","description":"Card Purchase - Groceries","debit":245.60,"credit":null,"balance":7994.53}
+      ], null, 2), "application/json");
+    });
+
+    setTheme("dark");
+    setStatus("idle");
+    renderFileChips();
+  </script>
+</body>
+</html>
