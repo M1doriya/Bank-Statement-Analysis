@@ -46,6 +46,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --theme-icon-bg: #f0fdfa;
             --theme-icon-border: rgba(18, 184, 171, 0.24);
             --theme-icon-text: #0d8f85;
+            --mode-toggle-bg: #0f172a;
+            --mode-toggle-text: #f8fafc;
+            --mode-toggle-border: rgba(15, 23, 42, 0.22);
+            --mode-toggle-hover-bg: #111827;
+            --mode-toggle-hover-text: #ffffff;
+            --mode-toggle-hover-border: rgba(15, 23, 42, 0.32);
             --progress-bg: #ffffff;
             --progress-border: rgba(15, 23, 42, 0.10);
             --progress-title: #0b1220;
@@ -149,6 +155,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --theme-icon-bg: rgba(17, 213, 196, 0.10);
             --theme-icon-border: rgba(17, 213, 196, 0.18);
             --theme-icon-text: #11d5c4;
+            --mode-toggle-bg: rgba(255, 255, 255, 0.06);
+            --mode-toggle-text: #eaf9fa;
+            --mode-toggle-border: rgba(17, 213, 196, 0.26);
+            --mode-toggle-hover-bg: rgba(17, 213, 196, 0.16);
+            --mode-toggle-hover-text: #f6ffff;
+            --mode-toggle-hover-border: rgba(17, 213, 196, 0.40);
             --progress-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
             --progress-border: rgba(17, 213, 196, 0.18);
             --progress-title: #f6ffff;
@@ -282,6 +294,10 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         .topbar-row-anchor,
         .theme-topbar-anchor {{
+            display: none;
+        }}
+
+        .theme-mode-toggle-anchor {{
             display: none;
         }}
 
@@ -595,6 +611,32 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button p {{
             font-size: 1rem !important;
             line-height: 1 !important;
+        }}
+
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton {{
+            margin-top: 2px;
+        }}
+
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button {{
+            min-height: 44px;
+            padding: 0 14px;
+            border-radius: 10px;
+            background: var(--mode-toggle-bg);
+            border: 1px solid var(--mode-toggle-border);
+            color: var(--mode-toggle-text);
+            font-weight: 700;
+            box-shadow: none;
+        }}
+
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button:hover {{
+            background: var(--mode-toggle-hover-bg);
+            border-color: var(--mode-toggle-hover-border);
+            color: var(--mode-toggle-hover-text);
+        }}
+
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button p {{
+            color: inherit !important;
+            font-weight: inherit !important;
         }}
 
         .hero-shell {{
@@ -1596,6 +1638,7 @@ def render_top_bar() -> None:
         unsafe_allow_html=True,
     )
     mode_button_label = "☀️ Light mode" if is_light else "🌙 Dark mode"
+    st.markdown('<div class="theme-mode-toggle-anchor"></div>', unsafe_allow_html=True)
     mode_changed = st.button(
         mode_button_label,
         key="theme_mode_button",
