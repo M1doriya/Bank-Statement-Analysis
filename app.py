@@ -354,12 +354,26 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
             align-items: center !important;
+            justify-content: flex-start;
+            gap: 10px;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
             display: flex;
             align-items: center;
             justify-content: center;
+            flex: 0 0 auto;
+            max-width: 56px;
+            min-width: 56px;
+            padding-right: 4px;
+            box-sizing: border-box;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {{
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            align-items: center;
         }}
 
         .theme-toggle-shell {{
@@ -504,6 +518,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             flex-direction: column;
             justify-content: center;
+            align-self: center;
             min-height: 44px;
             width: 100%;
         }}
@@ -513,6 +528,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             font-size: 0.74rem;
             line-height: 1.25;
             margin-top: 4px;
+            margin-bottom: 0;
         }}
 
         .theme-mode-badge {{
