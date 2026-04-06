@@ -1,4 +1,5 @@
 import json
+import inspect
 import os
 import re
 import secrets
@@ -65,6 +66,13 @@ from ui_components import (
     render_top_bar,
     toggle_compat,
 )
+
+
+def _supports_streamlit_kwarg(func, name: str) -> bool:
+    try:
+        return name in inspect.signature(func).parameters
+    except Exception:
+        return False
 
 
 
