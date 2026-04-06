@@ -1595,10 +1595,15 @@ def render_top_bar() -> None:
         """,
         unsafe_allow_html=True,
     )
-    toggled = st.toggle("Light interface", value=is_light, key="theme_toggle_switch")
-    if toggled != is_light:
-        st.session_state.ui_theme_light = toggled
-        st.session_state.ui_theme_mode = "Light" if toggled else "Dark"
+    mode_button_label = "☀️ Light mode" if is_light else "🌙 Dark mode"
+    mode_changed = st.button(
+        mode_button_label,
+        key="theme_mode_button",
+        help="Switch between light and dark interface modes",
+    )
+    if mode_changed:
+        st.session_state.ui_theme_light = not is_light
+        st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
         st.rerun()
 
 
