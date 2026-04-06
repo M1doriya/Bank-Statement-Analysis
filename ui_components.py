@@ -1593,10 +1593,9 @@ def render_top_bar() -> None:
     icon_col, copy_col = right.columns([0.22, 1], gap="small", vertical_alignment="center")
     with icon_col:
         mode_button_label = "☀️" if is_light else "🌙"
-        mode_button_key = f"theme_mode_button_{id(icon_col)}"
         mode_changed = st.button(
             mode_button_label,
-            key=mode_button_key,
+            key="theme_mode_button",
             help="Switch between light and dark interface modes",
         )
     copy_col.markdown(
@@ -1608,6 +1607,12 @@ def render_top_bar() -> None:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+    mode_button_label = "☀️ Light mode" if is_light else "🌙 Dark mode"
+    mode_changed = st.button(
+        mode_button_label,
+        key="theme_mode_button",
+        help="Switch between light and dark interface modes",
     )
     if mode_changed:
         st.session_state.ui_theme_light = not is_light
