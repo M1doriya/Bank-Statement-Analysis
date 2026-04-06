@@ -333,7 +333,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin-bottom: 1rem;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div[data-testid="stVerticalBlock"] {{
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div > div {{
             background: var(--topbar-bg);
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
@@ -345,8 +347,6 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             align-items: center;
         }}
 
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div,
-        div[data-testid="column"]:has(.theme-topbar-anchor) > div > div,
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stVerticalBlock"] {{
             width: 100%;
         }}
@@ -1481,7 +1481,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
 
 def render_top_bar() -> None:
     st.markdown('<div class="topbar-row-anchor"></div>', unsafe_allow_html=True)
-    left, middle, right = columns_compat([1.44, 1.52, 1.14], gap="medium", vertical_alignment="center")
+    left, middle, right = columns_compat([1.32, 1.38, 1.30], gap="medium", vertical_alignment="center")
     left.markdown(
         """
         <div class="topbar-shell">
