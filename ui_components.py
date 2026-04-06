@@ -316,6 +316,11 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             justify-content: flex-start;
             gap: 12px;
             min-height: 50px;
+            background: var(--theme-card-bg);
+            border: 1px solid var(--theme-card-border);
+            border-radius: 18px;
+            box-shadow: var(--shadow-soft);
+            padding: 12px 14px;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
@@ -574,22 +579,23 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button {{
-            min-width: 44px;
-            width: 44px;
-            height: 44px;
+            min-width: 42px;
+            width: 42px;
+            height: 42px;
             padding: 0;
             border-radius: 12px;
-            background: var(--theme-icon-bg);
-            border: 1px solid var(--theme-icon-border);
-            color: var(--theme-icon-text);
+            background: linear-gradient(140deg, rgba(17, 213, 196, 0.22), rgba(17, 213, 196, 0.08));
+            border: 1px solid rgba(17, 213, 196, 0.48);
+            color: var(--topbar-text);
             font-size: 1rem;
             font-weight: 800;
+            box-shadow: 0 8px 16px rgba(2, 8, 20, 0.18);
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button:hover {{
-            background: var(--accent-soft);
-            border-color: var(--accent);
-            color: var(--accent-strong);
+            background: linear-gradient(140deg, rgba(17, 213, 196, 0.32), rgba(17, 213, 196, 0.15));
+            border-color: rgba(17, 213, 196, 0.74);
+            color: var(--topbar-text);
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) div.stButton > button p {{
@@ -1583,14 +1589,21 @@ def render_top_bar() -> None:
     )
     is_light = st.session_state.get("ui_theme_light", False)
     theme_state = "Light mode" if is_light else "Dark mode"
-    right.markdown(
+    right.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
+    icon_col, copy_col = right.columns([0.22, 1], gap="small", vertical_alignment="center")
+    with icon_col:
+        mode_button_label = "☀️" if is_light else "🌙"
+        mode_changed = st.button(
+            mode_button_label,
+            key="theme_mode_button",
+            help="Switch between light and dark interface modes",
+        )
+    copy_col.markdown(
         f"""
-        <div class="topbar-shell appearance-shell">
-            <div class="appearance-shell__copy">
-                <p class="appearance-shell__kicker">Appearance · {html.escape(theme_state)}</p>
-                <p class="appearance-shell__title">Get Started</p>
-                <p class="appearance-shell__hint">Upload a statement and run parser</p>
-            </div>
+        <div class="appearance-shell__copy">
+            <p class="appearance-shell__kicker">Appearance · {html.escape(theme_state)}</p>
+            <p class="appearance-shell__title">Get Started</p>
+            <p class="appearance-shell__hint">Upload a statement and run parser</p>
         </div>
         """,
         unsafe_allow_html=True,
