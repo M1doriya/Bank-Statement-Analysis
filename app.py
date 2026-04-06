@@ -330,13 +330,16 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) {{
+            margin-bottom: 1rem;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) > div[data-testid="stVerticalBlock"] {{
             background: var(--topbar-bg);
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
             padding: 16px 20px;
             min-height: 86px;
-            margin-bottom: 1rem;
             box-sizing: border-box;
             display: flex;
             align-items: center;
@@ -355,7 +358,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
             align-items: center !important;
             justify-content: flex-start;
-            gap: 10px;
+            gap: 8px;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
@@ -363,9 +366,9 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             align-items: center;
             justify-content: center;
             flex: 0 0 auto;
-            max-width: 56px;
-            min-width: 56px;
-            padding-right: 4px;
+            max-width: 50px;
+            min-width: 50px;
+            padding-right: 2px;
             box-sizing: border-box;
         }}
 
@@ -374,6 +377,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             min-width: 0;
             display: flex;
             align-items: center;
+            justify-content: flex-start;
         }}
 
         .theme-toggle-shell {{
@@ -1504,7 +1508,7 @@ def render_top_bar() -> None:
         mode_icon = "☀" if is_light else "☾"
 
         st.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([0.46, 1.54], gap="small", vertical_alignment="center")
+        theme_button_col, theme_label_col = columns_compat([0.40, 1.60], gap="small", vertical_alignment="center")
         with theme_button_col:
             if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
                 st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
