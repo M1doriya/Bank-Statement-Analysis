@@ -338,7 +338,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             border: 1px solid var(--topbar-border);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-soft);
-            padding: 16px 20px;
+            padding: 18px 22px;
             min-height: 86px;
             box-sizing: border-box;
             display: flex;
@@ -358,7 +358,8 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] {{
             align-items: center !important;
             justify-content: flex-start;
-            gap: 8px;
+            gap: 12px;
+            min-height: 50px;
         }}
 
         div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
@@ -378,6 +379,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             display: flex;
             align-items: center;
             justify-content: flex-start;
+        }}
+
+        div[data-testid="column"]:has(.theme-topbar-anchor) [data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child [data-testid="stVerticalBlock"] {{
+            display: flex;
+            align-items: center;
+            min-height: 50px;
         }}
 
         .theme-toggle-shell {{
@@ -523,7 +530,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             flex-direction: column;
             justify-content: center;
             align-self: center;
-            min-height: 44px;
+            min-height: 50px;
             width: 100%;
         }}
 
