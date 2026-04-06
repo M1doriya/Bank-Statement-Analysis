@@ -542,6 +542,43 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             margin-bottom: 0;
         }}
 
+        .appearance-shell {{
+            margin-bottom: 1rem;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }}
+
+        .appearance-shell__copy {{
+            min-width: 0;
+        }}
+
+        .appearance-shell__kicker {{
+            color: var(--topbar-muted);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin: 0 0 4px;
+        }}
+
+        .appearance-shell__title {{
+            color: var(--topbar-text);
+            font-size: 1.02rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin: 0;
+        }}
+
+        .appearance-shell__hint {{
+            color: var(--topbar-muted);
+            font-size: 0.8rem;
+            line-height: 1.25;
+            margin: 4px 0 0;
+        }}
+
         .theme-mode-badge {{
             display: inline-flex;
             align-items: center;
@@ -1509,29 +1546,25 @@ def render_top_bar() -> None:
         """,
         unsafe_allow_html=True,
     )
-    with right:
-        is_light = st.session_state.get("ui_theme_light", False)
-        theme_state = "Light mode" if is_light else "Dark mode"
-        mode_icon = "☀" if is_light else "☾"
-
-        st.markdown('<div class="theme-topbar-anchor"></div>', unsafe_allow_html=True)
-        theme_button_col, theme_label_col = columns_compat([0.40, 1.60], gap="small", vertical_alignment="center")
-        with theme_button_col:
-            if button_compat(mode_icon, key="theme_icon_toggle", use_container_width=False):
-                st.session_state.ui_theme_light = not st.session_state.get("ui_theme_light", False)
-                st.session_state.ui_theme_mode = "Light" if st.session_state.ui_theme_light else "Dark"
-                st.rerun()
-        with theme_label_col:
-            st.markdown(
-                f"""
-                <div class="theme-state-stack">
-                    <div class="theme-slot-label theme-slot-label--compact">Appearance</div>
-                    <div class="theme-inline-state theme-inline-state--compact">{html.escape(theme_state)}</div>
-                    <div class="theme-state-stack__hint">Toggle interface theme</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    is_light = st.session_state.get("ui_theme_light", False)
+    theme_state = "Light mode" if is_light else "Dark mode"
+    st.markdown(
+        f"""
+        <div class="topbar-shell appearance-shell">
+            <div class="appearance-shell__copy">
+                <p class="appearance-shell__kicker">Appearance</p>
+                <p class="appearance-shell__title">{html.escape(theme_state)}</p>
+                <p class="appearance-shell__hint">Toggle interface theme</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    toggled = st.toggle("Light interface", value=is_light, key="theme_toggle_switch")
+    if toggled != is_light:
+        st.session_state.ui_theme_light = toggled
+        st.session_state.ui_theme_mode = "Light" if toggled else "Dark"
+        st.rerun()
 
 
 def render_auth_shell() -> None:
