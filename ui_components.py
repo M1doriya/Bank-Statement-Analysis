@@ -39,19 +39,19 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --topbar-bg: #ffffff;
             --topbar-border: rgba(15, 23, 42, 0.10);
             --topbar-text: #0b1220;
-            --topbar-muted: #475569;
+            --topbar-muted: #334155;
             --topbar-active: #0b1220;
             --theme-card-bg: #ffffff;
             --theme-card-border: rgba(15, 23, 42, 0.10);
             --theme-icon-bg: #f0fdfa;
             --theme-icon-border: rgba(18, 184, 171, 0.24);
             --theme-icon-text: #0d8f85;
-            --mode-toggle-bg: #0f172a;
-            --mode-toggle-text: #f8fafc;
-            --mode-toggle-border: rgba(15, 23, 42, 0.22);
-            --mode-toggle-hover-bg: #111827;
-            --mode-toggle-hover-text: #ffffff;
-            --mode-toggle-hover-border: rgba(15, 23, 42, 0.32);
+            --mode-toggle-bg: #f8fafc;
+            --mode-toggle-text: #0b1220;
+            --mode-toggle-border: rgba(15, 23, 42, 0.16);
+            --mode-toggle-hover-bg: #eef2f7;
+            --mode-toggle-hover-text: #0b1220;
+            --mode-toggle-hover-border: rgba(15, 23, 42, 0.26);
             --progress-bg: #ffffff;
             --progress-border: rgba(15, 23, 42, 0.10);
             --progress-title: #0b1220;
@@ -145,6 +145,10 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --hero-card-bg: rgba(255, 255, 255, 0.02);
             --hero-card-overlay: rgba(17, 213, 196, 0.05);
             --hero-ghost: rgba(255, 255, 255, 0.03);
+            --hero-ghost-btn-bg: rgba(255, 255, 255, 0.08);
+            --hero-ghost-btn-text: #a8fbf4;
+            --hero-ghost-btn-border: rgba(17, 213, 196, 0.26);
+            --hero-ghost-btn-hover-bg: rgba(17, 213, 196, 0.14);
             --topbar-bg: linear-gradient(180deg, #0d1d27 0%, #09161d 100%);
             --topbar-border: rgba(17, 213, 196, 0.18);
             --topbar-text: #f6ffff;
@@ -222,6 +226,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --select-menu-hover-bg: rgba(17, 213, 196, 0.12);
             --select-menu-hover-text: #8ff6ec;
             --select-menu-shadow: 0 22px 40px rgba(0, 0, 0, 0.34);
+        """
+    if is_light:
+        theme_vars += """
+            --hero-ghost-btn-bg: #f1f5f9;
+            --hero-ghost-btn-text: #0f766e;
+            --hero-ghost-btn-border: rgba(15, 23, 42, 0.14);
+            --hero-ghost-btn-hover-bg: #e2e8f0;
         """
 
     css = f"""
@@ -742,8 +753,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         .hero-btn.ghost {{
-            background: rgba(8, 20, 27, 0.36);
-            color: var(--accent);
+            background: var(--hero-ghost-btn-bg);
+            color: var(--hero-ghost-btn-text);
+            border-color: var(--hero-ghost-btn-border);
+        }}
+
+        .hero-btn.ghost:hover {{
+            background: var(--hero-ghost-btn-hover-bg);
         }}
 
         .hero-benefits {{
@@ -1656,7 +1672,7 @@ def render_top_bar() -> None:
                 <a href="#how-it-works">How it works</a>
                 <a href="#features">Features</a>
                 <a href="#faq">FAQ</a>
-                <a href="#contact" class="is-active">Contact</a>
+                <a href="#tools" class="is-active">Tools</a>
             </div>
         </div>
         """,
@@ -1707,7 +1723,7 @@ def render_auth_shell() -> None:
 def render_app_hero() -> None:
     st.markdown(
         """
-        <section class="hero-shell" id="contact">
+        <section class="hero-shell" id="tools">
             <span class="hero-badge">Bank statement parser · Powered by KreditLab</span>
             <h1>Turn Bank Statements Into <span class="accent">Clear Financial Insights</span></h1>
             <p class="hero-copy">Upload any bank statement PDF and get structured transaction data, summaries, and export-ready reports in seconds.</p>
