@@ -1877,18 +1877,20 @@ def close_tool_card() -> None:
     return None
 
 
-def _current_progress_step(uploaded_files: List, status: str, has_results: bool) -> int:
+def _current_progress_step(bank_selected: bool, uploaded_files: List, status: str, has_results: bool) -> int:
     if has_results:
         return 4
     if str(status or "").lower() == "running":
         return 3
     if uploaded_files:
         return 2
+    if bank_selected:
+        return 2
     return 1
 
 
-def render_progress_panel(status: str, uploaded_files: List, has_results: bool) -> None:
-    current_step = _current_progress_step(uploaded_files, status, has_results)
+def render_progress_panel(status: str, uploaded_files: List, has_results: bool, bank_selected: bool = False) -> None:
+    current_step = _current_progress_step(bank_selected, uploaded_files, status, has_results)
     status_key = str(status or "idle").strip().lower()
     status_label = {"idle": "Idle", "running": "Running", "stopped": "Stopped"}.get(status_key, status.title())
     steps = [
