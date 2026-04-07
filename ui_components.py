@@ -624,7 +624,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             background: var(--mode-toggle-bg);
             border: 1px solid var(--mode-toggle-border);
             color: var(--mode-toggle-text);
-            -webkit-text-fill-color: var(--mode-toggle-text) !important;
+            -webkit-text-fill-color: var(--mode-toggle-text);
             font-weight: 700;
             box-shadow: none;
             opacity: 1;
@@ -634,18 +634,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             background: var(--mode-toggle-hover-bg);
             border-color: var(--mode-toggle-hover-border);
             color: var(--mode-toggle-hover-text);
-            -webkit-text-fill-color: var(--mode-toggle-hover-text) !important;
-        }}
-
-        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button * {{
-            color: var(--mode-toggle-text) !important;
-            -webkit-text-fill-color: var(--mode-toggle-text) !important;
-            opacity: 1 !important;
-        }}
-
-        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button:hover * {{
-            color: var(--mode-toggle-hover-text) !important;
-            -webkit-text-fill-color: var(--mode-toggle-hover-text) !important;
+            -webkit-text-fill-color: var(--mode-toggle-hover-text);
         }}
 
         div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button p,
