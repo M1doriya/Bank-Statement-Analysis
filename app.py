@@ -55,6 +55,8 @@ from ui_components import (
     inject_global_styles,
     render_app_hero,
     render_auth_shell,
+    render_faq_showcase,
+    render_features_showcase,
     render_file_chips,
     render_metric_cards,
     render_parser_intro,
@@ -128,6 +130,8 @@ render_top_bar()
 require_basic_auth()
 render_app_hero()
 render_steps_showcase()
+render_features_showcase()
+render_faq_showcase()
 render_parser_intro()
 
 
