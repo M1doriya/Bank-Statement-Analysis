@@ -234,6 +234,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
         }}
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {{
+            scroll-behavior: smooth;
             background:
                 repeating-linear-gradient(0deg, rgba(17, 213, 196, 0.06) 0, rgba(17, 213, 196, 0.06) 1px, transparent 1px, transparent 42px),
                 repeating-linear-gradient(90deg, rgba(17, 213, 196, 0.05) 0, rgba(17, 213, 196, 0.05) 1px, transparent 1px, transparent 42px),
@@ -438,6 +439,18 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             color: var(--topbar-muted);
             font-size: 0.86rem;
             font-weight: 700;
+        }}
+
+        .nav-links a {{
+            white-space: nowrap;
+            color: inherit;
+            text-decoration: none;
+            position: relative;
+            transition: color 0.2s ease;
+        }}
+
+        .nav-links a:hover {{
+            color: var(--topbar-active);
         }}
 
         .nav-links span {{
@@ -838,6 +851,27 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             color: var(--hero-muted);
             font-size: 0.82rem;
             line-height: 1.6;
+        }}
+
+        .faq-grid {{
+            margin-top: 14px;
+            display: grid;
+            gap: 14px;
+        }}
+
+        .faq-item {{
+            border: 1px solid var(--hero-line);
+            border-radius: 16px;
+            padding: 16px;
+            color: var(--hero-muted);
+            line-height: 1.55;
+            font-size: 0.9rem;
+        }}
+
+        .faq-item strong {{
+            color: var(--hero-text);
+            display: block;
+            margin-bottom: 6px;
         }}
 
         .parser-intro {{
@@ -1619,10 +1653,10 @@ def render_top_bar() -> None:
         """
         <div class="topbar-shell">
             <div class="nav-links">
-                <span>How it works</span>
-                <span>Features</span>
-                <span>FAQ</span>
-                <span class="is-active">Contact</span>
+                <a href="#how-it-works">How it works</a>
+                <a href="#features">Features</a>
+                <a href="#faq">FAQ</a>
+                <a href="#contact" class="is-active">Contact</a>
             </div>
         </div>
         """,
@@ -1673,7 +1707,7 @@ def render_auth_shell() -> None:
 def render_app_hero() -> None:
     st.markdown(
         """
-        <section class="hero-shell">
+        <section class="hero-shell" id="contact">
             <span class="hero-badge">Bank statement parser · Powered by KreditLab</span>
             <h1>Turn Bank Statements Into <span class="accent">Clear Financial Insights</span></h1>
             <p class="hero-copy">Upload any bank statement PDF and get structured transaction data, summaries, and export-ready reports in seconds.</p>
@@ -1695,7 +1729,7 @@ def render_app_hero() -> None:
 def render_steps_showcase() -> None:
     st.markdown(
         """
-        <section class="steps-shell">
+        <section class="steps-shell" id="how-it-works">
             <div class="steps-head">
                 <span class="section-badge">How it works</span>
                 <h2>Four steps to financial clarity</h2>
@@ -1724,6 +1758,65 @@ def render_steps_showcase() -> None:
                     <div class="step-kicker">Step 4</div>
                     <div class="step-title">View Results</div>
                     <div class="step-copy">Inspect transactions, summaries, and export-ready outputs.</div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_features_showcase() -> None:
+    st.markdown(
+        """
+        <section class="steps-shell" id="features">
+            <div class="steps-head">
+                <span class="section-badge">Features</span>
+                <h2>Built for speed, security, and insight</h2>
+            </div>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-icon">⚡</div>
+                    <div class="step-title">Fast parsing</div>
+                    <div class="step-copy">Extract statement data in seconds with parser-optimized workflows.</div>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">🔒</div>
+                    <div class="step-title">Secure handling</div>
+                    <div class="step-copy">Password-protected PDFs are supported with privacy-first controls.</div>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">📊</div>
+                    <div class="step-title">Structured outputs</div>
+                    <div class="step-copy">Review transactions, summaries, and export-ready reports from one workspace.</div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_faq_showcase() -> None:
+    st.markdown(
+        """
+        <section class="steps-shell" id="faq">
+            <div class="steps-head">
+                <span class="section-badge">FAQ</span>
+                <h2>Frequently asked questions</h2>
+            </div>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <strong>Which statements are supported?</strong>
+                    Most major Malaysian bank statement formats are supported through dedicated parsers.
+                </div>
+                <div class="faq-item">
+                    <strong>Can I upload encrypted PDFs?</strong>
+                    Yes. If a statement is locked, provide the password and continue parsing securely.
+                </div>
+                <div class="faq-item">
+                    <strong>Can I export parsed data?</strong>
+                    Yes. Parsed outputs can be reviewed in-app and downloaded for reporting workflows.
                 </div>
             </div>
         </section>
