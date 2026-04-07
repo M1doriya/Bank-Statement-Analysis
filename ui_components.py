@@ -46,12 +46,12 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             --theme-icon-bg: #f0fdfa;
             --theme-icon-border: rgba(18, 184, 171, 0.24);
             --theme-icon-text: #0d8f85;
-            --mode-toggle-bg: #f8fafc;
+            --mode-toggle-bg: #ffffff;
             --mode-toggle-text: #0b1220;
             --mode-toggle-border: rgba(15, 23, 42, 0.16);
-            --mode-toggle-hover-bg: #eef2f7;
+            --mode-toggle-hover-bg: #ffffff;
             --mode-toggle-hover-text: #0b1220;
-            --mode-toggle-hover-border: rgba(15, 23, 42, 0.26);
+            --mode-toggle-hover-border: rgba(15, 23, 42, 0.22);
             --progress-bg: #ffffff;
             --progress-border: rgba(15, 23, 42, 0.10);
             --progress-title: #0b1220;
