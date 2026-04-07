@@ -624,6 +624,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             background: var(--mode-toggle-bg);
             border: 1px solid var(--mode-toggle-border);
             color: var(--mode-toggle-text);
+            -webkit-text-fill-color: var(--mode-toggle-text);
             font-weight: 700;
             box-shadow: none;
         }}
@@ -632,10 +633,13 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             background: var(--mode-toggle-hover-bg);
             border-color: var(--mode-toggle-hover-border);
             color: var(--mode-toggle-hover-text);
+            -webkit-text-fill-color: var(--mode-toggle-hover-text);
         }}
 
-        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button p {{
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button p,
+        div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button span {{
             color: inherit !important;
+            -webkit-text-fill-color: inherit !important;
             font-weight: inherit !important;
         }}
 
