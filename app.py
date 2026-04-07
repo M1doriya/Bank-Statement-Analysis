@@ -985,12 +985,25 @@ has_existing_results = bool(
 workspace_left, workspace_right = st.columns([0.9, 1.45], gap="large")
 
 with workspace_right:
+    bank_options = list(PARSERS.keys())
 
     render_tool_card_header("▣", "Select Bank", "Choose the issuing bank")
     if _supports_streamlit_kwarg(st.selectbox, "label_visibility"):
-        bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()), label_visibility="collapsed")
+        bank_choice = st.selectbox(
+            "Select Bank Format",
+            ["Select a bank..."] + bank_options,
+            index=0,
+            key="selected_bank",
+            label_visibility="collapsed",
+        )
     else:
-        bank_choice = st.selectbox("Select Bank Format", list(PARSERS.keys()))
+        bank_choice = st.selectbox(
+            "Select Bank Format",
+            ["Select a bank..."] + bank_options,
+            index=0,
+            key="selected_bank",
+        )
+    bank_selected = bank_choice in PARSERS
     close_tool_card()
 
     render_tool_card_header("⤴", "Upload Statement", "PDF format, one or multiple files")
@@ -1075,12 +1088,17 @@ with workspace_right:
     close_tool_card()
 
 with workspace_left:
-    render_progress_panel(st.session_state.status, uploaded_files or [], has_existing_results)
+    render_progress_panel(st.session_state.status, uploaded_files or [], has_existing_results, bank_selected=bank_selected)
 
 
 all_tx: List[dict] = []
 
 if uploaded_files and st.session_state.status == "running":
+    if not bank_selected:
+        st.error("Please select a bank before starting the parser.")
+        st.session_state.status = "idle"
+        st.stop()
+
     bank_display_box = st.empty()
     progress_bar = st.progress(0)
 
