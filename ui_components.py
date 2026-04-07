@@ -627,6 +627,7 @@ def inject_global_styles(theme_mode: str = "Dark") -> None:
             -webkit-text-fill-color: var(--mode-toggle-text);
             font-weight: 700;
             box-shadow: none;
+            opacity: 1;
         }}
 
         div[data-testid="column"]:has(.theme-mode-toggle-anchor) div.stButton > button:hover {{
