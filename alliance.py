@@ -95,6 +95,11 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
     """
     Parse Alliance Bank statement into transaction dicts.
     Uses balance-delta to infer debit/credit (robust vs layout variations).
+
+    Important for Alliance:
+    - Statement debit/credit orientation is opposite of the usual customer-ledger convention.
+    - In Alliance statements, an increasing running balance maps to DEBIT, and a decreasing
+      running balance maps to CREDIT (as reflected by statement totals).
     """
     raw_rows: List[Dict[str, Any]] = []
     current: Optional[Dict[str, Any]] = None
@@ -196,16 +201,16 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
         if isinstance(prev_balance, (int, float)) and isinstance(bal, (int, float)):
             delta = round(float(bal) - float(prev_balance), 2)
             if delta >= 0:
-                credit = abs(delta)
-            else:
                 debit = abs(delta)
+            else:
+                credit = abs(delta)
             prev_balance = float(bal)
         else:
             # fallback if beginning balance wasn't parsed
             amt = r.get("amount")
             if amt is None:
                 amt = 0.0
-            debit = float(amt)
+            credit = float(amt)
 
         if "ENDING BALANCE" in desc_up and isinstance(bal, (int, float)):
             desc = "ENDING BALANCE"
