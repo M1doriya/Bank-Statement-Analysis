@@ -1275,6 +1275,8 @@ if uploaded_files and st.session_state.status == "running":
 # Monthly Summary Calculation (same logic, adds company_name)
 # =========================================================
 def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
+    is_alliance = bank_choice == "Alliance Bank"
+
     # Affin-only
     if bank_choice == "Affin Bank" and st.session_state.affin_statement_totals:
         rows: List[dict] = []
@@ -1676,6 +1678,14 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
         ]
         account_no = acct_vals[0] if len(acct_vals) == 1 else (", ".join(acct_vals) if acct_vals else None)
 
+        month_total_debit = round(float(group_sorted["debit"].sum()), 2)
+        month_total_credit = round(float(group_sorted["credit"].sum()), 2)
+        month_net_change = (
+            round(float(month_total_debit - month_total_credit), 2)
+            if is_alliance
+            else round(float(month_total_credit - month_total_debit), 2)
+        )
+
         monthly_summary.append(
             {
                 "month": period,
@@ -1683,9 +1693,9 @@ def calculate_monthly_summary(transactions: List[dict]) -> List[dict]:
                 "account_no": account_no,
                 "transaction_count": int(len(group_sorted)),
                 "opening_balance": None,
-                "total_debit": round(float(group_sorted["debit"].sum()), 2),
-                "total_credit": round(float(group_sorted["credit"].sum()), 2),
-                "net_change": round(float(group_sorted["credit"].sum() - group_sorted["debit"].sum()), 2),
+                "total_debit": month_total_debit,
+                "total_credit": month_total_credit,
+                "net_change": month_net_change,
                 "ending_balance": ending_balance,
                 "lowest_balance": lowest_balance,
                 "lowest_balance_raw": lowest_balance_raw,
