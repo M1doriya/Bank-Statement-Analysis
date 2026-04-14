@@ -74,6 +74,17 @@ def _parse_money_tokens(text: str) -> List[float]:
     return out
 
 
+def _extract_balance_side(text: str) -> Optional[str]:
+    m = re.search(r"\b(?:\d{1,3}(?:,\d{3})*|\d+)\.\d{2}\s+(CR|DR)\s*$", text, flags=re.I)
+    return m.group(1).upper() if m else None
+
+
+def _signed_balance(balance: float, side: Optional[str]) -> float:
+    if side == "DR":
+        return -abs(float(balance))
+    return abs(float(balance))
+
+
 def _iso_from_ddmmyy(dd: str, mm: str, yy: str) -> Optional[str]:
     y = 2000 + int(yy)
     try:
@@ -130,6 +141,7 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
                     "amount": None,
                     "balance": None,
                     "page": page_no,
+                    "balance_side": _extract_balance_side(line),
                 }
 
                 # typical: ... <amount> <balance>
@@ -151,19 +163,21 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
             current["description_parts"].append(line)
 
             # sometimes numeric tokens appear on continuation line
-            if current.get("balance") is None:
-                vals = _parse_money_tokens(line)
-                if len(vals) >= 2:
-                    current["amount"] = vals[-2]
-                    current["balance"] = vals[-1]
-                elif len(vals) == 1:
-                    current["balance"] = vals[-1]
+            vals = _parse_money_tokens(line)
+            if current.get("balance") is None and len(vals) >= 2:
+                current["amount"] = vals[-2]
+                current["balance"] = vals[-1]
+            elif current.get("balance") is None and len(vals) == 1:
+                current["balance"] = vals[-1]
+
+            if current.get("balance_side") is None:
+                current["balance_side"] = _extract_balance_side(line)
 
     if current:
         raw_rows.append(current)
 
     out: List[Dict[str, Any]] = []
-    prev_balance: Optional[float] = None
+    prev_signed_balance: Optional[float] = None
     seq = 0
 
     for r in raw_rows:
@@ -171,10 +185,11 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
         desc = _norm(" ".join(r.get("description_parts") or []))
         desc_up = desc.upper()
         bal = r.get("balance")
+        bal_side = r.get("balance_side")
 
         # BEGINNING BALANCE row
         if "BEGINNING BALANCE" in desc_up and isinstance(bal, (int, float)):
-            prev_balance = float(bal)
+            prev_signed_balance = _signed_balance(float(bal), bal_side)
             out.append(
                 {
                     "date": r["date"],
@@ -193,13 +208,14 @@ def parse_transactions_alliance(pdf, filename: str) -> List[Dict[str, Any]]:
         debit = 0.0
         credit = 0.0
 
-        if isinstance(prev_balance, (int, float)) and isinstance(bal, (int, float)):
-            delta = round(float(bal) - float(prev_balance), 2)
+        if isinstance(prev_signed_balance, (int, float)) and isinstance(bal, (int, float)):
+            curr_signed_balance = _signed_balance(float(bal), bal_side)
+            delta = round(curr_signed_balance - float(prev_signed_balance), 2)
             if delta >= 0:
                 credit = abs(delta)
             else:
                 debit = abs(delta)
-            prev_balance = float(bal)
+            prev_signed_balance = _signed_balance(float(bal), bal_side)
         else:
             # fallback if beginning balance wasn't parsed
             amt = r.get("amount")
